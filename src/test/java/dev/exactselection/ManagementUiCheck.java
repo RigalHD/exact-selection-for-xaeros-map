@@ -188,6 +188,22 @@ public final class ManagementUiCheck {
         catch (Exception e) { throw new AssertionError(e); }
     }
 
+    private static void checkHintFitting(ExactSelectionController controller) throws Exception {
+        Method fit = ExactSelectionController.class.getDeclaredMethod("fitHint", String.class, int.class);
+        fit.setAccessible(true);
+        String hint = "Ctrl/Cmd: двигать вершины · Двойной ЛКМ по стороне: добавить · Ctrl/Cmd+двойной ЛКМ: удалить";
+        require(fit.invoke(controller, hint, 240).equals("Ctrl/Cmd: двигать вершины"), "Panel hint cut a word instead of dropping whole hints");
+        require(fit.invoke(controller, hint, 404).equals("Ctrl/Cmd: двигать вершины · Двойной ЛКМ по стороне: добавить"),
+                "Expanded panel hint did not keep every whole hint that fits");
+        String narrow = (String) fit.invoke(controller, hint, 60);
+        require(narrow.endsWith("…") && narrow.length() * 6 <= 60, "Overlong single hint is not shortened with an ellipsis");
+        Button save = (Button) get(controller, "quickSave"), mode = (Button) get(controller, "panelModeButton");
+        // The hint line is drawn at PANEL_Y + 22 with 9-pixel text; buttons must stay clear of it.
+        require(mode.getY() + mode.getHeight() <= 26 + 22 && save.getY() >= 26 + 32,
+                "Panel buttons overlap the hint line");
+        System.out.println("PASS: panel hints keep whole phrases and stay clear of the header buttons");
+    }
+
     private static void checkSelectionPanel(ExactSelectionController controller, GuiMap map) throws Exception {
         require((Boolean) get(controller, "compact"), "Compact panel is not the default");
         SelectionState selection = (SelectionState) get(controller, "state");
@@ -1032,6 +1048,7 @@ public final class ManagementUiCheck {
             set(controller, "context", context); set(controller, "historyContext", context);
             call(controller, "updateVisibility");
             checkSelectionPanel(controller, map);
+            checkHintFitting(controller);
             checkExportNotice(controller, map, directory);
             checkPolygonEditing(controller, map, store, directory, context);
             checkSavedLabelLayering(controller, store, unsafe);

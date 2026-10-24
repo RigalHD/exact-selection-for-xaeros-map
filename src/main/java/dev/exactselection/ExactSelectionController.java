@@ -287,7 +287,7 @@ public final class ExactSelectionController {
         place(panelModeButton, PANEL_X + panelWidth - 80, PANEL_Y + 4, 72, 16);
         Button[] copies = {copyCoordinates, copyArea, copyPerimeter, copyLength, copyWidth};
         if (compact) {
-            place(quickSave, PANEL_X + panelWidth - 86, y + 31, 78, 18);
+            place(quickSave, PANEL_X + panelWidth - 86, y + 33, 78, 18);
             mainRow(copies, x, y + 105, w, 16);
             arrowRow(new Button[]{clear, polygonModeButton}, x, y + 128, w);
             mainRow(new Button[]{areasButton, groupsButton}, x, y + 149, w, 18);
@@ -1888,8 +1888,8 @@ public final class ExactSelectionController {
                 : state.source() != null && state.phase() == SelectionState.Phase.SELECTED ? "rectangle_edit_controls"
                 : state.phase() == SelectionState.Phase.PREVIEW ? "second_corner"
                 : state.phase() == SelectionState.Phase.SELECTED ? "new_selection" : "first_corner";
-        g.drawString(mc.font, mc.font.plainSubstrByWidth(tr(hint).getString(), panelWidth - 16),
-                PANEL_X + 8, PANEL_Y + 20, 0xFFD0DBE2);
+        // Two pixels below the mode button so the line never touches it.
+        g.drawString(mc.font, fitHint(tr(hint).getString(), panelWidth - 16), PANEL_X + 8, PANEL_Y + 22, 0xFFD0DBE2);
         g.enableScissor(PANEL_X + 1, PANEL_Y + 32, PANEL_X + panelWidth - 1,
                 PANEL_Y + panelHeight - (maxPanelScroll() > 0 ? 16 : 3));
         SelectionBounds b = state.bounds();
@@ -1929,6 +1929,19 @@ public final class ExactSelectionController {
         g.disableScissor();
         if (maxPanelScroll() > 0)
             g.drawString(mc.font, tr("panel_scroll"), PANEL_X + 8, PANEL_Y + panelHeight - 12, 0xFF9BAAB7);
+    }
+
+    /**
+     * Keeps whole " · "-separated hints that fit, so a narrow panel drops trailing hints instead of cutting a word;
+     * a single hint that is still too wide ends with an ellipsis.
+     */
+    private String fitHint(String text, int width) {
+        if (mc.font.width(text) <= width) return text;
+        String[] parts = text.split(" · ");
+        String fitted = parts[0];
+        for (int i = 1; i < parts.length && mc.font.width(fitted + " · " + parts[i]) <= width; i++) fitted += " · " + parts[i];
+        if (mc.font.width(fitted) <= width) return fitted;
+        return mc.font.plainSubstrByWidth(fitted, width - mc.font.width("…")).stripTrailing() + "…";
     }
 
     private void sectionHeader(GuiGraphics g, Component text, int y) {

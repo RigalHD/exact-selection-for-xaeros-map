@@ -75,6 +75,9 @@ public final class SelectionCheck {
         state.reset(); assert state.source() == null;
         state.restore(linked); assert state.source().equals("saved-area");
         state.disable(); assert state.source() == null;
+        // Xaero draws a waypoint in floor(coordinate / dimDiv), e.g. Overworld waypoints on a Nether map (dimDiv 8).
+        assert WaypointAccess.mapBlock(15, 1) == 15 && WaypointAccess.mapBlock(15, 8) == 1;
+        assert WaypointAccess.mapBlock(-1, 8) == -1 && WaypointAccess.mapBlock(-9, 8) == -2 && WaypointAccess.mapBlock(4, 0.125) == 32;
         System.out.println("PASS: inclusive bounds, negative coordinates, long area, state transitions, map transforms");
     }
 }

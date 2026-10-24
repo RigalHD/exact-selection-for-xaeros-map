@@ -1887,7 +1887,9 @@ public final class ExactSelectionController {
         if (selected != null) {
             g.enableScissor(0, 0, screen.width, screen.height);
             for (WaypointAccess.Point point : selected.points()) {
-                double px = frame.screenX(point.x() + 0.5), py = frame.screenY(point.z() + 0.5);
+                double scale = waypoints.dimensionScale();
+                double px = frame.screenX(WaypointAccess.mapBlock(point.x(), scale) + 0.5);
+                double py = frame.screenY(WaypointAccess.mapBlock(point.z(), scale) + 0.5);
                 if (px < -6 || px > screen.width + 6 || py < -6 || py > screen.height + 6) continue;
                 int x = (int) Math.floor(px), y = (int) Math.floor(py);
                 g.renderOutline(x - 5, y - 5, 11, 11, 0xFFFFCF62);

@@ -26,19 +26,35 @@ public final class XaeroWaypointBridge implements WaypointAccess {
     @Override public int colorRgb(int index) { return WaypointColor.fromIndex(index).getHex() & 0xFFFFFF; }
     @FunctionalInterface private interface Area { boolean contains(int x, int z); }
 
+    /**
+     * The waypoint world the World Map itself draws: the minimap's current world, or the viewed map's own world when
+     * Xaero's "only current map waypoints" option is on. The auto-detected map world differs from it on servers with
+     * custom subworlds, which made selections find no waypoints.
+     */
+    private static MinimapWorld displayedWorld() {
+        return SupportMods.minimap() ? SupportMods.xaeroMinimap.getWaypointWorld() : null;
+    }
+
+    /** Xaero's coordinate division between the waypoint world and the viewed dimension (8 for the Overworld on a Nether map). */
+    private static double scale() {
+        double scale = SupportMods.minimap() ? SupportMods.xaeroMinimap.getDimDiv() : 1;
+        return scale > 0 && Double.isFinite(scale) ? scale : 1;
+    }
+
+    @Override public double dimensionScale() { return scale(); }
+
     private static Snapshot select(MapBridge.Context context, Area area) {
-        if (!SupportMods.minimap() || context == null) return null;
-        var support = SupportMods.xaeroMinimap;
-        // Respect Xaero's current waypoint availability; never select projected dimensions.
-        if (support.getWaypointWorld() == null) return null;
-        MinimapWorld world = support.getMapWaypointWorld();
-        if (world == null || !context.dimension().equals(world.getDimId())) return null;
+        if (context == null) return null;
+        MinimapWorld world = displayedWorld();
+        if (world == null) return null;
         WaypointSet set = world.getCurrentWaypointSet();
         if (set == null) return null;
+        double scale = scale();
         // Runs every frame: only the matching points are captured; captureSet records the whole set on demand.
         List<Point> points = new ArrayList<>();
         for (Waypoint w : set.getWaypoints()) {
-            if (ordinary(w) && area.contains(w.getX(), w.getZ())) points.add(point(w));
+            if (ordinary(w) && area.contains(WaypointAccess.mapBlock(w.getX(), scale), WaypointAccess.mapBlock(w.getZ(), scale)))
+                points.add(point(w));
         }
         return new Snapshot(world, set, set.getName(), points);
     }
@@ -47,7 +63,7 @@ public final class XaeroWaypointBridge implements WaypointAccess {
     public Snapshot captureSet(Snapshot snapshot) {
         if (snapshot == null) return null;
         MinimapWorld world = (MinimapWorld) snapshot.world();
-        if (!SupportMods.minimap() || world != SupportMods.xaeroMinimap.getMapWaypointWorld()
+        if (!SupportMods.minimap() || world != SupportMods.xaeroMinimap.getWaypointWorld()
                 || snapshot.set() != world.getCurrentWaypointSet()) return null;
         List<Point> setPoints = new ArrayList<>();
         for (Waypoint w : ((WaypointSet) snapshot.set()).getWaypoints()) setPoints.add(point(w));
@@ -76,7 +92,7 @@ public final class XaeroWaypointBridge implements WaypointAccess {
     public void delete(Snapshot snapshot) throws Exception {
         MinimapWorld world = (MinimapWorld) snapshot.world();
         MinimapSession session = BuiltInHudModules.MINIMAP.getCurrentSession();
-        if (session == null || world != SupportMods.xaeroMinimap.getMapWaypointWorld()
+        if (session == null || world != SupportMods.xaeroMinimap.getWaypointWorld()
                 || snapshot.set() != world.getCurrentWaypointSet())
             throw new IllegalStateException("Waypoint context changed");
         try {
@@ -89,7 +105,7 @@ public final class XaeroWaypointBridge implements WaypointAccess {
     @Override public void edit(Snapshot snapshot, List<Point> from, List<Point> to) throws Exception {
         MinimapWorld world = (MinimapWorld) snapshot.world();
         MinimapSession session = BuiltInHudModules.MINIMAP.getCurrentSession();
-        if (!SupportMods.minimap() || session == null || world != SupportMods.xaeroMinimap.getMapWaypointWorld()
+        if (!SupportMods.minimap() || session == null || world != SupportMods.xaeroMinimap.getWaypointWorld()
                 || snapshot.set() != world.getCurrentWaypointSet())
             throw new IllegalStateException("Waypoint context changed");
         try { editAndSave((WaypointSet) snapshot.set(), from, to, () -> session.getWorldManagerIO().saveWorld(world)); }
@@ -158,7 +174,7 @@ public final class XaeroWaypointBridge implements WaypointAccess {
     public void restore(Snapshot snapshot) throws Exception {
         MinimapWorld world = (MinimapWorld) snapshot.world();
         MinimapSession session = BuiltInHudModules.MINIMAP.getCurrentSession();
-        if (session == null || world != SupportMods.xaeroMinimap.getMapWaypointWorld()
+        if (session == null || world != SupportMods.xaeroMinimap.getWaypointWorld()
                 || snapshot.set() != world.getCurrentWaypointSet())
             throw new IllegalStateException("Waypoint context changed");
         WaypointSet set = (WaypointSet) snapshot.set();
@@ -214,10 +230,11 @@ public final class XaeroWaypointBridge implements WaypointAccess {
     public Point create(MapBridge.Context context, int x, int y, int z, String name) throws Exception {
         if (!SupportMods.minimap() || context == null) throw new IllegalStateException("Minimap unavailable");
         var support = SupportMods.xaeroMinimap;
-        if (support.getWaypointWorld() == null) throw new IllegalStateException("Waypoints unavailable");
-        MinimapWorld world = support.getMapWaypointWorld();
-        if (world == null || !context.dimension().equals(world.getDimId()))
-            throw new IllegalStateException("Waypoint context changed");
+        MinimapWorld world = displayedWorld();
+        if (world == null) throw new IllegalStateException("Waypoints unavailable");
+        // x/z are map blocks; place the waypoint where the map will draw it in that block.
+        double scale = scale();
+        if (scale != 1) { x = (int) Math.floor((x + 0.5) * scale); z = (int) Math.floor((z + 0.5) * scale); }
         WaypointSet set = world.getCurrentWaypointSet();
         MinimapSession session = BuiltInHudModules.MINIMAP.getCurrentSession();
         if (set == null || session == null) throw new IllegalStateException("Waypoint set unavailable");
@@ -243,8 +260,8 @@ public final class XaeroWaypointBridge implements WaypointAccess {
         MinimapWorld world = (MinimapWorld) point.worldIdentity();
         WaypointSet set = (WaypointSet) point.setIdentity();
         MinimapSession session = BuiltInHudModules.MINIMAP.getCurrentSession();
-        if (!SupportMods.minimap() || session == null || world != SupportMods.xaeroMinimap.getMapWaypointWorld()
-                || set != world.getCurrentWaypointSet() || !context.dimension().equals(world.getDimId()))
+        if (!SupportMods.minimap() || session == null || world != SupportMods.xaeroMinimap.getWaypointWorld()
+                || set != world.getCurrentWaypointSet())
             throw new IllegalStateException("Waypoint context changed");
         Waypoint waypoint = new Waypoint(point.x(), point.y(), point.z(), point.name(), point.symbol(),
                 WaypointColor.fromIndex(point.color()));
@@ -273,8 +290,7 @@ public final class XaeroWaypointBridge implements WaypointAccess {
         var support = SupportMods.xaeroMinimap;
         MinimapWorld world = (MinimapWorld) point.worldIdentity();
         MinimapSession session = BuiltInHudModules.MINIMAP.getCurrentSession();
-        if (world == null || session == null || world != support.getMapWaypointWorld()
-                || !context.dimension().equals(world.getDimId()))
+        if (world == null || session == null || world != support.getWaypointWorld())
             throw new IllegalStateException("Waypoint context changed");
         WaypointSet set = (WaypointSet) point.setIdentity();
         if (set == null || set != world.getCurrentWaypointSet()) throw new IllegalStateException("Waypoint set changed");

@@ -37,6 +37,12 @@ public interface WaypointAccess {
                 (int) (b.maxX() - 1), (int) (b.maxZ() - 1)));
     }
     Snapshot all(MapBridge.Context context);
+    /** Xaero's division from waypoint coordinates to map blocks; 1 when the waypoints belong to the viewed dimension. */
+    default double dimensionScale() { return 1; }
+    /** The map block where Xaero draws a waypoint coordinate. */
+    static int mapBlock(int coordinate, double scale) {
+        return scale == 1 ? coordinate : (int) Math.floor(coordinate / scale);
+    }
     void edit(Snapshot snapshot, List<Point> from, List<Point> to) throws Exception;
     int colorRgb(int index);
     Snapshot captureSet(Snapshot snapshot);

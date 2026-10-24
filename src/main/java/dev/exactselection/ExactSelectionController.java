@@ -75,7 +75,7 @@ public final class ExactSelectionController {
     private String exportNotice = "";
     private Button areaMapVisibility, areaMinimapVisibility;
     private Button pointVisibility, pointColor, pointScope, pointRename, pointRecolor;
-    private Button quickSave, zonesButton, newAreaGroup, newAreaOpacityButton, colorHexApply, colorBack;
+    private Button quickSave, zonesButton, newAreaGroup, newAreaOpacityButton, colorHexApply;
     private Dialog areaNameReturn = Dialog.AREAS, colorReturn = Dialog.AREAS;
     private String newAreaGroupId;
     /** Style for the next saved area; kept between saves so a series of areas can share it. */
@@ -273,15 +273,13 @@ public final class ExactSelectionController {
             updateVisibility();
         });
         newAreaOpacityButton.setTooltip(Tooltip.create(tr("area_new_opacity_tooltip")));
-        colorHexApply = button("apply", 0, 0, 90, this::applyHexColor);
-        colorBack = button("back", 0, 0, 110, this::cancelDialog);
+        colorHexApply = button("color_apply", 0, 0, 90, this::applyHexColor);
         pointsButton.setTooltip(Tooltip.create(tr(waypoints == null ? "minimap_missing" : "waypoints_tooltip")));
         pointScope.setTooltip(Tooltip.create(tr("point_scope_tooltip")));
         pointRename.setTooltip(Tooltip.create(tr("point_rename_tooltip")));
         pointRecolor.setTooltip(Tooltip.create(tr("point_color_tooltip")));
         newAreaGroup.setTooltip(Tooltip.create(tr("area_new_group_tooltip")));
         colorHexApply.setTooltip(Tooltip.create(tr("color_hex_tooltip")));
-        colorBack.setTooltip(Tooltip.create(tr("color_back_tooltip")));
         areaVisibility.setTooltip(Tooltip.create(tr("area_visibility_rules")));
         groupVisibility.setTooltip(Tooltip.create(tr("group_toggle_tooltip")));
         groupAssign.setTooltip(Tooltip.create(tr("group_picker_tooltip")));
@@ -521,7 +519,7 @@ public final class ExactSelectionController {
             case ASSIGN_GROUP -> Math.min(330, screen.height - 16);
             case AREA_NAME -> Math.min(210, screen.height - 16);
             case GROUP_NAME -> Math.min(140, screen.height - 16);
-            case COLOR -> Math.min(170, screen.height - 16);
+            case COLOR -> Math.min(140, screen.height - 16);
             case WAYPOINTS -> Math.min(330, screen.height - 16);
             default -> 0;
         };
@@ -647,7 +645,6 @@ public final class ExactSelectionController {
             case COLOR -> {
                 place(dialogFields[HEX_FIELD], x + 12, y + 110, w - 24 - 94, 18);
                 place(colorHexApply, x + w - 102, y + 110, 90, 18);
-                place(colorBack, x + w / 2 - 55, buttonY, 110, 18);
             }
             case WAYPOINTS -> {
                 place(dialogFields[7], x + 12, y + 38, w - 24, 18);
@@ -2146,7 +2143,7 @@ public final class ExactSelectionController {
         if (dialog == Dialog.CENTER) show(true, dialogFields[6], centerCopy, centerCreate);
         if (dialog == Dialog.AREA_NAME) show(true, dialogFields[8], newAreaGroup, newAreaOpacityButton, modalApply, modalCancel);
         if (dialog == Dialog.COLOR) {
-            show(true, colorBack);
+            // A swatch or Apply chooses the color; Esc leaves without one.
             if (colorReturn == Dialog.AREAS) show(true, dialogFields[HEX_FIELD], colorHexApply);
         }
         if (dialog == Dialog.GROUP_NAME) show(true, dialogFields[5], modalApply, modalCancel);

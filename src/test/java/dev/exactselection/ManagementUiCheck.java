@@ -889,7 +889,7 @@ public final class ManagementUiCheck {
             for (int[] size : List.of(new int[]{320, 240}, new int[]{480, 270}, new int[]{960, 540})) {
                 map.width = size[0]; map.height = size[1]; controller.init();
                 press(controller, "areasButton"); press(controller, "areaSelectAll");
-                press(controller, "areaColor"); checkLayout(controller); press(controller, "colorBack");
+                press(controller, "areaColor"); checkLayout(controller); key(controller, GLFW.GLFW_KEY_ESCAPE, 0); require(!window(controller).equals("COLOR"), "Esc did not close the color window");
                 press(controller, "areaSave"); checkLayout(controller); press(controller, "modalCancel");
                 press(controller, "managementClose");
             }
@@ -988,7 +988,7 @@ public final class ManagementUiCheck {
             text(controller, 7).setValue(""); call(controller, "updateVisibility");
             for (int[] size : List.of(new int[]{320, 240}, new int[]{480, 270}, new int[]{960, 540})) {
                 map.width = size[0]; map.height = size[1]; controller.init(); checkLayout(controller);
-                press(controller, "pointRecolor"); checkLayout(controller); press(controller, "colorBack");
+                press(controller, "pointRecolor"); checkLayout(controller); key(controller, GLFW.GLFW_KEY_ESCAPE, 0); require(!window(controller).equals("COLOR"), "Esc did not close the color window");
             }
             press(controller, "cancel");
             System.out.println("PASS: safe entire-set waypoint management, rename/color/delete, undo, stale snapshot guards, scope and responsive layouts");

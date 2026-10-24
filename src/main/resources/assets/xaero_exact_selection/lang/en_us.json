@@ -264,7 +264,7 @@
   "exactselection.color_title": "Choose a color",
   "exactselection.color_invalid": "Invalid color. Enter #RRGGBB or #RGB.",
   "exactselection.color_hex_tooltip": "Apply the entered RGB color to checked areas",
-  "exactselection.color_back_tooltip": "Return without changing the color",
+  "exactselection.color_apply": "Apply",
   "exactselection.history_area_color": "Area color",
   "exactselection.polygon_vertex_deleted": "Vertex deleted",
   "exactselection.history_vertex_delete": "Delete vertex",

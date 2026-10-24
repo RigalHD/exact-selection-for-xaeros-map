@@ -264,7 +264,7 @@
   "exactselection.color_title": "Выбор цвета",
   "exactselection.color_invalid": "Неверный цвет. Введите #RRGGBB или #RGB.",
   "exactselection.color_hex_tooltip": "Применить введённый RGB-цвет к отмеченным областям",
-  "exactselection.color_back_tooltip": "Вернуться без изменения цвета",
+  "exactselection.color_apply": "Применить",
   "exactselection.history_area_color": "Цвет областей",
   "exactselection.polygon_vertex_deleted": "Вершина удалена",
   "exactselection.history_vertex_delete": "Удаление вершины",

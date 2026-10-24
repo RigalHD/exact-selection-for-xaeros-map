@@ -1273,6 +1273,54 @@ public final class ManagementUiCheck {
         System.out.println("PASS: Shift/Ctrl area selection, sorting, name copy, export/import with duplicate skipping and group matching, group export");
     }
 
+    private static void checkExportWindow(ExactSelectionController controller, GuiMap map, Path directory) throws Exception {
+        SelectionState selection = (SelectionState) get(controller, "state");
+        SelectionState.Snapshot initial = selection.snapshot();
+        try {
+            selection.set(new SelectionBounds(0, 0, 99, 49));
+            call(controller, "updateVisibility");
+            press(controller, "panelModeButton");
+            press(controller, "selectionExportButton");
+            require(window(controller).equals("EXPORT"), "Selection export did not open the export window");
+            EditBox folder = text(controller, 11);
+            require(Path.of(folder.getValue()).equals(directory.resolve("xaero-exact-selection").resolve("map-exports").toAbsolutePath()),
+                    "Export window does not start in the default folder: " + folder.getValue());
+            Button run = (Button) get(controller, "exportRun");
+            require(run.visible && run.active, "Export is unavailable for a small selection");
+            int scale = (Integer) get(get(controller, "exportPreferences"), "scale");
+            press(controller, "exportScale");
+            require((Integer) get(get(controller, "exportPreferences"), "scale") != scale, "Scale button did not change the scale");
+            boolean night = (Boolean) get(get(controller, "exportPreferences"), "night");
+            press(controller, "exportTime");
+            require((Boolean) get(get(controller, "exportPreferences"), "night") != night, "Day/night button did not toggle");
+            folder.setValue("relative/path"); call(controller, "updateVisibility");
+            require(!run.active, "A relative folder can be exported to");
+            press(controller, "exportDefaultFolder");
+            require(run.active, "Default folder button did not restore a usable folder");
+            for (int[] size : List.of(new int[]{320, 240}, new int[]{480, 270}, new int[]{960, 540}, new int[]{640, 360})) {
+                map.width = size[0]; map.height = size[1];
+                // Screen.rebuildWidgets clears the old widgets before init() adds new ones.
+                for (String name : List.of("children", "narratables", "renderables")) ((List<?>) get(map, name)).clear();
+                controller.init(); checkLayout(controller);
+            }
+            key(controller, GLFW.GLFW_KEY_ESCAPE, 0);
+            require(window(controller).equals("NONE"), "Esc did not close the export window back to the map");
+            selection.set(new SelectionBounds(0, 0, 3999, 3999));
+            call(controller, "updateVisibility");
+            press(controller, "selectionExportButton");
+            require(window(controller).equals("EXPORT"), "Export window did not reopen; message=" + get(controller, "message"));
+            // init() above rebuilt the widgets, so read the current button.
+            require(!((Button) get(controller, "exportRun")).active, "An image above the pixel limit can be exported");
+            key(controller, GLFW.GLFW_KEY_ESCAPE, 0);
+        } finally {
+            set(controller, "dialog", dialog(controller, "NONE"));
+            set(controller, "compact", true);
+            selection.restore(initial);
+            call(controller, "layoutMainPanel"); call(controller, "syncFields"); call(controller, "updateVisibility");
+        }
+        System.out.println("PASS: export window with default folder, path validation, scale, day/night, size limit and responsive layout");
+    }
+
     public static void main(String[] args) throws Exception {
         SharedConstants.tryDetectVersion();
         Field unsafeField = Unsafe.class.getDeclaredField("theUnsafe");
@@ -1317,6 +1365,7 @@ public final class ManagementUiCheck {
             checkFramedAreasAndMetrics(controller, store);
             checkAreaDraftAndAutosave(controller, map, store, unsafe);
             checkAreaListAndTransfer(controller, store, directory);
+            checkExportWindow(controller, map, directory);
             checkExportNotice(controller, map, directory);
             checkPolygonEditing(controller, map, store, directory, context);
             checkSavedLabelLayering(controller, store, unsafe);

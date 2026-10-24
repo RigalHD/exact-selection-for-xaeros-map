@@ -76,11 +76,16 @@ Before each write, the addon checks that the points and set still match the disp
 
 ## PNG export
 
-Expand the selection panel and choose **Export selection as PNG with areas**, or export one saved area from the Areas window. Saving the working selection first is unnecessary. Export uses one pixel per block; pixels outside a polygon are transparent. Visible saved areas are included with their colors, opacity, group visibility and readable labels.
+Expand the selection panel and choose **Export selection as PNG…**, or **Export map…** for one saved area in the Areas window. Saving the working selection first is unnecessary. The export window shows:
 
-Files use Xaero’s own export destination, normally `map exports/` in the game directory. **Show PNG in folder** reveals the result in the default file manager where supported, or opens its folder. Native map preparation runs on the client thread; image composition and PNG encoding run in the background.
+- **Folder**: Xaero's own export folder (normally `map exports/` in the game directory) or any absolute path; **Choose…** opens the system folder picker, **Default folder** restores Xaero's folder, and the full path of the file to be written is shown below.
+- **Time: day / night**: night uses Xaero's own night export, with the dark sky and block light.
+- **Scale**: 1, 2, 4 or 8 image pixels per block; the map is enlarged without blurring and the resulting image size is shown.
+- **Labels: on / off**.
 
-Map data must be loaded. Export is limited to **8,000,000 pixels**, including chunk alignment. Coordinate drafts and unfinished gestures cannot be exported.
+The image looks like the in-game World Map: translucent area fills with thin outlines, and names in the area's color with Minecraft's pixel font, drop shadow and dark backing, drawn above all fills. As in game, an area is named once it is large enough for its label. Pixels outside a polygon are transparent. The choices are remembered for all worlds.
+
+Native map preparation runs on the client thread; enlarging, drawing and PNG encoding run in the background. **Show file in folder** reveals the result. Map data must be loaded. Export is limited to 8,000,000 map blocks and 16,000,000 image pixels; above that the window disables Export and asks for a smaller scale.
 
 ## Building
 

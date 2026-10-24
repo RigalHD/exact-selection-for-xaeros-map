@@ -21,7 +21,8 @@ public final class ExportFinishCheck {
         for (int x = 0; x < rawSize; x++) for (int z = 0; z < rawSize; z++) raw.setRGB(x, z, 0xFF336699);
         ImageIO.write(raw, "png", jobDirectory.resolve("xaero.png").toFile());
         return new AreaExportService.RawJob(jobDirectory, root, id, 16, 16, 0, 0, 16, 16,
-                new RectangleGeometry(new SelectionBounds(0, 0, 15, 15)), List.of(), List.of());
+                new RectangleGeometry(new SelectionBounds(0, 0, 15, 15)), List.of(), List.of(),
+                new AreaExportService.Options(root, "ExactSelection-" + id + ".png", false, 1, true, null));
     }
 
     private static boolean leftovers(Path root, String id) throws IOException {

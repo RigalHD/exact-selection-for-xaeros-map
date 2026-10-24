@@ -111,8 +111,9 @@ public final class IntegrationSmokeCheck {
             throw new AssertionError("Native Xaero export destination was not restored correctly");
         Class<?> exportService = Class.forName("dev.exactselection.AreaExportService", false, loader);
         if (java.util.Arrays.stream(exportService.getDeclaredMethods())
-                .noneMatch(m -> m.getName().equals("export") && m.getParameterCount() == 5))
-            throw new AssertionError("Map export still requires an independent output directory");
+                .noneMatch(m -> m.getName().equals("export") && m.getParameterCount() == 6
+                        && m.getParameterTypes()[5].getSimpleName().equals("Options")))
+            throw new AssertionError("Map export does not take the export window's options");
         System.out.println("PASS: native Xaero export destination access and restoration, including paths with spaces");
         Class.forName("dev.exactselection.AreaRenderPipelines", true, loader);
         checkGuiGeometry(loader);

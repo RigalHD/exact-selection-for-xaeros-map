@@ -217,6 +217,13 @@ public final class ExactSelectionController {
             dialogFields[i] = field;
             widgets.add(field);
         }
+        dialogFields[HEX_FIELD].setResponder(value -> {
+            if (syncing) return;
+            // The new-area window takes a typed color as soon as it is complete.
+            int color = AreaPalette.parse(value);
+            if (dialog == Dialog.AREA_NAME && color >= 0) newAreaColor = color;
+            updateVisibility();
+        });
         dialogFields[4].setResponder(value -> {
             if (syncing) return;
             SavedAreaStore.Area area = selectedAreas().size() == 1 ? selectedArea() : null;
@@ -242,7 +249,9 @@ public final class ExactSelectionController {
         areaLoad = button("area_edit", 0, 0, 110, this::loadArea);
         areaDelete = button("area_delete", 0, 0, 110, this::deleteArea);
         areaSaveChanges = button("area_save_changes", 0, 0, 110, () -> commitDraft(field -> true));
-        autosaveButton = button("autosave_button", 0, 0, 120, () -> { autosaveOpen = !autosaveOpen; focus(null); updateVisibility(); });
+        autosaveButton = Button.builder(Component.empty(), button -> { autosaveOpen = !autosaveOpen; focus(null); updateVisibility(); })
+                .bounds(0, 0, 18, 16).build();
+        widgets.add(autosaveButton);
         autosaveToggle = button("autosave_off", 0, 0, 120, () -> {
             autosave.setEnabled(!autosave.enabled());
             if (autosave.enabled()) commitDraft(autosave::covers);
@@ -386,7 +395,6 @@ public final class ExactSelectionController {
         place(panelModeButton, PANEL_X + panelWidth - 80, PANEL_Y + 4, 72, 16);
         Button[] copies = {copyCoordinates, copyArea, copyPerimeter, copyLength, copyWidth};
         if (compact) {
-            place(quickSave, PANEL_X + panelWidth - 86, top + 33, 78, 18);
             mainRow(copies, x, y + 105, w, 16);
             arrowRow(new Button[]{clear, polygonModeButton}, x, y + 128, w);
             mainRow(new Button[]{areasButton, groupsButton}, x, y + 149, w, 18);
@@ -399,7 +407,7 @@ public final class ExactSelectionController {
             place(apply, x, top + 82, w, 18);
             mainRow(copies, x, y + 154, w, 16);
             arrowRow(new Button[]{chunkMode, sizeButton, moveButton, centerButton}, x, y + 180, w);
-            mainRow(new Button[]{polygonModeButton, quickSave, groupsButton, clear}, x, y + 202, w, 18);
+            mainRow(new Button[]{polygonModeButton, groupsButton, clear}, x, y + 202, w, 18);
             mainRow(new Button[]{areasButton, zonesButton, pointsButton}, x, y + 224, w, 18);
             place(selectionExportButton, x, y + 246, w, 18);
         }
@@ -510,6 +518,7 @@ public final class ExactSelectionController {
         dialog = Dialog.AREA_NAME;
         newAreaGroupId = null;
         setDialogValue(8, tr("area_default_name", areaStore.state().areas().size() + 1).getString());
+        setDialogValue(HEX_FIELD, AreaPalette.format(newAreaColor));
         message = "";
         updateVisibility();
         focus(dialogFields[8]);
@@ -580,7 +589,7 @@ public final class ExactSelectionController {
             case CENTER -> Math.min(150, screen.height - 16);
             case AREAS, GROUPS -> Math.min(460, screen.height - 16);
             case ASSIGN_GROUP -> Math.min(330, screen.height - 16);
-            case AREA_NAME -> Math.min(210, screen.height - 16);
+            case AREA_NAME -> Math.min(236, screen.height - 16);
             case GROUP_NAME -> Math.min(140, screen.height - 16);
             case COLOR -> Math.min(140, screen.height - 16);
             case WAYPOINTS, IMPORT -> Math.min(330, screen.height - 16);
@@ -652,7 +661,7 @@ public final class ExactSelectionController {
                 place(managementRedo, x + w - 207, y + 7, 22, 18);
                 place(manageGroups, x + w - 180, y + 7, 92, 18);
                 place(managementClose, x + w - 82, y + 7, 70, 18);
-                place(autosaveButton, x + w - 132, y + h - 24, 120, 16);
+                place(autosaveButton, x + w - 30, y + h - 24, 18, 16);
                 if (autosaveOpen) {
                     place(autosaveToggle, right, y + 46, col, 18);
                     int row = 0;
@@ -663,13 +672,14 @@ public final class ExactSelectionController {
                     place(groupAssign, right, y + 66, col, 18);
                     place(areaColor, right, y + 86, half, 18);
                     place(areaOpacity, right + half + 3, y + 86, col - half - 3, 18);
-                    place(areaSaveChanges, right, y + 106, col, 18);
-                    place(areaLoad, right, y + 126, half, 18);
-                    place(areaExportButton, right + half + 3, y + 126, col - half - 3, 18);
-                    // "Selected" section: visibility and deletion of every checked area.
-                    place(areaVisibility, right, y + 160, half, 18);
-                    place(areaDelete, right + half + 3, y + 160, col - half - 3, 18);
-                    mainRow(areaCopies, right, y + 194, col, 16);
+                    place(areaLoad, right, y + 106, half, 18);
+                    place(areaExportButton, right + half + 3, y + 106, col - half - 3, 18);
+                    place(areaSaveChanges, right, y + 126, col, 18);
+                    mainRow(areaCopies, right, areaCopiesTop(y) + 12, col, 16);
+                    // "Selected" section: visibility and deletion of every checked area, apart from the territory above.
+                    int selectedTop = selectedSectionTop(y, h);
+                    place(areaVisibility, right, selectedTop + 12, half, 18);
+                    place(areaDelete, right + half + 3, selectedTop + 12, col - half - 3, 18);
                 }
                 place(openExportButton, right, y + h - 44, col, 16);
                 place(areaSortButton, x + 14 + col - 130, y + 27, 130, 16);
@@ -724,6 +734,9 @@ public final class ExactSelectionController {
                     int half = (w - 35) / 2;
                     place(newAreaGroup, x + 16, y + 72, half, 18);
                     place(newAreaOpacityButton, x + 19 + half, y + 72, w - 35 - half, 18);
+                    // Custom color: the field ends where the preview takes the last palette column.
+                    int fieldX = x + 16 + mc.font.width(tr("area_custom_color")) + 6;
+                    place(dialogFields[HEX_FIELD], fieldX, y + 170, swatchX(x, w, AreaPalette.COLUMNS - 1) - 4 - fieldX, 18);
                 }
                 place(modalApply, x + w / 2 - 116, buttonY, 110, 18);
                 place(modalCancel, x + w / 2 + 6, buttonY, 110, 18);
@@ -1106,7 +1119,19 @@ public final class ExactSelectionController {
         return colors;
     }
 
-    private int colorSampleWidth(int width) { return Math.min(40, (width - 24 - 28) / AreaPalette.COLUMNS); }
+    /** The dialog's side margin; the swatch grid spans the same width as its fields. */
+    private int swatchMargin() { return dialog == Dialog.AREA_NAME ? 16 : 12; }
+
+    private int colorSampleWidth(int width) {
+        return (width - 2 * swatchMargin() - 4 * (AreaPalette.COLUMNS - 1)) / AreaPalette.COLUMNS;
+    }
+
+    /** Left edge of a swatch column; the rounding remainder is split evenly on both sides. */
+    private int swatchX(int x, int w, int column) {
+        int sw = colorSampleWidth(w), inner = w - 2 * swatchMargin();
+        int spare = inner - sw * AreaPalette.COLUMNS - 4 * (AreaPalette.COLUMNS - 1);
+        return x + swatchMargin() + spare / 2 + column * (sw + 4);
+    }
 
     /** Top of the swatch grid: below the title in the color window, below group and fill in the new-area window. */
     private int swatchTop(int y) { return y + (dialog == Dialog.AREA_NAME ? 98 : 34); }
@@ -1115,7 +1140,7 @@ public final class ExactSelectionController {
     private int swatchAt(int x, int y, int w, int count, double mouseX, double mouseY) {
         int sw = colorSampleWidth(w);
         for (int i = 0; i < count; i++) {
-            int sx = x + 12 + (i % AreaPalette.COLUMNS) * (sw + 4), sy = swatchTop(y) + (i / AreaPalette.COLUMNS) * 22;
+            int sx = swatchX(x, w, i % AreaPalette.COLUMNS), sy = swatchTop(y) + (i / AreaPalette.COLUMNS) * 22;
             if (mouseX >= sx && mouseX < sx + sw && mouseY >= sy && mouseY < sy + 18) return i;
         }
         return -1;
@@ -1124,7 +1149,7 @@ public final class ExactSelectionController {
     private void renderSwatches(GuiGraphics g, int x, int y, int w, int[] colors, int current) {
         int sw = colorSampleWidth(w);
         for (int i = 0; i < colors.length; i++) {
-            int sx = x + 12 + (i % AreaPalette.COLUMNS) * (sw + 4), sy = swatchTop(y) + (i / AreaPalette.COLUMNS) * 22;
+            int sx = swatchX(x, w, i % AreaPalette.COLUMNS), sy = swatchTop(y) + (i / AreaPalette.COLUMNS) * 22;
             g.fill(sx, sy, sx + sw, sy + 18, 0xFF000000 | colors[i]);
             g.renderOutline(sx, sy, sw, 18, current == colors[i] ? -1 : 0xFF42636D);
         }
@@ -2085,6 +2110,37 @@ public final class ExactSelectionController {
         for (AbstractWidget widget : widgets) {
             if (widget.visible) widget.render(g, mouseX, mouseY, delta);
         }
+        if (autosaveButton.visible) {
+            g.nextStratum();
+            renderGear(g, autosaveButton.getX() + (autosaveButton.getWidth() - 9) / 2,
+                    autosaveButton.getY() + (autosaveButton.getHeight() - 9) / 2,
+                    autosaveOpen ? ACCENT : 0xFFE0E0E0);
+        }
+    }
+
+    private static final String[] GEAR = {
+            "....#....",
+            ".#.###.#.",
+            "..#####..",
+            ".###.###.",
+            "###...###",
+            ".###.###.",
+            "..#####..",
+            ".#.###.#.",
+            "....#....",
+    };
+
+    /** A 9×9 pixel gear with a one-pixel shadow, like the button labels. */
+    private static void renderGear(GuiGraphics g, int x, int y, int color) {
+        int shadow = 0xFF000000 | (color & 0xFCFCFC) >> 2;
+        for (int pass = 0; pass < 2; pass++) {
+            int offset = pass == 0 ? 1 : 0;
+            for (int row = 0; row < GEAR.length; row++)
+                for (int column = 0; column < GEAR[row].length(); column++)
+                    if (GEAR[row].charAt(column) == '#')
+                        g.fill(x + column + offset, y + row + offset, x + column + offset + 1, y + row + offset + 1,
+                                pass == 0 ? shadow : color);
+        }
     }
 
     private void renderSavedAreas(GuiGraphics g, MapBridge.Frame frame, List<MapLabel> mapLabels) {
@@ -2271,7 +2327,8 @@ public final class ExactSelectionController {
         g.nextStratum();
         g.fill(PANEL_X, PANEL_Y, PANEL_X + panelWidth, PANEL_Y + panelHeight, 0xEE101922);
         g.renderOutline(PANEL_X, PANEL_Y, panelWidth, panelHeight, 0xFF42636D);
-        g.drawString(mc.font, mc.font.plainSubstrByWidth(tr("title").getString(), panelWidth - 96),
+        int titleEnd = (quickSave.visible ? quickSave : panelModeButton).getX() - 4;
+        g.drawString(mc.font, fitHint(tr("title").getString(), titleEnd - PANEL_X - 8),
                 PANEL_X + 8, PANEL_Y + 7, ACCENT);
         String hint = polygonMode ? compact ? "polygon_controls_short" : "polygon_controls"
                 : state.geometry() instanceof PolygonGeometry ? "polygon_edit_controls"
@@ -2284,7 +2341,7 @@ public final class ExactSelectionController {
                 PANEL_Y + panelHeight - (maxPanelScroll() > 0 ? 16 : 3));
         SelectionBounds b = state.bounds();
         if (compact) {
-            int available = panelWidth - 16 - (quickSave.visible ? 90 : 0);
+            int available = panelWidth - 16;
             g.drawString(mc.font, mc.font.plainSubstrByWidth(b == null ? "A: —" : "A: X " + b.x1() + "  Z " + b.z1(), available),
                     PANEL_X + 8, PANEL_Y + 33, -1);
             g.drawString(mc.font, mc.font.plainSubstrByWidth(b == null ? "B: —" : "B: X " + b.x2() + "  Z " + b.z2(), available),
@@ -2383,11 +2440,13 @@ public final class ExactSelectionController {
                 : autoGeometry ? tr("quick_autosaved_tooltip", editing.name()) : tr("quick_apply_tooltip", editing.name())));
         quickSave.active = state.phase() == SelectionState.Phase.SELECTED && !dirty && polygonDraft.isEmpty()
                 && !holding() && !loadFailed && (editing == null || !editing.geometry().equals(state.geometry()));
+        int saveWidth = Math.max(40, mc.font.width(quickSave.getMessage()) + 10);
+        place(quickSave, panelModeButton.getX() - 3 - saveWidth, PANEL_Y + 4, saveWidth, 16);
         panelModeButton.setMessage(tr(compact ? "panel_expand" : "panel_compact"));
         panelModeButton.setTooltip(Tooltip.create(tr(compact ? "panel_expand_tooltip" : "panel_compact_tooltip")));
         if (main && !compact) {
             for (AbstractWidget widget : widgets) {
-                if (widget.visible && widget != panelModeButton)
+                if (widget.visible && widget != panelModeButton && widget != quickSave)
                     widget.visible = widget.getY() >= PANEL_Y + 32
                             && widget.getY() + widget.getHeight() <= PANEL_Y + panelHeight - (maxPanelScroll() > 0 ? 16 : 3);
             }
@@ -2423,7 +2482,8 @@ public final class ExactSelectionController {
         if (dialog == Dialog.SIZE) show(true, dialogFields[0], dialogFields[1], anchorButton, modalApply, modalCancel);
         if (dialog == Dialog.MOVE) show(true, dialogFields[2], dialogFields[3], moveUnitsButton, modalApply, modalCancel);
         if (dialog == Dialog.CENTER) show(true, dialogFields[6], centerCopy, centerCreate);
-        if (dialog == Dialog.AREA_NAME) show(true, dialogFields[8], newAreaGroup, newAreaOpacityButton, modalApply, modalCancel);
+        if (dialog == Dialog.AREA_NAME) show(true, dialogFields[8], dialogFields[HEX_FIELD], newAreaGroup, newAreaOpacityButton,
+                modalApply, modalCancel);
         if (dialog == Dialog.COLOR) {
             // A swatch or Apply chooses the color; Esc leaves without one.
             if (colorReturn == Dialog.AREAS) show(true, dialogFields[HEX_FIELD], colorHexApply);
@@ -2442,7 +2502,7 @@ public final class ExactSelectionController {
                     show(true, dialogFields[4], groupAssign, areaLoad, areaExportButton, areaDelete,
                             areaVisibility, areaColor, areaOpacity);
                     // Save disappears under autosave unless a change outside its fields still waits.
-                    show(!autosave.enabled() || areaDraft.needsSave(autosave), areaSaveChanges);
+                    show(areaSaveShown(), areaSaveChanges);
                     show(areaCopiesFit(dialogRect()[3]), areaCopies);
                 }
             }
@@ -2632,8 +2692,16 @@ public final class ExactSelectionController {
             case EXPORT -> renderExportDialog(g, x, y, w, h);
             case AREA_NAME, GROUP_NAME -> {
                 g.drawString(mc.font, tr(dialog == Dialog.AREA_NAME ? "area_name" : "group_name"), x + 16, y + 32, -1);
-                if (dialog == Dialog.AREA_NAME) renderSwatches(g, x, y, w, AreaPalette.COLORS, newAreaColor);
-                if (!message.isEmpty()) g.drawString(mc.font, mc.font.plainSubstrByWidth(message, w - 32), x + 16, y + (dialog == Dialog.AREA_NAME ? 166 : 80), 0xFFFFCF62);
+                if (dialog == Dialog.AREA_NAME) {
+                    renderSwatches(g, x, y, w, AreaPalette.COLORS, newAreaColor);
+                    g.drawString(mc.font, tr("area_custom_color"), x + 16, y + 175, 0xFF9BAAB7);
+                    int px = swatchX(x, w, AreaPalette.COLUMNS - 1), sw = colorSampleWidth(w);
+                    String hex = dialogFields[HEX_FIELD].getValue().trim();
+                    g.fill(px, y + 170, px + sw, y + 188, 0xFF000000 | newAreaColor);
+                    // A red frame marks text that is not a color yet; the preview keeps the last valid one.
+                    g.renderOutline(px, y + 170, sw, 18, !hex.isEmpty() && AreaPalette.parse(hex) < 0 ? 0xFFFF5555 : -1);
+                }
+                if (!message.isEmpty()) g.drawString(mc.font, mc.font.plainSubstrByWidth(message, w - 32), x + 16, y + (dialog == Dialog.AREA_NAME ? 194 : 80), 0xFFFFCF62);
             }
             case WAYPOINTS -> renderWaypointsDialog(g, x, y, w, h);
             case COLOR -> renderColorDialog(g, x, y, w, h);
@@ -2668,7 +2736,7 @@ public final class ExactSelectionController {
         }
         if (autosave.enabled()) {
             String indicator = "● " + tr("autosave_indicator").getString();
-            g.drawString(mc.font, indicator, x + w - 138 - mc.font.width(indicator), y + h - 20, ACCENT);
+            g.drawString(mc.font, indicator, x + w - 36 - mc.font.width(indicator), y + h - 20, ACCENT);
         }
         if (autosaveOpen) {
             g.drawString(mc.font, tr("autosave_title"), right, y + 34, ACCENT);
@@ -2678,9 +2746,10 @@ public final class ExactSelectionController {
             return;
         }
         g.drawString(mc.font, tr("area_name"), right, y + 34, 0xFF9BAAB7);
-        dialogSection(g, tr("selected_header"), right, y + 148, col);
+        int selectedTop = selectedSectionTop(y, h);
+        dialogSection(g, tr("selected_header"), right, selectedTop, col);
         boolean copies = areaCopiesFit(h);
-        if (copies) dialogSection(g, tr("copy_header"), right, y + 182, col);
+        if (copies) dialogSection(g, tr("copy_header"), right, areaCopiesTop(y), col);
         if (selectedAreaIds.size() == 1 && selectedArea() != null) {
             SavedAreaStore.Area area = selectedArea();
             List<Component> info = new ArrayList<>();
@@ -2691,15 +2760,27 @@ public final class ExactSelectionController {
             }
             info.add(tr("area", formatMetric(area.geometry().area())));
             info.add(tr("perimeter", formatLength(area.geometry().perimeter())));
-            int lineY = y + (copies ? 218 : 184);
+            int lineY = copies ? areaCopiesTop(y) + 36 : areaCopiesTop(y) + 4;
             for (Component line : info) {
-                // Stop above the export button and the autosave row at the bottom.
-                if (lineY + 9 > y + h - 46) break;
+                // Stop above the Selected section.
+                if (lineY + 9 > selectedTop - 6) break;
                 g.drawString(mc.font, mc.font.plainSubstrByWidth(line.getString(), col), right, lineY, 0xFF9BAAB7);
                 lineY += 12;
             }
         }
         renderManagementStatus(g, x, y, w, h, "areas_selection_hint");
+    }
+
+    /** Save stays under Edit and Export unless autosave covers every waiting change. */
+    private boolean areaSaveShown() { return !autosave.enabled() || areaDraft.needsSave(autosave); }
+
+    /** The Copy header follows the territory's buttons and closes the gap a hidden Save leaves. */
+    private int areaCopiesTop(int y) { return y + (areaSaveShown() ? 150 : 130); }
+
+    /** The Selected section sits at the bottom of the column, clear of the territory's own controls. */
+    private int selectedSectionTop(int y, int h) {
+        int territoryEnd = areaCopiesFit(h) ? areaCopiesTop(y) + 28 : areaCopiesTop(y) - 6;
+        return Math.max(y + h - 84, territoryEnd + 8);
     }
 
     /** Room for the copy row below the property buttons; small windows leave it out. */
@@ -2855,7 +2936,11 @@ public final class ExactSelectionController {
                 }
                 if (dialog == Dialog.AREA_NAME) {
                     int i = swatchAt(x, y, w, AreaPalette.COLORS.length, event.x(), event.y());
-                    if (i >= 0) { newAreaColor = AreaPalette.COLORS[i]; focus(null); updateVisibility(); }
+                    if (i >= 0) {
+                        newAreaColor = AreaPalette.COLORS[i];
+                        setDialogValue(HEX_FIELD, AreaPalette.format(newAreaColor));
+                        focus(null); updateVisibility();
+                    }
                     return true;
                 }
                 if (dialog == Dialog.AREAS && !areaDeleteConfirmation) {

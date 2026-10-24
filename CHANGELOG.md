@@ -2,6 +2,7 @@
 
 ## 1.3.0+1.21.11
 
+- Save moved to the panel header beside Expand / Compact. The New area palette lines up with the window and takes a custom `#RRGGBB` color with a preview. Areas window: Save sits under Edit territory and Export map and leaves no gap when hidden, the Selected section moved to the bottom of the column, and autosave settings open from a gear button.
 - PNG export window: folder (system picker, default folder, full target path), day/night using Xaero's night export, 1/2/4/8 pixels per block with the resulting size, labels on/off; remembered for all worlds. The image now looks like the in-game map: crisp enlarged pixels, translucent fills with thin outlines, and labels in the area color with Minecraft's pixel font, shadow and dark backing.
 - Export checked areas, all areas or a whole group to JSON exchange files and import them into any world (groups matched by name, duplicates skipped, one undo step). Shift/Ctrl/Cmd range and toggle selection in the Areas list, list sorting by date added, name, group or visibility, and a copy-name button.
 - Areas window: name, group, color and fill are edited as a draft and written with Save in one undo step; Autosave settings (main switch plus name, group, color, fill and territory shape) with an indicator. Edit becomes Edit territory and shows when that territory is being edited; its stored shape is drawn faded. Added Selected and Copy sections and labelled metrics; the window opens with nothing checked. Removed Rename and Merge.

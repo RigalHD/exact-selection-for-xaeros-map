@@ -103,6 +103,12 @@ public final class ManagementUiCheck {
         return method.invoke(object, value);
     }
 
+    private static Object call(Object object, String name, int a, int b, int c) throws Exception {
+        Method method = object.getClass().getDeclaredMethod(name, int.class, int.class, int.class);
+        method.setAccessible(true);
+        return method.invoke(object, a, b, c);
+    }
+
     private static Object call(Object object, String name, boolean value) throws Exception {
         Method method = object.getClass().getDeclaredMethod(name, boolean.class);
         method.setAccessible(true);
@@ -215,8 +221,9 @@ public final class ManagementUiCheck {
         require(narrow.endsWith("…") && narrow.length() * 6 <= 60, "Overlong single hint is not shortened with an ellipsis");
         Button save = (Button) get(controller, "quickSave"), mode = (Button) get(controller, "panelModeButton");
         // The hint line is drawn at PANEL_Y + 22 with 9-pixel text; buttons must stay clear of it.
-        require(mode.getY() + mode.getHeight() <= 26 + 22 && save.getY() >= 26 + 32,
-                "Panel buttons overlap the hint line");
+        require(mode.getY() + mode.getHeight() <= 26 + 22 && save.getY() == mode.getY()
+                        && save.getY() + save.getHeight() <= 26 + 22 && save.getX() + save.getWidth() < mode.getX(),
+                "Save is not beside the mode button above the hint line");
         System.out.println("PASS: panel hints keep whole phrases and stay clear of the header buttons");
     }
 
@@ -813,11 +820,28 @@ public final class ManagementUiCheck {
             press(controller, "newAreaOpacityButton");
             require((Integer) get(controller, "newAreaOpacity") == 50, "New-area fill did not advance from 25% to 50%");
             int[] nameRect = (int[]) call(controller, "dialogRect");
-            int swatch = (Integer) call(controller, "colorSampleWidth", nameRect[2]) + 4;
+            int sample = (Integer) call(controller, "colorSampleWidth", nameRect[2]);
+            EditBox nameField = ((EditBox[]) get(controller, "dialogFields"))[8];
+            EditBox hexField = ((EditBox[]) get(controller, "dialogFields"))[10];
+            int first = (Integer) call(controller, "swatchX", nameRect[0], nameRect[2], 0);
+            int last = (Integer) call(controller, "swatchX", nameRect[0], nameRect[2], AreaPalette.COLUMNS - 1) + sample;
+            int fieldEnd = nameField.getX() + nameField.getWidth();
+            require(first >= nameField.getX() && last <= fieldEnd
+                    && Math.abs((first - nameField.getX()) - (fieldEnd - last)) <= 1 && fieldEnd - last < AreaPalette.COLUMNS,
+                    "New-area palette is not lined up with the name field");
+            require(hexField.visible && hexField.getY() >= nameRect[1] + 98 + 3 * 22 - 4
+                    && hexField.getX() + hexField.getWidth() < last - sample, "Custom color field is missing or covers the preview");
             // Second row, second swatch: the palette sits below the group and fill buttons.
-            controller.mouseClicked(left(nameRect[0] + 14 + swatch, nameRect[1] + 122, 0), false);
-            require((Integer) get(controller, "newAreaColor") == AreaPalette.COLORS[9] && window(controller).equals("AREA_NAME"),
+            controller.mouseClicked(left((Integer) call(controller, "swatchX", nameRect[0], nameRect[2], 1) + 2,
+                    nameRect[1] + 122, 0), false);
+            require((Integer) get(controller, "newAreaColor") == AreaPalette.COLORS[9] && window(controller).equals("AREA_NAME")
+                    && hexField.getValue().equals(AreaPalette.format(AreaPalette.COLORS[9])),
                     "New-area palette did not pick the clicked color");
+            hexField.setValue("#12345");
+            require((Integer) get(controller, "newAreaColor") == AreaPalette.COLORS[9], "Incomplete custom color was taken");
+            hexField.setValue("#123456");
+            require((Integer) get(controller, "newAreaColor") == 0x123456, "Typed custom color was not taken");
+            hexField.setValue(AreaPalette.format(AreaPalette.COLORS[9]));
             SelectionState.Snapshot beforeSave = selection.snapshot();
             int countBefore = store.state().areas().size();
             enter(controller, map, 8, "Quick saved");
@@ -960,8 +984,7 @@ public final class ManagementUiCheck {
             call(controller, "refreshPending", false);
             press(controller, "pointRecolor"); checkLayout(controller);
             rect = (int[]) call(controller, "dialogRect");
-            int sw = Math.min(40, (rect[2] - 52) / 8);
-            controller.mouseClicked(left(rect[0] + 14 + 2 * (sw + 4), rect[1] + 36, 0), false);
+            controller.mouseClicked(left((Integer) call(controller, "swatchX", rect[0], rect[2], 2) + 2, rect[1] + 36, 0), false);
             require(access.points.get(0).color() == 2 && access.points.get(1).color() == 0
                     && window(controller).equals("WAYPOINTS"), "Waypoint palette did not edit only checked rows");
             access.points.set(0, access.points.get(0).with("External", 2));
@@ -1095,6 +1118,15 @@ public final class ManagementUiCheck {
                     "Changes were written before Save while autosave is off");
             Button save = (Button) get(controller, "areaSaveChanges");
             require(save.visible && save.active, "Save is unavailable for pending changes");
+            Button load = (Button) get(controller, "areaLoad"), shown = (Button) get(controller, "areaVisibility");
+            Button gear = (Button) get(controller, "autosaveButton");
+            Button[] copies = (Button[]) get(controller, "areaCopies");
+            call(controller, "layoutDialog");
+            require(save.getX() == load.getX() && save.getY() >= load.getY() + load.getHeight()
+                    && copies[0].getY() > save.getY() + save.getHeight()
+                    && shown.getY() > copies[0].getY() + copies[0].getHeight() + 12,
+                    "Save is not under Edit/Export, or Selected is not below the territory's controls");
+            require(gear.getWidth() <= 20 && gear.getMessage().getString().isEmpty(), "Autosave settings button is not a gear");
             int depth = ((Deque<?>) get(get(controller, "history"), "undo")).size();
             press(controller, "areaSaveChanges");
             SavedAreaStore.Area written = store.state().areas().get(0);
@@ -1122,6 +1154,8 @@ public final class ManagementUiCheck {
             if (!autosave.includes(AutosaveSettings.Field.GEOMETRY)) fieldButtons.get(AutosaveSettings.Field.GEOMETRY).onPress(new KeyEvent(GLFW.GLFW_KEY_ENTER, 0, 0));
             press(controller, "autosaveClose");
             require(!save.visible, "Save stays visible under autosave with nothing pending");
+            call(controller, "layoutDialog");
+            require(copies[0].getY() == load.getY() + load.getHeight() + 18, "Hidden Save leaves a gap above Copy");
             press(controller, "areaOpacity");
             require(store.state().areas().get(1).opacity() == 50, "Autosaved fill was not written immediately");
             text(controller, 4).setValue("Manual name");

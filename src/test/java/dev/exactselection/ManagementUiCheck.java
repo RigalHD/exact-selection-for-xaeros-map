@@ -306,7 +306,7 @@ public final class ManagementUiCheck {
         clickMap(controller, 390, 50, 0);
         require(selection.phase() == SelectionState.Phase.PREVIEW, "Rectangle preview did not start");
         press(controller, "polygonModeButton");
-        require(selection.phase() == SelectionState.Phase.READY && get(controller, "gestureBefore") == null,
+        require(selection.phase() == SelectionState.Phase.READY && get(controller, "gesture") == null,
                 "Entering polygon mode kept a stale rectangle gesture");
         clickMap(controller, 400, 60, 0); clickMap(controller, 560, 60, 0);
         clickMap(controller, 560, 260, 0); clickMap(controller, 400, 260, 0);
@@ -360,17 +360,17 @@ public final class ManagementUiCheck {
         require(selection.geometry().equals(moved), "Redo did not restore the edited polygon");
         controller.mouseClicked(left(590, 90, GLFW.GLFW_MOD_SUPER), false);
         controller.beforeRender(400, 260);
-        require((Boolean) get(controller, "vertexDragInvalid"), "Duplicate closed vertex was accepted");
+        require(((MapGesture.VertexDrag) get(controller, "gesture")).invalid, "Duplicate closed vertex was accepted");
         controller.mouseReleased(left(400, 260, GLFW.GLFW_MOD_SUPER));
         require(selection.geometry().equals(moved), "Rejected vertex edit did not restore original geometry");
         controller.mouseClicked(left(590, 90, GLFW.GLFW_MOD_CONTROL), false);
         controller.beforeRender(450, 290);
-        require((Boolean) get(controller, "vertexDragInvalid"), "Self-intersecting vertex move was accepted");
+        require(((MapGesture.VertexDrag) get(controller, "gesture")).invalid, "Self-intersecting vertex move was accepted");
         controller.mouseReleased(left(450, 290, GLFW.GLFW_MOD_CONTROL));
         require(selection.geometry().equals(moved), "Self-intersection rejection changed the completed area");
         controller.mouseClicked(left(590, 90, GLFW.GLFW_MOD_CONTROL), false);
         controller.beforeRender(30_000_400, 100);
-        require((Boolean) get(controller, "vertexDragInvalid"), "World-boundary vertex move was accepted");
+        require(((MapGesture.VertexDrag) get(controller, "gesture")).invalid, "World-boundary vertex move was accepted");
         controller.mouseReleased(left(30_000_400, 100, GLFW.GLFW_MOD_CONTROL));
         require(selection.geometry().equals(moved), "World-boundary rejection changed the completed area");
         controller.mouseClicked(left(480, 160, GLFW.GLFW_MOD_SHIFT), false);
@@ -693,11 +693,17 @@ public final class ManagementUiCheck {
         // Losing the map context while a handle is held must end the gesture instead of crashing on release.
         selection.set(chunk);
         controller.mouseClicked(left(336, 288, 0), false);
-        require(!get(controller, "drag").toString().equals("NONE"), "East handle was not grabbed");
+        Object grabbed = get(controller, "gesture");
+        require(grabbed instanceof MapGesture.Drag d && d.handle == MapGesture.Handle.EAST, "East handle was not grabbed");
+        MapGesture.Drag drag = (MapGesture.Drag) grabbed;
         set(controller, "context", new MapBridge.Context(new Object(), "other", null, "main"));
         require(controller.mouseReleased(left(360, 288, 0)), "Release after a context change was not consumed");
-        require(get(controller, "drag").toString().equals("NONE") && !selection.enabled(),
+        require(get(controller, "gesture") == null && !selection.enabled(),
                 "Context change did not end the drag");
+        MapGesture.Host host = (MapGesture.Host) get(controller, "gestureHost");
+        SelectionState.Snapshot afterLoss = selection.snapshot();
+        require(!drag.finish(host) && !drag.cancel(host) && selection.snapshot().equals(afterLoss),
+                "A dropped gesture still committed or restored the selection");
         set(controller, "context", context);
         selection.restore(initial);
 

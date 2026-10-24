@@ -35,7 +35,6 @@ public final class ExactSelectionController {
     private record MapLabel(Component text, int x, int y, int color) {}
     private record ScreenPoint(double x, double y) {}
     private enum Dialog { NONE, SIZE, MOVE, CENTER, AREAS, GROUPS, ASSIGN_GROUP, AREA_NAME, GROUP_NAME, WAYPOINTS }
-    private enum Drag { NONE, VERTEX, MOVE, WEST, EAST, NORTH, SOUTH, NORTH_WEST, NORTH_EAST, SOUTH_WEST, SOUTH_EAST }
     private final GuiMap screen;
     private final MapBridge bridge;
     private final Minecraft mc;
@@ -75,14 +74,24 @@ public final class ExactSelectionController {
     private double lastMouseX, lastMouseY;
     private int panelWidth, coordinateLabelWidth, zLabelWidth, fieldWidth, fieldGap, modalScroll;
     private Dialog dialog = Dialog.NONE;
-    private Drag drag = Drag.NONE;
-    private SelectionBounds dragStartBounds;
-    private AreaGeometry dragStartGeometry;
-    private SelectionState.Snapshot dragBefore;
-    private SelectionState.Snapshot gestureBefore;
-    private int dragStartX, dragStartZ;
-    private double dragOffsetX, dragOffsetZ;
-    private int chunkOriginX, chunkOriginZ;
+    /**
+     * The map gesture in progress, or null. It ends through its finish or cancel; disable, reset and changes that
+     * replace the selection drop it outright, which turns a later finish or cancel of it into a no-op.
+     */
+    private MapGesture gesture;
+    private final MapGesture.Host gestureHost = new MapGesture.Host() {
+        @Override public MapGesture gesture() { return gesture; }
+        @Override public void clearGesture() { gesture = null; }
+        @Override public SelectionState state() { return state; }
+        @Override public List<GridPoint> draft() { return polygonDraft; }
+        @Override public boolean chunks() { return chunks; }
+        @Override public void commit(SelectionState.Snapshot before, String key) { commitSelection(before, state.snapshot(), key); }
+        @Override public void recordDraftChange(List<GridPoint> before) { ExactSelectionController.this.recordDraftChange(before); }
+        @Override public void selectionMoved() { syncFields(); updateSelection(); }
+        @Override public void refresh() { refreshSelectionState(); }
+        @Override public void message(String key) { message = tr(key).getString(); }
+        @Override public void updateVisibility() { ExactSelectionController.this.updateVisibility(); }
+    };
     private String areaId, groupId;
     private final Set<String> selectedAreaIds = new LinkedHashSet<>();
     private final Set<Object> chosenPoints = new HashSet<>();
@@ -95,10 +104,6 @@ public final class ExactSelectionController {
     private SelectionState.Snapshot polygonBefore;
     private final Deque<List<GridPoint>> polygonDraftUndo = new ArrayDeque<>();
     private final Deque<List<GridPoint>> polygonDraftRedo = new ArrayDeque<>();
-    private int vertexIndex = -1;
-    private long vertexPointerX, vertexPointerZ;
-    private List<GridPoint> vertexDraftBefore;
-    private boolean vertexDragInvalid;
 
     public ExactSelectionController(GuiMap screen, MapBridge bridge) {
         this(screen, bridge, Minecraft.getInstance(), new SavedAreaStore(FabricLoader.getInstance().getConfigDir()),
@@ -296,7 +301,7 @@ public final class ExactSelectionController {
     }
 
     private void openDialog(Dialog next) {
-        if (dirty || !polygonDraft.isEmpty() || drag != Drag.NONE || (pending != null && next != Dialog.WAYPOINTS)) return;
+        if (dirty || !polygonDraft.isEmpty() || holding() || (pending != null && next != Dialog.WAYPOINTS)) return;
         polygonDraftUndo.clear(); polygonDraftRedo.clear();
         polygonBefore = null;
         dialog = next;
@@ -330,7 +335,7 @@ public final class ExactSelectionController {
     }
 
     private void openGroupsWindow(Dialog returnTo) {
-        if (dirty || pending != null || !polygonDraft.isEmpty() || drag != Drag.NONE) return;
+        if (dirty || pending != null || !polygonDraft.isEmpty() || holding()) return;
         polygonDraftUndo.clear(); polygonDraftRedo.clear();
         polygonBefore = null;
         groupsReturnDialog = returnTo;
@@ -688,7 +693,7 @@ public final class ExactSelectionController {
     private void updateArea() {
         SavedAreaStore.Area a = selectedArea(); AreaGeometry geometry = state.geometry();
         if (a == null || selectedAreas().size() != 1 || geometry == null || dirty || !polygonDraft.isEmpty()
-                || drag != Drag.NONE || loadFailed || state.phase() != SelectionState.Phase.SELECTED) return;
+                || holding() || loadFailed || state.phase() != SelectionState.Phase.SELECTED) return;
         if (a.geometry().equals(geometry)) {
             message = tr("area_geometry_unchanged").getString();
             return;
@@ -907,8 +912,8 @@ public final class ExactSelectionController {
 
     private boolean canExportSelection() {
         return enabled() && dialog == Dialog.NONE && state.phase() == SelectionState.Phase.SELECTED
-                && state.geometry() != null && !dirty && !dragging && drag == Drag.NONE
-                && gestureBefore == null && polygonDraft.isEmpty() && !loadFailed && !exportRunning;
+                && state.geometry() != null && !dirty && !dragging && gesture == null
+                && polygonDraft.isEmpty() && !loadFailed && !exportRunning;
     }
 
     private void exportCurrentSelection() {
@@ -1084,7 +1089,7 @@ public final class ExactSelectionController {
     }
 
     private void togglePolygonMode() {
-        if (!enabled() || drag != Drag.NONE) return;
+        if (!enabled() || holding()) return;
         polygonDraftUndo.clear(); polygonDraftRedo.clear();
         if (polygonMode) {
             polygonMode = false;
@@ -1094,8 +1099,7 @@ public final class ExactSelectionController {
             message = tr("polygon_cancelled").getString();
         } else {
             if (state.phase() == SelectionState.Phase.PREVIEW) {
-                if (gestureBefore != null) state.restore(gestureBefore); else state.reset();
-                gestureBefore = null;
+                if (!(gesture instanceof MapGesture.Corners corners && corners.cancel(gestureHost))) state.reset();
                 syncFields();
             }
             polygonMode = true;
@@ -1189,7 +1193,7 @@ public final class ExactSelectionController {
             PolygonGeometry polygon = new PolygonGeometry(polygonDraft);
             SelectionState.Snapshot before = polygonBefore == null ? state.snapshot() : polygonBefore;
             state.setGeometry(polygon);
-            gestureBefore = null;
+            gesture = null;
             polygonDraft.clear();
             polygonDraftUndo.clear(); polygonDraftRedo.clear();
             polygonCursor = null;
@@ -1209,7 +1213,7 @@ public final class ExactSelectionController {
     }
 
     private void removeLastPolygonPoint() {
-        if (polygonDraft.isEmpty() || drag != Drag.NONE) return;
+        if (polygonDraft.isEmpty() || holding()) return;
         recordDraftChange(List.copyOf(polygonDraft));
         polygonDraft.remove(polygonDraft.size() - 1);
         message = tr("polygon_point_removed").getString();
@@ -1233,86 +1237,47 @@ public final class ExactSelectionController {
                 : state.geometry() instanceof PolygonGeometry polygon ? polygon.vertices() : List.of();
         int index = hitVertex(frame, points, x, y);
         if (index < 0) return;
-        vertexIndex = index;
-        vertexDraftBefore = polygonMode && !polygonDraft.isEmpty() ? List.copyOf(points) : null;
-        vertexPointerX = Math.round(frame.worldX(x)); vertexPointerZ = Math.round(frame.worldZ(y));
-        dragBefore = state.snapshot();
-        dragStartGeometry = state.geometry();
-        drag = Drag.VERTEX;
-        vertexDragInvalid = false;
+        gesture = new MapGesture.VertexDrag(state.snapshot(), index, Math.round(frame.worldX(x)), Math.round(frame.worldZ(y)),
+                polygonMode && !polygonDraft.isEmpty() ? List.copyOf(points) : null);
         polygonCursor = null;
         message = tr("polygon_vertex_drag").getString();
         updateVisibility();
     }
 
-    private void updateVertexDrag(MapBridge.Frame frame, double x, double y) {
-        List<GridPoint> original = vertexDraftBefore != null ? vertexDraftBefore : dragStartGeometry.vertices();
-        try {
-            GridPoint start = original.get(vertexIndex);
-            GridPoint point = new GridPoint(start.x() + Math.round(frame.worldX(x)) - vertexPointerX,
-                    start.z() + Math.round(frame.worldZ(y)) - vertexPointerZ);
-            List<GridPoint> moved = new ArrayList<>(original);
-            moved.set(vertexIndex, point);
-            if (new HashSet<>(moved).size() != moved.size()) throw new IllegalArgumentException();
-            if (vertexDraftBefore != null) {
-                polygonDraft.clear(); polygonDraft.addAll(moved);
-            } else {
-                state.setGeometry(new PolygonGeometry(moved));
-                syncFields(); updateSelection();
-            }
-            vertexDragInvalid = false;
-            message = tr("polygon_vertex_drag").getString();
-        } catch (IllegalArgumentException invalid) {
-            vertexDragInvalid = true;
-            message = tr("polygon_vertex_invalid").getString();
-        }
-        updateVisibility();
-    }
-
-    private void clearVertexGesture() {
-        drag = Drag.NONE; vertexIndex = -1; vertexDraftBefore = null; vertexDragInvalid = false;
-        dragBefore = null; dragStartGeometry = null; dragStartBounds = null;
-    }
-
-    private void cancelVertexDrag() {
-        if (vertexDraftBefore != null) {
-            polygonDraft.clear(); polygonDraft.addAll(vertexDraftBefore);
-        } else if (dragBefore != null) state.restore(dragBefore);
-        clearVertexGesture();
+    /** Cancels the current gesture and resyncs the panel; false when there was none. */
+    private boolean cancelGesture() {
+        MapGesture current = gesture;
+        if (current == null || !current.cancel(gestureHost)) return false;
         refreshSelectionState();
+        return true;
     }
 
-    private void finishVertexDrag() {
-        if (vertexDragInvalid) {
-            cancelVertexDrag();
-            message = tr("polygon_vertex_rejected").getString();
-        } else if (vertexDraftBefore != null) {
-            if (!vertexDraftBefore.equals(polygonDraft)) recordDraftChange(vertexDraftBefore);
-            clearVertexGesture();
-            message = tr("polygon_vertex_moved").getString();
-        } else {
-            SelectionState.Snapshot before = dragBefore;
-            clearVertexGesture();
-            commitSelection(before, state.snapshot(), "vertex");
-            message = tr("polygon_vertex_moved").getString();
-        }
-        updateVisibility();
+    private boolean holding() { return gesture instanceof MapGesture.Held; }
+
+    /** A change made while a two-click selection is open is recorded from before its first click. */
+    private SelectionState.Snapshot historyBase() {
+        return state.phase() == SelectionState.Phase.PREVIEW && gesture instanceof MapGesture.Corners corners
+                ? corners.before : state.snapshot();
     }
+
+    // A preview restored from history has no gesture; its first corner lies in the same chunk as the origin.
+    private int chunkOriginX() { return gesture instanceof MapGesture.Corners corners ? corners.originX : state.bounds().x1(); }
+
+    private int chunkOriginZ() { return gesture instanceof MapGesture.Corners corners ? corners.originZ : state.bounds().z1(); }
 
     public void disable() {
         if (enabled()) bridge.exactselection$clearNativeInput();
         if (state.bounds() != null) {
-            var before = state.phase() == SelectionState.Phase.PREVIEW && gestureBefore != null ? gestureBefore : state.snapshot();
+            var before = historyBase();
             state.disable();
             history.recordApplied(selectionAction(before, state.snapshot(), "disable"));
         } else state.disable();
         selected = pending = null;
         context = null;
         dragging = dirty = false;
-        clearVertexGesture();
+        gesture = null;
         polygonDraftUndo.clear(); polygonDraftRedo.clear();
         polygonMode = false; polygonDraft.clear(); polygonCursor = null; polygonBefore = null;
-        gestureBefore = dragBefore = null;
         dialog = Dialog.NONE;
         message = "";
         focus(null);
@@ -1320,15 +1285,14 @@ public final class ExactSelectionController {
     }
 
     private void reset() {
-        var before = state.phase() == SelectionState.Phase.PREVIEW && gestureBefore != null ? gestureBefore : state.snapshot();
+        var before = historyBase();
         state.reset();
         if (!before.equals(state.snapshot())) history.recordApplied(selectionAction(before, state.snapshot(), "clear"));
         selected = pending = null;
         polygonDraft.clear(); polygonCursor = null; polygonBefore = null;
         polygonDraftUndo.clear(); polygonDraftRedo.clear();
-        clearVertexGesture();
+        gesture = null;
         dirty = dragging = false;
-        gestureBefore = null;
         message = "";
         focus(null);
         syncFields();
@@ -1364,7 +1328,7 @@ public final class ExactSelectionController {
 
     private void refreshSelectionState() {
         dirty = false;
-        clearVertexGesture();
+        if (holding()) gesture = null;
         dragging = false;
         syncFields();
         updateSelection();
@@ -1377,8 +1341,8 @@ public final class ExactSelectionController {
     }
 
     private void undo() {
-        if (dialog == Dialog.NONE && drag == Drag.VERTEX) {
-            cancelVertexDrag(); message = tr("draft_cancelled").getString(); return;
+        if (dialog == Dialog.NONE && gesture instanceof MapGesture.VertexDrag) {
+            cancelGesture(); message = tr("draft_cancelled").getString(); return;
         }
         if (dialog == Dialog.NONE && polygonMode && !polygonDraftUndo.isEmpty()) {
             polygonDraftRedo.push(List.copyOf(polygonDraft));
@@ -1388,14 +1352,12 @@ public final class ExactSelectionController {
             return;
         }
         if (dialog == Dialog.NONE && polygonMode && polygonDraft.isEmpty() && !polygonDraftRedo.isEmpty()) return;
-        if (dialog == Dialog.NONE && drag != Drag.NONE && dragBefore != null) {
-            state.restore(dragBefore); drag = Drag.NONE; dragBefore = null; refreshSelectionState();
-            message = tr("draft_cancelled").getString(); return;
+        if (dialog == Dialog.NONE && gesture instanceof MapGesture.Drag) {
+            cancelGesture(); message = tr("draft_cancelled").getString(); return;
         }
         if (dialog == Dialog.NONE && dirty) { dirty = false; syncFields(); focus(null); message = tr("draft_cancelled").getString(); return; }
-        if (dialog == Dialog.NONE && gestureBefore != null && state.phase() == SelectionState.Phase.PREVIEW) {
-            state.restore(gestureBefore); gestureBefore = null; refreshSelectionState();
-            message = tr("draft_cancelled").getString(); return;
+        if (dialog == Dialog.NONE && gesture instanceof MapGesture.Corners && state.phase() == SelectionState.Phase.PREVIEW) {
+            cancelGesture(); message = tr("draft_cancelled").getString(); return;
         }
         if (!history.canUndo()) return;
         try { history.undo(); message = tr("history_undone").getString(); }
@@ -1404,7 +1366,7 @@ public final class ExactSelectionController {
     }
 
     private void redo() {
-        if (dialog == Dialog.NONE && polygonMode && !polygonDraftRedo.isEmpty() && drag == Drag.NONE && !dirty) {
+        if (dialog == Dialog.NONE && polygonMode && !polygonDraftRedo.isEmpty() && !holding() && !dirty) {
             polygonDraftUndo.push(List.copyOf(polygonDraft));
             polygonDraft.clear(); polygonDraft.addAll(polygonDraftRedo.pop());
             message = tr("history_redone").getString();
@@ -1412,7 +1374,7 @@ public final class ExactSelectionController {
             return;
         }
         if (!history.canRedo() || dialog == Dialog.NONE
-                && (dirty || !polygonDraft.isEmpty() || drag != Drag.NONE || gestureBefore != null)) return;
+                && (dirty || !polygonDraft.isEmpty() || gesture != null)) return;
         try { history.redo(); message = tr("history_redone").getString(); }
         catch (Exception e) { message = tr("history_failed").getString(); }
         refreshSelectionState();
@@ -1421,9 +1383,8 @@ public final class ExactSelectionController {
     private void toggleChunks() {
         chunks = !chunks;
         chunkMode.setMessage(tr(chunks ? "units_chunks" : "units_blocks"));
-        if (chunks && state.phase() == SelectionState.Phase.PREVIEW && gestureBefore != null) {
-            state.restore(gestureBefore);
-            gestureBefore = null;
+        if (chunks && state.phase() == SelectionState.Phase.PREVIEW && gesture instanceof MapGesture.Corners corners) {
+            corners.cancel(gestureHost);
             syncFields();
         }
         if (state.phase() == SelectionState.Phase.SELECTED && state.bounds() != null && chunks) {
@@ -1439,23 +1400,17 @@ public final class ExactSelectionController {
     }
 
     private void setSelection(SelectionBounds bounds, String key) {
-        var before = state.phase() == SelectionState.Phase.PREVIEW && gestureBefore != null ? gestureBefore : state.snapshot();
+        var before = historyBase();
         state.set(bounds);
-        gestureBefore = null;
+        gesture = null;
         commitSelection(before, state.snapshot(), key);
     }
 
-    private Drag hitHandle(MapBridge.Frame frame, double x, double y) {
+    private MapGesture.Handle hitHandle(MapBridge.Frame frame, double x, double y) {
         SelectionBounds b = state.bounds();
         if (b == null || state.phase() != SelectionState.Phase.SELECTED
-                || state.geometry() instanceof PolygonGeometry) return Drag.NONE;
-        double left = frame.screenX(b.minX()), right = frame.screenX((long) b.maxX() + 1);
-        double top = frame.screenY(b.minZ()), bottom = frame.screenY((long) b.maxZ() + 1);
-        double midX = (left + right) / 2, midY = (top + bottom) / 2;
-        double[][] pts = {{left,top},{midX,top},{right,top},{left,midY},{right,midY},{left,bottom},{midX,bottom},{right,bottom}};
-        Drag[] kinds = {Drag.NORTH_WEST,Drag.NORTH,Drag.NORTH_EAST,Drag.WEST,Drag.EAST,Drag.SOUTH_WEST,Drag.SOUTH,Drag.SOUTH_EAST};
-        for (int i=0;i<pts.length;i++) if (Math.abs(x-pts[i][0]) <= 7 && Math.abs(y-pts[i][1]) <= 7) return kinds[i];
-        return Drag.NONE;
+                || state.geometry() instanceof PolygonGeometry) return null;
+        return MapGesture.Drag.handleAt(frame, b, x, y);
     }
 
     private boolean insideBounds(MapBridge.Frame frame, double x, double y) {
@@ -1464,79 +1419,15 @@ public final class ExactSelectionController {
         return geometry.containsPoint(frame.worldX(x), frame.worldZ(y));
     }
 
-    private void updateDrag(MapBridge.Frame frame, double mouseX, double mouseY) {
-        if (drag == Drag.VERTEX) { updateVertexDrag(frame, mouseX, mouseY); return; }
-        try {
-            double pointerX = frame.worldX(mouseX) - dragOffsetX;
-            double pointerZ = frame.worldZ(mouseY) - dragOffsetZ;
-            int x = SelectionBounds.block(frame.worldX(mouseX)), z = SelectionBounds.block(frame.worldZ(mouseY));
-            int dx = x - dragStartX, dz = z - dragStartZ;
-            SelectionBounds b = dragStartBounds;
-            if (chunks && drag == Drag.MOVE && !(dragStartGeometry instanceof PolygonGeometry)) {
-                dx = (int) (Math.round(dx / 16.0) * 16); dz = (int) (Math.round(dz / 16.0) * 16);
-            }
-            if (drag == Drag.MOVE && dragStartGeometry instanceof PolygonGeometry) {
-                state.setGeometry(dragStartGeometry.translated(dx, dz));
-                syncFields(); updateSelection();
-                return;
-            }
-            long minX=b.minX(), maxX=b.maxX(), minZ=b.minZ(), maxZ=b.maxZ();
-            if (drag == Drag.MOVE) { minX+=dx; maxX+=dx; minZ+=dz; maxZ+=dz; }
-            long[] xs = switch (drag) {
-                case WEST, NORTH_WEST, SOUTH_WEST -> dragEdge(pointerX, (long) b.maxX() + 1, true);
-                case EAST, NORTH_EAST, SOUTH_EAST -> dragEdge(pointerX, b.minX(), false);
-                default -> null;
-            };
-            long[] zs = switch (drag) {
-                case NORTH, NORTH_WEST, NORTH_EAST -> dragEdge(pointerZ, (long) b.maxZ() + 1, true);
-                case SOUTH, SOUTH_WEST, SOUTH_EAST -> dragEdge(pointerZ, b.minZ(), false);
-                default -> null;
-            };
-            if (xs != null) { minX = xs[0]; maxX = xs[1] - 1; }
-            if (zs != null) { minZ = zs[0]; maxZ = zs[1] - 1; }
-            if (minX < -30_000_000L || minZ < -30_000_000L || maxX >= 30_000_000L || maxZ >= 30_000_000L) return;
-            state.set(new SelectionBounds((int) minX, (int) minZ, (int) maxX, (int) maxZ));
-            syncFields(); updateSelection();
-        } catch (IllegalArgumentException ignored) { }
-    }
-
-    /**
-     * Outer edges [low, high) after one side is dragged to {@code pointer} while the opposite edge stays at
-     * {@code fixed}. Working with outer edges keeps the size right when the dragged side crosses the fixed one:
-     * the block under the pointer is always included, and chunk mode keeps whole 16-block chunks.
-     */
-    private long[] dragEdge(double pointer, long fixed, boolean lowSide) {
-        long low = lowerBoundary(pointer), high = upperBoundary(pointer), unit = chunks ? 16 : 1;
-        if (lowSide) return low < fixed ? new long[]{low, fixed} : new long[]{fixed, Math.max(high, fixed + unit)};
-        return high > fixed ? new long[]{fixed, high} : new long[]{Math.min(low, fixed - unit), fixed};
-    }
-
-    private long lowerBoundary(double pointer) {
-        int block = SelectionBounds.block(pointer);
-        return chunks ? Math.floorDiv(block, 16) * 16L : block;
-    }
-
-    private long upperBoundary(double pointer) {
-        int block = blockBeforeBoundary(pointer);
-        return chunks ? Math.floorDiv(block, 16) * 16L + 16 : block + 1L;
-    }
-
-    private static int blockBeforeBoundary(double coordinate) {
-        if (!Double.isFinite(coordinate)) throw new IllegalArgumentException("Invalid block coordinate");
-        double nearest = Math.rint(coordinate);
-        if (Math.abs(coordinate - nearest) < 1.0E-6) coordinate = nearest;
-        long block = (long) Math.ceil(coordinate) - 1;
-        return SelectionBounds.block(block);
-    }
-
     public void beforeRender(int renderMouseX, int renderMouseY) {
         if (!enabled()) return;
         double mouseX = pointerX(renderMouseX), mouseY = pointerY(renderMouseY);
         MapBridge.Frame frame = checkedFrame();
         if (frame != null && enabled() && dragging && pending == null && dialog == Dialog.NONE)
             bridge.exactselection$pan(mouseX - lastMouseX, mouseY - lastMouseY);
-        if (frame != null && drag != Drag.NONE && dialog == Dialog.NONE) updateDrag(frame, mouseX, mouseY);
-        if (frame != null && polygonMode && drag != Drag.VERTEX && !overPanel(mouseX, mouseY)) {
+        if (frame != null && gesture instanceof MapGesture.Held held && dialog == Dialog.NONE)
+            held.update(gestureHost, frame, mouseX, mouseY);
+        if (frame != null && polygonMode && !(gesture instanceof MapGesture.VertexDrag) && !overPanel(mouseX, mouseY)) {
             try { polygonCursor = polygonPoint(frame, mouseX, mouseY, polygonDraft.isEmpty() ? null : polygonDraft.getLast()); }
             catch (IllegalArgumentException e) { polygonCursor = null; }
         }
@@ -1574,8 +1465,9 @@ public final class ExactSelectionController {
                 try {
                     int wx = SelectionBounds.block(frame.worldX(mouseX)), wz = SelectionBounds.block(frame.worldZ(mouseY));
                     if (chunks && state.phase() == SelectionState.Phase.PREVIEW) {
-                        int ax = ChunkSelection.anchor(chunkOriginX, wx), az = ChunkSelection.anchor(chunkOriginZ, wz);
-                        int ex = ChunkSelection.endpoint(wx, chunkOriginX), ez = ChunkSelection.endpoint(wz, chunkOriginZ);
+                        int originX = chunkOriginX(), originZ = chunkOriginZ();
+                        int ax = ChunkSelection.anchor(originX, wx), az = ChunkSelection.anchor(originZ, wz);
+                        int ex = ChunkSelection.endpoint(wx, originX), ez = ChunkSelection.endpoint(wz, originZ);
                         state.hover(ax, az, ex, ez);
                     } else state.hover(wx, wz);
                     if (state.phase() == SelectionState.Phase.PREVIEW) syncFields();
@@ -1593,10 +1485,9 @@ public final class ExactSelectionController {
                     GridPoint point = polygonDraft.get(i);
                     double px = frame.screenX(point.x()), py = frame.screenY(point.z());
                     if (px < -5 || px > screen.width + 5 || py < -5 || py > screen.height + 5) continue;
-                    boolean closing = i == 0 && polygonDraft.size() >= 3 && drag != Drag.VERTEX
+                    boolean closing = i == 0 && polygonDraft.size() >= 3 && !(gesture instanceof MapGesture.VertexDrag)
                             && Math.hypot(px - mouseX, py - mouseY) <= 8;
-                    int color = drag == Drag.VERTEX && vertexIndex == i
-                            ? vertexDragInvalid ? 0xFFFF5573 : -1 : i == 0 ? 0xFF80FF95 : ACCENT;
+                    int color = vertexColor(i, i == 0 ? 0xFF80FF95 : ACCENT);
                     g.fill((int) px - 3, (int) py - 3, (int) px + 4, (int) py + 4, 0xFF101922);
                     g.renderOutline((int) px - 3, (int) py - 3, 7, 7, color);
                     if (closing) {
@@ -1738,8 +1629,7 @@ public final class ExactSelectionController {
                 if (px < -5 || px > screen.width + 5 || py < -5 || py > screen.height + 5) continue;
                 int x = (int) Math.floor(px), y = (int) Math.floor(py);
                 g.fill(x - 3, y - 3, x + 4, y + 4, 0xFF101922);
-                g.renderOutline(x - 3, y - 3, 7, 7, drag == Drag.VERTEX && vertexIndex == i
-                        ? vertexDragInvalid ? 0xFFFF5573 : -1 : ACCENT);
+                g.renderOutline(x - 3, y - 3, 7, 7, vertexColor(i, ACCENT));
             }
         }
         double left = frame.screenX(b.minX()), top = frame.screenY(b.minZ());
@@ -1771,6 +1661,12 @@ public final class ExactSelectionController {
             }
             g.disableScissor();
         }
+    }
+
+    /** White for the dragged vertex, red while its position is rejected. */
+    private int vertexColor(int index, int idle) {
+        return gesture instanceof MapGesture.VertexDrag vertex && vertex.index == index
+                ? vertex.invalid ? 0xFFFF5573 : -1 : idle;
     }
 
     private static int clamp(double value, int min, int max) {
@@ -1877,14 +1773,14 @@ public final class ExactSelectionController {
         }
         boolean contourDraft = !polygonDraft.isEmpty();
         boolean polygonSelection = state.geometry() instanceof PolygonGeometry;
-        for (EditBox field : fields) field.active = !polygonSelection && !contourDraft && drag == Drag.NONE;
+        for (EditBox field : fields) field.active = !polygonSelection && !contourDraft && !holding();
         boolean draftHistory = !polygonDraftUndo.isEmpty() || !polygonDraftRedo.isEmpty();
         undo.active = (draftHistory ? !polygonDraftUndo.isEmpty() : history.canUndo())
-                || dirty || drag != Drag.NONE || gestureBefore != null;
+                || dirty || gesture != null;
         redo.active = (!polygonDraftRedo.isEmpty() || !contourDraft && history.canRedo())
-                && !dirty && drag == Drag.NONE && gestureBefore == null;
+                && !dirty && gesture == null;
         // Name the stored action only when the button would apply it rather than discard a draft or gesture.
-        boolean historyStep = !draftHistory && !dirty && drag == Drag.NONE && gestureBefore == null;
+        boolean historyStep = !draftHistory && !dirty && gesture == null;
         undo.setTooltip(historyTooltip("undo_tooltip", historyStep ? history.undoLabel() : ""));
         redo.setTooltip(historyTooltip("redo_tooltip", historyStep && redo.active ? history.redoLabel() : ""));
         managementUndo.setTooltip(historyTooltip("undo_tooltip", history.undoLabel()));
@@ -1894,12 +1790,12 @@ public final class ExactSelectionController {
         toggle.visible = dialog == Dialog.NONE;
         toggle.setMessage(Component.literal(enabled() ? "■" : "□"));
         polygonModeButton.setMessage(tr(polygonMode ? "polygon_mode_on" : "polygon_mode"));
-        polygonModeButton.active = enabled() && !dirty && drag == Drag.NONE && dialog == Dialog.NONE;
+        polygonModeButton.active = enabled() && !dirty && !holding() && dialog == Dialog.NONE;
         polygonModeButton.setTooltip(Tooltip.create(tr(polygonMode ? "polygon_controls" : "polygon_mode_tooltip")));
-        sizeButton.active = !(state.geometry() instanceof PolygonGeometry) && !dirty && !contourDraft && drag == Drag.NONE;
-        chunkMode.active = !(state.geometry() instanceof PolygonGeometry) && !contourDraft && drag == Drag.NONE;
-        moveButton.active = centerButton.active = !dirty && !contourDraft && drag == Drag.NONE;
-        areasButton.active = groupsButton.active = !dirty && !contourDraft && drag == Drag.NONE;
+        sizeButton.active = !(state.geometry() instanceof PolygonGeometry) && !dirty && !contourDraft && !holding();
+        chunkMode.active = !(state.geometry() instanceof PolygonGeometry) && !contourDraft && !holding();
+        moveButton.active = centerButton.active = !dirty && !contourDraft && !holding();
+        areasButton.active = groupsButton.active = !dirty && !contourDraft && !holding();
         if (dialog == Dialog.SIZE) show(true, dialogFields[0], dialogFields[1], anchorButton, modalApply, modalCancel);
         if (dialog == Dialog.MOVE) show(true, dialogFields[2], dialogFields[3], moveUnitsButton, modalApply, modalCancel);
         if (dialog == Dialog.CENTER) show(true, dialogFields[6], centerCopy, centerCreate);
@@ -1919,13 +1815,13 @@ public final class ExactSelectionController {
             else show(true, managementClose, managementUndo, managementRedo, groupCreate, groupRename, groupVisibility, groupDelete);
         }
         if (dialog == Dialog.WAYPOINTS) show(true, dialogFields[7], pointVisibility, pointColor, confirm, cancel);
-        apply.active = enabled() && !polygonSelection && !contourDraft && drag == Drag.NONE && (dirty || state.bounds() != null);
+        apply.active = enabled() && !polygonSelection && !contourDraft && !holding() && (dirty || state.bounds() != null);
         clear.active = state.bounds() != null || dirty || contourDraft;
         int pointCount = selected == null ? 0 : selected.points().size();
         delete.setMessage(tr("delete_count", pointCount));
-        delete.active = enabled() && !dirty && dialog == Dialog.NONE && pointCount > 0 && !contourDraft && drag == Drag.NONE
+        delete.active = enabled() && !dirty && dialog == Dialog.NONE && pointCount > 0 && !contourDraft && !holding()
                 && state.phase() == SelectionState.Phase.SELECTED;
-        boolean canCopy = enabled() && !dirty && !contourDraft && drag == Drag.NONE && dialog == Dialog.NONE && state.bounds() != null;
+        boolean canCopy = enabled() && !dirty && !contourDraft && !holding() && dialog == Dialog.NONE && state.bounds() != null;
         copyCoordinates.active = copyArea.active = copyLength.active = copyWidth.active = canCopy;
         if (dialog == Dialog.WAYPOINTS && pending != null) confirm.active = !filteredChosenPoints().isEmpty();
         if (areaDeleteConfirmation && dialog == Dialog.AREAS || groupDeleteConfirmation && dialog == Dialog.GROUPS) {
@@ -1957,7 +1853,7 @@ public final class ExactSelectionController {
         areaColor.active = areaOpacity.active = singleArea && !loadFailed;
         areaVisibility.active = selectedCount > 0 && !loadFailed;
         areaUpdate.active = singleArea && state.phase() == SelectionState.Phase.SELECTED
-                && !dirty && !contourDraft && drag == Drag.NONE && !loadFailed;
+                && !dirty && !contourDraft && !holding() && !loadFailed;
         groupAssign.active = selectedCount > 0 && !loadFailed;
         areaSave.active = state.phase() == SelectionState.Phase.SELECTED && !dirty && !loadFailed;
         areaRename.active = singleArea && !dialogFields[4].getValue().trim().isEmpty() && !loadFailed;
@@ -2286,7 +2182,7 @@ public final class ExactSelectionController {
             dragging = true;
             lastMouseX = event.x(); lastMouseY = event.y();
         } else if (event.button() == GLFW.GLFW_MOUSE_BUTTON_LEFT) {
-            if (dirty || drag != Drag.NONE) return true;
+            if (dirty || holding()) return true;
             if ((event.modifiers() & (GLFW.GLFW_MOD_CONTROL | GLFW.GLFW_MOD_SUPER)) != 0
                     && (polygonMode || state.geometry() instanceof PolygonGeometry)) {
                 beginVertexDrag(frame, event.x(), event.y());
@@ -2310,52 +2206,36 @@ public final class ExactSelectionController {
                 return true;
             }
             try {
-                Drag handle = hitHandle(frame, event.x(), event.y());
+                MapGesture.Handle handle = hitHandle(frame, event.x(), event.y());
                 int worldX = SelectionBounds.block(frame.worldX(event.x()));
                 int worldZ = SelectionBounds.block(frame.worldZ(event.y()));
                 boolean moveWhole = (event.modifiers() & GLFW.GLFW_MOD_SHIFT) != 0 && insideBounds(frame, event.x(), event.y());
-                if (handle != Drag.NONE || moveWhole) {
-                    dragBefore = state.snapshot(); dragStartBounds = state.bounds(); dragStartGeometry = state.geometry();
-                    dragStartX = worldX; dragStartZ = worldZ;
-                    drag = moveWhole ? Drag.MOVE : handle;
-                    dragOffsetX = 0;
-                    dragOffsetZ = 0;
-                    if (drag != Drag.MOVE) {
-                        if (drag == Drag.WEST || drag == Drag.NORTH_WEST || drag == Drag.SOUTH_WEST)
-                            dragOffsetX = frame.worldX(event.x()) - state.bounds().minX();
-                        else if (drag == Drag.EAST || drag == Drag.NORTH_EAST || drag == Drag.SOUTH_EAST)
-                            dragOffsetX = frame.worldX(event.x()) - ((long) state.bounds().maxX() + 1);
-                        if (drag == Drag.NORTH || drag == Drag.NORTH_WEST || drag == Drag.NORTH_EAST)
-                            dragOffsetZ = frame.worldZ(event.y()) - state.bounds().minZ();
-                        else if (drag == Drag.SOUTH || drag == Drag.SOUTH_WEST || drag == Drag.SOUTH_EAST)
-                            dragOffsetZ = frame.worldZ(event.y()) - ((long) state.bounds().maxZ() + 1);
-                    }
+                if (handle != null || moveWhole) {
+                    gesture = MapGesture.Drag.start(state.snapshot(), moveWhole ? MapGesture.Handle.MOVE : handle,
+                            frame, event.x(), event.y());
                     return true;
                 }
                 if (state.geometry() instanceof PolygonGeometry && !polygonMode) return true;
-                SelectionState.Snapshot before = state.phase() == SelectionState.Phase.PREVIEW && gestureBefore != null
-                        ? gestureBefore : state.snapshot();
-                if (chunks) {
-                    if (state.phase() == SelectionState.Phase.PREVIEW) {
-                        int anchorX = ChunkSelection.anchor(chunkOriginX, worldX);
-                        int anchorZ = ChunkSelection.anchor(chunkOriginZ, worldZ);
-                        worldX = ChunkSelection.endpoint(worldX, chunkOriginX);
-                        worldZ = ChunkSelection.endpoint(worldZ, chunkOriginZ);
-                        state.hover(anchorX, anchorZ, worldX, worldZ);
-                    } else {
-                        chunkOriginX = worldX;
-                        chunkOriginZ = worldZ;
-                        worldX = ChunkSelection.anchor(chunkOriginX, chunkOriginX);
-                        worldZ = ChunkSelection.anchor(chunkOriginZ, chunkOriginZ);
-                        gestureBefore = before;
-                    }
-                } else if (state.phase() != SelectionState.Phase.PREVIEW) gestureBefore = before;
                 boolean finishing = state.phase() == SelectionState.Phase.PREVIEW;
-                state.click(worldX, worldZ);
-                if (finishing) {
-                    commitSelection(before, state.snapshot(), "select");
-                    gestureBefore = null;
+                SelectionState.Snapshot before = historyBase();
+                if (finishing && chunks) {
+                    int originX = chunkOriginX(), originZ = chunkOriginZ();
+                    int anchorX = ChunkSelection.anchor(originX, worldX);
+                    int anchorZ = ChunkSelection.anchor(originZ, worldZ);
+                    worldX = ChunkSelection.endpoint(worldX, originX);
+                    worldZ = ChunkSelection.endpoint(worldZ, originZ);
+                    state.hover(anchorX, anchorZ, worldX, worldZ);
+                } else if (!finishing) {
+                    int originX = worldX, originZ = worldZ;
+                    if (chunks) {
+                        worldX = ChunkSelection.anchor(originX, originX);
+                        worldZ = ChunkSelection.anchor(originZ, originZ);
+                    }
+                    gesture = new MapGesture.Corners(before, originX, originZ);
                 }
+                state.click(worldX, worldZ);
+                if (finishing && !(gesture instanceof MapGesture.Corners corners && corners.finish(gestureHost)))
+                    commitSelection(before, state.snapshot(), "select");
                 message = "";
                 syncFields();
                 updateSelection();
@@ -2366,22 +2246,11 @@ public final class ExactSelectionController {
 
     public boolean mouseReleased(MouseButtonEvent event) {
         if (event.button() == GLFW.GLFW_MOUSE_BUTTON_RIGHT) dragging = false;
-        if (event.button() == GLFW.GLFW_MOUSE_BUTTON_LEFT && drag == Drag.VERTEX) {
+        if (event.button() == GLFW.GLFW_MOUSE_BUTTON_LEFT && gesture instanceof MapGesture.Held held) {
+            // A lost or changed map context disables the tool, which drops the gesture; update and finish then do nothing.
             MapBridge.Frame frame = checkedFrame();
-            if (frame != null && drag == Drag.VERTEX) {
-                updateVertexDrag(frame, event.x(), event.y());
-                finishVertexDrag();
-            }
-            return true;
-        }
-        if (event.button() == GLFW.GLFW_MOUSE_BUTTON_LEFT && drag != Drag.NONE) {
-            MapBridge.Frame frame = checkedFrame();
-            // A lost or changed map context disables the tool, which already ended and reset the gesture.
-            if (drag == Drag.NONE || dragBefore == null) return true;
-            if (frame != null) updateDrag(frame, event.x(), event.y());
-            commitSelection(dragBefore, state.snapshot(), "drag");
-            drag = Drag.NONE; dragBefore = null; dragStartBounds = null; dragStartGeometry = null;
-            dragOffsetX = 0; dragOffsetZ = 0;
+            if (frame != null) held.update(gestureHost, frame, event.x(), event.y());
+            held.finish(gestureHost);
             return true;
         }
         // Native release clears held toolbar buttons, even when released outside them.
@@ -2437,8 +2306,8 @@ public final class ExactSelectionController {
                 || (event.modifiers() & GLFW.GLFW_MOD_SHIFT) != 0;
         if (!enabled()) return false;
         if (event.key() == GLFW.GLFW_KEY_ESCAPE) {
-            if (drag == Drag.VERTEX) { cancelVertexDrag(); message = tr("draft_cancelled").getString(); }
-            else if (drag != Drag.NONE && dragBefore != null) { state.restore(dragBefore); drag = Drag.NONE; dragBefore = null; refreshSelectionState(); }
+            if (gesture instanceof MapGesture.VertexDrag) { cancelGesture(); message = tr("draft_cancelled").getString(); }
+            else if (gesture instanceof MapGesture.Drag) cancelGesture();
             else if (dialog != Dialog.NONE) cancelDialog();
             else if (polygonMode) {
                 polygonDraft.clear(); polygonCursor = null; polygonBefore = null; polygonMode = false;
@@ -2446,9 +2315,7 @@ public final class ExactSelectionController {
                 message = tr("polygon_cancelled").getString(); updateSelection(); updateVisibility();
             }
             else if (dirty) { dirty = false; syncFields(); focus(null); }
-            else if (gestureBefore != null && state.phase() == SelectionState.Phase.PREVIEW) {
-                state.restore(gestureBefore); gestureBefore = null; refreshSelectionState();
-            }
+            else if (gesture instanceof MapGesture.Corners && state.phase() == SelectionState.Phase.PREVIEW) cancelGesture();
             else if (state.bounds() != null) reset();
             else disable();
             return true;
@@ -2458,7 +2325,7 @@ public final class ExactSelectionController {
             removeLastPolygonPoint();
             return true;
         }
-        if (polygonMode && drag == Drag.NONE && dialog == Dialog.NONE && !editing && (event.key() == GLFW.GLFW_KEY_ENTER || event.key() == GLFW.GLFW_KEY_KP_ENTER)) {
+        if (polygonMode && !holding() && dialog == Dialog.NONE && !editing && (event.key() == GLFW.GLFW_KEY_ENTER || event.key() == GLFW.GLFW_KEY_KP_ENTER)) {
             finishPolygon();
             return true;
         }
@@ -2510,13 +2377,13 @@ public final class ExactSelectionController {
     }
 
     private void applyFields() {
-        if (state.geometry() instanceof PolygonGeometry || !polygonDraft.isEmpty() || drag != Drag.NONE) return;
+        if (state.geometry() instanceof PolygonGeometry || !polygonDraft.isEmpty() || holding()) return;
         try {
-            SelectionState.Snapshot before = state.phase() == SelectionState.Phase.PREVIEW && gestureBefore != null ? gestureBefore : state.snapshot();
+            SelectionState.Snapshot before = historyBase();
             int[] c = new int[4];
             for (int i = 0; i < 4; i++) c[i] = SelectionBounds.block(Integer.parseInt(fields[i].getValue().trim()));
             state.set(new SelectionBounds(c[0], c[1], c[2], c[3]));
-            gestureBefore = null;
+            gesture = null;
             commitSelection(before, state.snapshot(), "coordinates");
             focus(null);
             message = "";

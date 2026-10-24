@@ -1,0 +1,16 @@
+{
+  "required": true,
+  "package": "dev.exactselection.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "client": [
+    "GuiGraphicsMixin",
+    "GuiMapMixin",
+    "MinimapOverlayMixin",
+    "MapSaveLoadAccessor",
+    "PNGExporterAccessor",
+    "PNGExporterConfigMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

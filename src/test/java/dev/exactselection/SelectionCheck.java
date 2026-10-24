@@ -58,6 +58,23 @@ public final class SelectionCheck {
                 }
             }
         }
+        assert new RectangleGeometry(new SelectionBounds(0, 0, 2, 5)).perimeter() == 18.0;
+        var triangle = new PolygonGeometry(java.util.List.of(new GridPoint(0, 0), new GridPoint(3, 0), new GridPoint(0, 4)));
+        assert triangle.perimeter() == 12.0;
+        assert AreaPalette.COLORS.length == 24;
+        assert AreaPalette.parse("#abc") == 0xAABBCC;
+        assert AreaPalette.parse("59E3CE") == AreaPalette.DEFAULT;
+        assert AreaPalette.parse("garbage") == -1;
+        assert AreaPalette.parse(null) == -1;
+        state.load(triangle, "saved-area");
+        var linked = state.snapshot();
+        state.set(new SelectionBounds(1, 2, 3, 4));
+        assert state.source().equals("saved-area");
+        state.setGeometry(triangle);
+        assert state.source().equals("saved-area");
+        state.reset(); assert state.source() == null;
+        state.restore(linked); assert state.source().equals("saved-area");
+        state.disable(); assert state.source() == null;
         System.out.println("PASS: inclusive bounds, negative coordinates, long area, state transitions, map transforms");
     }
 }

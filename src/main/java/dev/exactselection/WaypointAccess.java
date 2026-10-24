@@ -4,6 +4,7 @@ import java.util.List;
 
 /** Optional Minimap integration stays out of the controller's class signatures. */
 public interface WaypointAccess {
+    int COLOR_COUNT = 16;
     record Point(Object identity, int x, int y, int z, String name, boolean disabled, boolean editable,
                  int color, String symbol, int visibility, String initials, int type, int yaw,
                  boolean rotation, boolean yIncluded, boolean global, String purpose,
@@ -12,6 +13,11 @@ public interface WaypointAccess {
         public Point(Object identity, int x, int y, int z, String name, boolean disabled, boolean editable) {
             this(identity, x, y, z, name, disabled, editable, 0, "", 0, "", 0, 0,
                     false, true, false, "", false, false, false, 0, null, null);
+        }
+        public Point with(String newName, int newColor) {
+            return new Point(identity, x, y, z, newName, disabled, editable, newColor, symbol, visibility,
+                    initials, type, yaw, rotation, yIncluded, global, purpose, temporary, destination,
+                    serverWaypoint, createdAt, worldIdentity, setIdentity);
         }
     }
     record Snapshot(Object world, Object set, String setName, List<Point> points, List<Point> setPoints) {
@@ -30,6 +36,9 @@ public interface WaypointAccess {
         return select(context, new SelectionBounds((int) b.minX(), (int) b.minZ(),
                 (int) (b.maxX() - 1), (int) (b.maxZ() - 1)));
     }
+    Snapshot all(MapBridge.Context context);
+    void edit(Snapshot snapshot, List<Point> from, List<Point> to) throws Exception;
+    int colorRgb(int index);
     Snapshot captureSet(Snapshot snapshot);
     void delete(Snapshot snapshot) throws Exception;
     void restore(Snapshot snapshot) throws Exception;

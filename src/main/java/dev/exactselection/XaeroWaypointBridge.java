@@ -19,7 +19,15 @@ public final class XaeroWaypointBridge implements WaypointAccess {
 
     @Override
     public Snapshot select(MapBridge.Context context, AreaGeometry geometry) {
-        if (!SupportMods.minimap() || context == null || geometry == null) return null;
+        return geometry == null ? null : select(context, (x, z) -> geometry.containsBlockCenter(x, z));
+    }
+
+    @Override public Snapshot all(MapBridge.Context context) { return select(context, (x, z) -> true); }
+    @Override public int colorRgb(int index) { return WaypointColor.fromIndex(index).getHex() & 0xFFFFFF; }
+    @FunctionalInterface private interface Area { boolean contains(int x, int z); }
+
+    private static Snapshot select(MapBridge.Context context, Area area) {
+        if (!SupportMods.minimap() || context == null) return null;
         var support = SupportMods.xaeroMinimap;
         // Respect Xaero's current waypoint availability; never select projected dimensions.
         if (support.getWaypointWorld() == null) return null;
@@ -30,7 +38,7 @@ public final class XaeroWaypointBridge implements WaypointAccess {
         // Runs every frame: only the matching points are captured; captureSet records the whole set on demand.
         List<Point> points = new ArrayList<>();
         for (Waypoint w : set.getWaypoints()) {
-            if (ordinary(w) && geometry.containsBlockCenter(w.getX(), w.getZ())) points.add(point(w));
+            if (ordinary(w) && area.contains(w.getX(), w.getZ())) points.add(point(w));
         }
         return new Snapshot(world, set, set.getName(), points);
     }
@@ -75,6 +83,42 @@ public final class XaeroWaypointBridge implements WaypointAccess {
             deleteAndSave(snapshot, () -> session.getWorldManagerIO().saveWorld(world));
         } finally {
             SupportMods.xaeroMinimap.requestWaypointsRefresh();
+        }
+    }
+
+    @Override public void edit(Snapshot snapshot, List<Point> from, List<Point> to) throws Exception {
+        MinimapWorld world = (MinimapWorld) snapshot.world();
+        MinimapSession session = BuiltInHudModules.MINIMAP.getCurrentSession();
+        if (!SupportMods.minimap() || session == null || world != SupportMods.xaeroMinimap.getMapWaypointWorld()
+                || snapshot.set() != world.getCurrentWaypointSet())
+            throw new IllegalStateException("Waypoint context changed");
+        try { editAndSave((WaypointSet) snapshot.set(), from, to, () -> session.getWorldManagerIO().saveWorld(world)); }
+        finally { SupportMods.xaeroMinimap.requestWaypointsRefresh(); }
+    }
+
+    static void editAndSave(WaypointSet set, List<Point> from, List<Point> to, Save save) throws Exception {
+        if (from.size() != to.size()) throw new IllegalStateException("Waypoint changed after confirmation");
+        java.util.Set<Object> identities = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
+        List<Waypoint> current = new ArrayList<>(); set.addTo(current);
+        for (int i = 0; i < from.size(); i++) {
+            Point p = from.get(i), next = to.get(i);
+            if (!current.contains(p.identity()) || !matches((Waypoint) p.identity(), p)
+                    || !identities.add(p.identity()) || next.identity() != p.identity()
+                    || next.name() == null || next.name().isBlank() || next.color() < 0 || next.color() >= COLOR_COUNT)
+                throw new IllegalStateException("Waypoint changed after confirmation");
+        }
+        try {
+            for (int i = 0; i < from.size(); i++) {
+                Waypoint w = (Waypoint) from.get(i).identity();
+                w.setName(to.get(i).name()); w.setColor(to.get(i).color());
+            }
+            save.run();
+        } catch (Exception failure) {
+            for (Point p : from) {
+                Waypoint w = (Waypoint) p.identity(); w.setName(p.name()); w.setColor(p.color());
+            }
+            try { save.run(); } catch (Exception rollbackFailure) { failure.addSuppressed(rollbackFailure); }
+            throw failure;
         }
     }
 

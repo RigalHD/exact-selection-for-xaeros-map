@@ -31,6 +31,7 @@ public final class ExportFinishCheck {
     }
 
     public static void main(String[] args) throws Exception {
+        System.setProperty("java.awt.headless", "true");
         Path root = Files.createTempDirectory("exact-selection-export-");
         try {
             AreaExportService.Result result = AreaExportService.finish(job(root, "ok", 16));

@@ -33,7 +33,7 @@ import xaero.map.gui.GuiMap;
 
 public final class ExactSelectionController {
     private static final int PANEL_X = 34, PANEL_Y = 26;
-    private static final int COMPACT_HEIGHT = 186, EXPANDED_HEIGHT = 314;
+    private static final int COMPACT_HEIGHT = 156, EXPANDED_HEIGHT = 284, COPY_SIZE = 10;
     /** -12 while the perimeter shares the area line: everything below moves up one line and the panel gets shorter. */
     private int metricsShift;
     private static final int RENAME_FIELD = 9, HEX_FIELD = 10, FOLDER_FIELD = 11;
@@ -188,11 +188,11 @@ public final class ExactSelectionController {
         selectionExportButton.setTooltip(Tooltip.create(tr("selection_export_tooltip")));
         openExportButton = button("export_show_file", 0, 0, 120, this::openLastExport);
         apply = button("apply", 0, 0, 100, this::applyFields);
-        copyCoordinates = copyButton("copy_coordinates_short", "copy_coordinates_tooltip", this::copyCoordinates);
-        copyArea = copyButton("copy_area_short", "copy_area_tooltip", this::copyArea);
-        copyPerimeter = copyButton("copy_perimeter_short", "copy_perimeter_tooltip", this::copyPerimeter);
-        copyLength = copyButton("copy_length_short", "copy_length_tooltip", this::copyLength);
-        copyWidth = copyButton("copy_width_short", "copy_width_tooltip", this::copyWidth);
+        copyCoordinates = copyButton("copy_coordinates_tooltip", this::copyCoordinates);
+        copyArea = copyButton("copy_area_tooltip", this::copyArea);
+        copyPerimeter = copyButton("copy_perimeter_tooltip", this::copyPerimeter);
+        copyLength = copyButton("copy_length_tooltip", this::copyLength);
+        copyWidth = copyButton("copy_width_tooltip", this::copyWidth);
         undo = arrowButton("↶", this::undo);
         redo = arrowButton("↷", this::redo);
         chunkMode = button("units_blocks", 0, 0, 100, this::toggleChunks);
@@ -271,7 +271,7 @@ public final class ExactSelectionController {
         areaSortButton.setTooltip(Tooltip.create(tr("area_sort_tooltip")));
         exportPick = button("export_pick_folder", 0, 0, 90, this::pickExportFolder);
         exportDefaultFolder = button("export_default_folder", 0, 0, 150, () -> {
-            setDialogValue(FOLDER_FIELD, defaultExportFolder().toString());
+            setDialogValue(FOLDER_FIELD, "");
             updateVisibility();
         });
         exportOpenFolder = button("import_open_folder", 0, 0, 150, () -> {
@@ -302,12 +302,11 @@ public final class ExactSelectionController {
         areaImport.setTooltip(Tooltip.create(tr("areas_import_tooltip")));
         groupExport.setTooltip(Tooltip.create(tr("group_export_tooltip")));
         autosaveClose = button("autosave_close", 0, 0, 120, () -> { autosaveOpen = false; focus(null); updateVisibility(); });
-        String[][] copies = {{"copy_name_short", "copy_name_tooltip"}, {"copy_coordinates_short", "copy_coordinates_tooltip"},
-                {"copy_area_short", "copy_area_tooltip"}, {"copy_perimeter_short", "copy_perimeter_tooltip"},
-                {"copy_length_short", "copy_length_tooltip"}, {"copy_width_short", "copy_width_tooltip"}};
+        String[] copies = {"copy_name_tooltip", "copy_coordinates_tooltip", "copy_area_tooltip", "copy_perimeter_tooltip",
+                "copy_length_tooltip", "copy_width_tooltip"};
         for (int i = 0; i < areaCopies.length; i++) {
             int kind = i - 1;
-            areaCopies[i] = copyButton(copies[i][0], copies[i][1], () -> {
+            areaCopies[i] = copyButton(copies[i], () -> {
                 SavedAreaStore.Area area = selectedAreas().size() == 1 ? selectedArea() : null;
                 if (area == null) return;
                 if (kind < 0) copyToClipboard(area.name());
@@ -393,23 +392,21 @@ public final class ExactSelectionController {
         panelScroll = Math.max(0, Math.min(panelScroll, maxPanelScroll()));
         int x = PANEL_X + 8, top = PANEL_Y - (compact ? 0 : panelScroll), y = top + metricsShift, w = panelWidth - 16;
         place(panelModeButton, PANEL_X + panelWidth - 80, PANEL_Y + 4, 72, 16);
-        Button[] copies = {copyCoordinates, copyArea, copyPerimeter, copyLength, copyWidth};
         if (compact) {
-            mainRow(copies, x, y + 105, w, 16);
-            arrowRow(new Button[]{clear, polygonModeButton}, x, y + 128, w);
-            mainRow(new Button[]{areasButton, groupsButton}, x, y + 149, w, 18);
+            arrowRow(new Button[]{clear, polygonModeButton}, x, y + 98, w);
+            mainRow(new Button[]{areasButton, groupsButton}, x, y + 119, w, 18);
         } else {
             fieldWidth = (panelWidth - 16 - coordinateLabelWidth - zLabelWidth - fieldGap * 3) / 2;
             int xField = x + coordinateLabelWidth + fieldGap;
             int zField = xField + fieldWidth + fieldGap * 2 + zLabelWidth;
             for (int i = 0; i < fields.length; i++)
                 place(fields[i], i % 2 == 0 ? xField : zField, top + 34 + i / 2 * 24, fieldWidth, 18);
-            place(apply, x, top + 82, w, 18);
-            mainRow(copies, x, y + 154, w, 16);
-            arrowRow(new Button[]{chunkMode, sizeButton, moveButton, centerButton}, x, y + 180, w);
-            mainRow(new Button[]{polygonModeButton, groupsButton, clear}, x, y + 202, w, 18);
-            mainRow(new Button[]{areasButton, zonesButton, pointsButton}, x, y + 224, w, 18);
-            place(selectionExportButton, x, y + 246, w, 18);
+            place(apply, x, top + 82, w - 21, 18);
+            place(copyCoordinates, x + w - 18, top + 82, 18, 18);
+            arrowRow(new Button[]{chunkMode, sizeButton, moveButton, centerButton}, x, y + 150, w);
+            mainRow(new Button[]{polygonModeButton, groupsButton, clear}, x, y + 172, w, 18);
+            mainRow(new Button[]{areasButton, zonesButton, pointsButton}, x, y + 194, w, 18);
+            place(selectionExportButton, x, y + 216, w, 18);
         }
     }
 
@@ -425,7 +422,103 @@ public final class ExactSelectionController {
 
     /** The perimeter goes on the area line when both fit in the panel width. */
     private boolean perimeterInline() {
-        return mc.font.width(areaText().getString() + " · " + perimeterText().getString()) <= panelWidth - 16;
+        return metricWidth(new MetricLine(List.of(areaText().getString(), perimeterText().getString()),
+                List.of(copyArea, copyPerimeter))) <= panelWidth - 16;
+    }
+
+    /** Values joined by " · ", each followed by the copy button at the same index (if any). */
+    private record MetricLine(List<String> parts, List<Button> copies) {}
+
+    private static final String METRIC_SEPARATOR = " · ";
+
+    private int metricWidth(MetricLine line) {
+        int width = 0;
+        for (int i = 0; i < line.parts().size(); i++) {
+            if (i > 0) width += mc.font.width(METRIC_SEPARATOR);
+            width += mc.font.width(line.parts().get(i)) + (i < line.copies().size() ? 3 + COPY_SIZE : 0);
+        }
+        return width;
+    }
+
+    private MetricLine fitMetricLine(MetricLine line, int width) {
+        if (metricWidth(line) <= width) return line;
+        int textWidth = line.parts().stream().mapToInt(mc.font::width).sum();
+        int available = Math.max(0, width - (line.parts().size() - 1) * mc.font.width(METRIC_SEPARATOR)
+                - Math.min(line.parts().size(), line.copies().size()) * (3 + COPY_SIZE));
+        List<String> fitted = new ArrayList<>();
+        int remaining = available;
+        for (int i = 0; i < line.parts().size(); i++) {
+            String part = line.parts().get(i);
+            int budget = i == line.parts().size() - 1 ? remaining
+                    : textWidth == 0 ? 0 : (int) ((long) available * mc.font.width(part) / textWidth);
+            String text = mc.font.width(part) <= budget ? part : budget < mc.font.width("…") ? ""
+                    : mc.font.plainSubstrByWidth(part, budget - mc.font.width("…")).stripTrailing() + "…";
+            fitted.add(text); remaining -= mc.font.width(text);
+        }
+        return new MetricLine(fitted, line.copies());
+    }
+
+    /** Puts each copy button right after its value; buttons without a value on this line are hidden. */
+    private void placeMetricLine(MetricLine line, int x, int y, int width) {
+        line = fitMetricLine(line, width);
+        for (int i = 0; i < line.copies().size(); i++) if (i >= line.parts().size()) line.copies().get(i).visible = false;
+        for (int i = 0; i < line.parts().size(); i++) {
+            if (i > 0) x += mc.font.width(METRIC_SEPARATOR);
+            x += mc.font.width(line.parts().get(i));
+            if (i < line.copies().size()) {
+                place(line.copies().get(i), x + 3, y - 1, COPY_SIZE, COPY_SIZE);
+                x += 3 + COPY_SIZE;
+            }
+        }
+    }
+
+    private void drawMetricLine(GuiGraphics g, MetricLine line, int x, int y, int width, int color) {
+        line = fitMetricLine(line, width);
+        for (int i = 0; i < line.parts().size(); i++) {
+            if (i > 0) {
+                g.drawString(mc.font, METRIC_SEPARATOR, x, y, color);
+                x += mc.font.width(METRIC_SEPARATOR);
+            }
+            g.drawString(mc.font, line.parts().get(i), x, y, color);
+            x += mc.font.width(line.parts().get(i));
+            if (i < line.copies().size()) x += 3 + COPY_SIZE;
+        }
+    }
+
+    private String coordinateLine(SelectionBounds b, boolean first) {
+        if (b == null) return first ? "A: —" : "B: —";
+        return first ? "A: X " + b.x1() + "  Z " + b.z1() : "B: X " + b.x2() + "  Z " + b.z2();
+    }
+
+    private List<String> dimensionParts(SelectionBounds bounds, boolean includeChunks) {
+        List<String> parts = new ArrayList<>();
+        parts.add(tr("width", bounds == null ? "—" : bounds.width()).getString());
+        parts.add(tr("length", bounds == null ? "—" : bounds.length()).getString());
+        if (includeChunks && bounds != null) parts.add(tr("chunk_count", bounds.chunkCount()).getString());
+        return parts;
+    }
+
+    private List<String> dimensionText() { return dimensionParts(state.bounds(), chunks); }
+
+    /** The panel's metric lines; their y is relative to the panel top, as for line(). */
+    private List<Map.Entry<Integer, MetricLine>> panelMetricLines() {
+        List<Map.Entry<Integer, MetricLine>> lines = new ArrayList<>();
+        lines.add(Map.entry(compact ? 57 : 106, new MetricLine(dimensionText(), List.of(copyWidth, copyLength))));
+        if (metricsShift != 0) lines.add(Map.entry(compact ? 69 : 118, new MetricLine(
+                List.of(areaText().getString(), perimeterText().getString()), List.of(copyArea, copyPerimeter))));
+        else {
+            lines.add(Map.entry(compact ? 69 : 118, new MetricLine(List.of(areaText().getString()), List.of(copyArea))));
+            lines.add(Map.entry(compact ? 81 : 130, new MetricLine(List.of(perimeterText().getString()), List.of(copyPerimeter))));
+        }
+        return lines;
+    }
+
+    private void placePanelCopies() {
+        int scroll = compact ? 0 : panelScroll;
+        if (compact) place(copyCoordinates, PANEL_X + 11 + mc.font.width(coordinateLine(state.bounds(), true)),
+                PANEL_Y + 32, COPY_SIZE, COPY_SIZE);
+        for (Map.Entry<Integer, MetricLine> line : panelMetricLines())
+            placeMetricLine(line.getValue(), PANEL_X + 8, PANEL_Y + line.getKey() - scroll, panelWidth - 16);
     }
 
     private void arrowRow(Button[] buttons, int x, int y, int width) {
@@ -455,9 +548,10 @@ public final class ExactSelectionController {
         return result;
     }
 
-    private Button copyButton(String labelKey, String tooltipKey, Runnable action) {
-        Button result = Button.builder(tr(labelKey), button -> action.run())
-                .bounds(0, 0, 100, 16).build();
+    /** A small icon button placed right after the value it copies. */
+    private Button copyButton(String tooltipKey, Runnable action) {
+        Button result = Button.builder(Component.empty(), button -> action.run())
+                .bounds(0, 0, COPY_SIZE, COPY_SIZE).build();
         result.setTooltip(Tooltip.create(tr(tooltipKey)));
         widgets.add(result);
         return result;
@@ -668,14 +762,15 @@ public final class ExactSelectionController {
                     for (Button button : autosaveFields.values()) place(button, right, y + 68 + 20 * row++, col, 18);
                     place(autosaveClose, right, y + 68 + 20 * row, col, 18);
                 } else {
-                    place(dialogFields[4], right, y + 46, col, 18);
+                    place(dialogFields[4], right, y + 46, col - 21, 18);
+                    place(areaCopies[0], right + col - 18, y + 46, 18, 18);
                     place(groupAssign, right, y + 66, col, 18);
                     place(areaColor, right, y + 86, half, 18);
                     place(areaOpacity, right + half + 3, y + 86, col - half - 3, 18);
                     place(areaLoad, right, y + 106, half, 18);
                     place(areaExportButton, right + half + 3, y + 106, col - half - 3, 18);
                     place(areaSaveChanges, right, y + 126, col, 18);
-                    mainRow(areaCopies, right, areaCopiesTop(y) + 12, col, 16);
+                    placeAreaInfo(y, h, right, null, col);
                     // "Selected" section: visibility and deletion of every checked area, apart from the territory above.
                     int selectedTop = selectedSectionTop(y, h);
                     place(areaVisibility, right, selectedTop + 12, half, 18);
@@ -1266,8 +1361,7 @@ public final class ExactSelectionController {
         // Start from the largest scale up to the remembered one that the area fits at.
         while (exportPreferences.scale > 1 && !AreaExportService.fits(geometry.bounds(), exportPreferences.scale))
             exportPreferences.scale /= 2;
-        setDialogValue(FOLDER_FIELD, exportPreferences.folder.isBlank()
-                ? defaultExportFolder().toString() : exportPreferences.folder);
+        setDialogValue(FOLDER_FIELD, exportPreferences.folder);
         dialog = Dialog.EXPORT;
         message = "";
         focus(null); updateVisibility();
@@ -1279,10 +1373,12 @@ public final class ExactSelectionController {
         return folder != null ? folder : areaStore.root().resolve("xaero-exact-selection").resolve("map-exports").toAbsolutePath();
     }
 
-    /** The folder typed in the export window, or null when it is not an absolute path. */
+    /** The folder typed in the export window (empty: the default one), or null when it is not an absolute path. */
     private Path exportFolder() {
+        String typed = dialogFields[FOLDER_FIELD].getValue().trim();
+        if (typed.isEmpty()) return defaultExportFolder();
         try {
-            Path folder = Path.of(dialogFields[FOLDER_FIELD].getValue().trim());
+            Path folder = Path.of(typed);
             return folder.isAbsolute() ? folder.normalize() : null;
         } catch (RuntimeException invalid) {
             return null;
@@ -1312,7 +1408,7 @@ public final class ExactSelectionController {
         Path folder = exportFolder();
         if (frame == null || folder == null || exportTarget == null || exportRunning) return;
         Path standard = defaultExportFolder();
-        exportPreferences.folder = folder.equals(standard) ? "" : folder.toString();
+        exportPreferences.folder = dialogFields[FOLDER_FIELD].getValue().isBlank() || folder.equals(standard) ? "" : folder.toString();
         exportPreferences.save();
         if (!pixelFontLoaded) {
             pixelFontLoaded = true;
@@ -2110,13 +2206,29 @@ public final class ExactSelectionController {
         for (AbstractWidget widget : widgets) {
             if (widget.visible) widget.render(g, mouseX, mouseY, delta);
         }
-        if (autosaveButton.visible) {
-            g.nextStratum();
-            renderGear(g, autosaveButton.getX() + (autosaveButton.getWidth() - 9) / 2,
-                    autosaveButton.getY() + (autosaveButton.getHeight() - 9) / 2,
-                    autosaveOpen ? ACCENT : 0xFFE0E0E0);
+        g.nextStratum();
+        if (autosaveButton.visible) renderIcon(g, GEAR, autosaveButton, autosaveOpen ? ACCENT : 0xFFE0E0E0);
+        for (Button copy : List.of(copyCoordinates, copyArea, copyPerimeter, copyLength, copyWidth))
+            if (copy.visible) renderIcon(g, COPY, copy, copy.active ? 0xFFE0E0E0 : 0xFF8A8A8A);
+        for (Button copy : areaCopies) if (copy.visible) renderIcon(g, COPY, copy, copy.active ? 0xFFE0E0E0 : 0xFF8A8A8A);
+        EditBox folder = dialogFields[FOLDER_FIELD];
+        if (folder.visible && folder.getValue().isEmpty() && screen.getFocused() != folder) {
+            // The default folder stays greyed until another one is typed or chosen; the end of the path is kept.
+            String path = defaultExportFolder().toString();
+            while (mc.font.width(path) > folder.getWidth() - 8 && path.length() > 4) path = "…" + path.substring(2);
+            g.drawString(mc.font, path, folder.getX() + 4, folder.getY() + (folder.getHeight() - 8) / 2, 0xFF707A84);
         }
     }
+
+    private static final String[] COPY = {
+            "####...",
+            "#..#...",
+            "#.#####",
+            "#.#...#",
+            "###...#",
+            "..#...#",
+            "..#####",
+    };
 
     private static final String[] GEAR = {
             "....#....",
@@ -2130,14 +2242,16 @@ public final class ExactSelectionController {
             "....#....",
     };
 
-    /** A 9×9 pixel gear with a one-pixel shadow, like the button labels. */
-    private static void renderGear(GuiGraphics g, int x, int y, int color) {
+    /** A pixel icon centred on an empty button, with a one-pixel shadow like the button labels. */
+    private static void renderIcon(GuiGraphics g, String[] icon, Button button, int color) {
+        int x = button.getX() + (button.getWidth() - icon[0].length()) / 2;
+        int y = button.getY() + (button.getHeight() - icon.length) / 2;
         int shadow = 0xFF000000 | (color & 0xFCFCFC) >> 2;
         for (int pass = 0; pass < 2; pass++) {
             int offset = pass == 0 ? 1 : 0;
-            for (int row = 0; row < GEAR.length; row++)
-                for (int column = 0; column < GEAR[row].length(); column++)
-                    if (GEAR[row].charAt(column) == '#')
+            for (int row = 0; row < icon.length; row++)
+                for (int column = 0; column < icon[row].length(); column++)
+                    if (icon[row].charAt(column) == '#')
                         g.fill(x + column + offset, y + row + offset, x + column + offset + 1, y + row + offset + 1,
                                 pass == 0 ? shadow : color);
         }
@@ -2342,9 +2456,9 @@ public final class ExactSelectionController {
         SelectionBounds b = state.bounds();
         if (compact) {
             int available = panelWidth - 16;
-            g.drawString(mc.font, mc.font.plainSubstrByWidth(b == null ? "A: —" : "A: X " + b.x1() + "  Z " + b.z1(), available),
+            g.drawString(mc.font, mc.font.plainSubstrByWidth(coordinateLine(b, true), available),
                     PANEL_X + 8, PANEL_Y + 33, -1);
-            g.drawString(mc.font, mc.font.plainSubstrByWidth(b == null ? "B: —" : "B: X " + b.x2() + "  Z " + b.z2(), available),
+            g.drawString(mc.font, mc.font.plainSubstrByWidth(coordinateLine(b, false), available),
                     PANEL_X + 8, PANEL_Y + 45, -1);
         } else {
             int labelX = fields[0].getX() - fieldGap - coordinateLabelWidth;
@@ -2354,29 +2468,26 @@ public final class ExactSelectionController {
             g.drawString(mc.font, "B: X", labelX, PANEL_Y + 63 - panelScroll, -1);
             g.drawString(mc.font, "Z", zX, PANEL_Y + 63 - panelScroll, -1);
         }
-        line(g, b == null ? tr("dimensions_empty") : chunks
-                ? tr("dimensions_chunks", b.width(), b.length(), b.chunkCount())
-                : tr("dimensions", b.width(), b.length()), compact ? 57 : 106, -1);
         int sh = metricsShift;
-        if (sh != 0) line(g, Component.literal(areaText().getString() + " · " + perimeterText().getString()), compact ? 69 : 118, ACCENT);
-        else {
-            line(g, areaText(), compact ? 69 : 118, ACCENT);
-            line(g, perimeterText(), compact ? 81 : 130, ACCENT);
+        boolean first = true;
+        for (Map.Entry<Integer, MetricLine> metric : panelMetricLines()) {
+            drawMetricLine(g, metric.getValue(), PANEL_X + 8, PANEL_Y + metric.getKey() - (compact ? 0 : panelScroll), panelWidth - 16,
+                    first ? -1 : ACCENT);
+            first = false;
         }
-        sectionHeader(g, tr("copy_header"), (compact ? 94 : 144) + sh);
-        int lineY = PANEL_Y + sh + (compact ? 124 : 174 - panelScroll);
+        int lineY = PANEL_Y + sh + (compact ? 94 : 144 - panelScroll);
         g.fill(PANEL_X + 8, lineY, PANEL_X + panelWidth - 8, lineY + 1, 0xFF42636D);
         if (!compact) {
             int n = selected == null ? 0 : selected.points().size();
             Component count = waypoints == null ? tr("minimap_missing") : selected == null
                     ? tr("waypoints_unavailable") : tr("count", n, setNameDisplay(selected.setName()));
-            line(g, count, 270 + sh, 0xFFFFCF62);
-            line(g, tr(loadFailed ? "area_load_failed" : "scope"), 282 + sh, 0xFF9BAAB7);
+            line(g, count, 240 + sh, 0xFFFFCF62);
+            line(g, tr(loadFailed ? "area_load_failed" : "scope"), 252 + sh, 0xFF9BAAB7);
         }
         SavedAreaStore.Area editing = editedArea();
         Component status = !message.isEmpty() ? Component.literal(message)
                 : editing == null ? tr("controls") : tr("editing_area", editing.name());
-        if (!hasExportNotice()) line(g, status, (compact ? 171 : 297) + sh, message.isEmpty() ? 0xFF9BAAB7 : 0xFFFFCF62);
+        if (!hasExportNotice()) line(g, status, (compact ? 141 : 267) + sh, message.isEmpty() ? 0xFF9BAAB7 : 0xFFFFCF62);
         g.disableScissor();
         if (maxPanelScroll() > 0)
             g.drawString(mc.font, tr("panel_scroll"), PANEL_X + 8, PANEL_Y + panelHeight - 12, 0xFF9BAAB7);
@@ -2393,13 +2504,6 @@ public final class ExactSelectionController {
         for (int i = 1; i < parts.length && mc.font.width(fitted + " · " + parts[i]) <= width; i++) fitted += " · " + parts[i];
         if (mc.font.width(fitted) <= width) return fitted;
         return mc.font.plainSubstrByWidth(fitted, width - mc.font.width("…")).stripTrailing() + "…";
-    }
-
-    private void sectionHeader(GuiGraphics g, Component text, int y) {
-        int drawY = PANEL_Y + y - (compact ? 0 : panelScroll);
-        g.drawString(mc.font, text, PANEL_X + 8, drawY, 0xFF9BAAB7);
-        int start = PANEL_X + 12 + mc.font.width(text);
-        g.fill(start, drawY + 4, PANEL_X + panelWidth - 8, drawY + 5, 0xFF42636D);
     }
 
     private void line(GuiGraphics g, Component text, int y, int color) {
@@ -2423,16 +2527,10 @@ public final class ExactSelectionController {
         show(main && !compact, fields[0], fields[1], fields[2], fields[3], apply, chunkMode,
                 sizeButton, moveButton, centerButton, zonesButton, pointsButton, selectionExportButton);
         if (main && hasExportNotice()) {
-            place(openExportButton, PANEL_X + 8, PANEL_Y + metricsShift + (compact ? 168 : 294 - panelScroll),
+            place(openExportButton, PANEL_X + 8, PANEL_Y + metricsShift + (compact ? 138 : 264 - panelScroll),
                     panelWidth - 16, 16);
             show(true, openExportButton);
         }
-        String copySuffix = compact ? "_short" : "_full";
-        copyCoordinates.setMessage(tr("copy_coordinates" + copySuffix));
-        copyArea.setMessage(tr("copy_area" + copySuffix));
-        copyPerimeter.setMessage(tr("copy_perimeter" + copySuffix));
-        copyLength.setMessage(tr("copy_length" + copySuffix));
-        copyWidth.setMessage(tr("copy_width" + copySuffix));
         SavedAreaStore.Area editing = editedArea();
         boolean autoGeometry = editing != null && autosave.covers(AutosaveSettings.Field.GEOMETRY);
         quickSave.setMessage(tr(editing == null ? "quick_save" : autoGeometry ? "quick_autosaved" : "quick_apply"));
@@ -2444,6 +2542,7 @@ public final class ExactSelectionController {
         place(quickSave, panelModeButton.getX() - 3 - saveWidth, PANEL_Y + 4, saveWidth, 16);
         panelModeButton.setMessage(tr(compact ? "panel_expand" : "panel_compact"));
         panelModeButton.setTooltip(Tooltip.create(tr(compact ? "panel_expand_tooltip" : "panel_compact_tooltip")));
+        if (main) placePanelCopies();
         if (main && !compact) {
             for (AbstractWidget widget : widgets) {
                 if (widget.visible && widget != panelModeButton && widget != quickSave)
@@ -2503,7 +2602,7 @@ public final class ExactSelectionController {
                             areaVisibility, areaColor, areaOpacity);
                     // Save disappears under autosave unless a change outside its fields still waits.
                     show(areaSaveShown(), areaSaveChanges);
-                    show(areaCopiesFit(dialogRect()[3]), areaCopies);
+                    show(selectedAreaIds.size() == 1 && selectedArea() != null, areaCopies);
                 }
             }
             if (!areaDeleteConfirmation && hasExportNotice()) show(true, openExportButton);
@@ -2748,45 +2847,53 @@ public final class ExactSelectionController {
         g.drawString(mc.font, tr("area_name"), right, y + 34, 0xFF9BAAB7);
         int selectedTop = selectedSectionTop(y, h);
         dialogSection(g, tr("selected_header"), right, selectedTop, col);
-        boolean copies = areaCopiesFit(h);
-        if (copies) dialogSection(g, tr("copy_header"), right, areaCopiesTop(y), col);
-        if (selectedAreaIds.size() == 1 && selectedArea() != null) {
-            SavedAreaStore.Area area = selectedArea();
-            List<Component> info = new ArrayList<>();
-            info.add(Component.literal(areaVisibilityDescription(area)));
-            if (area.geometry() instanceof RectangleGeometry) {
-                SelectionBounds b = area.bounds();
-                info.add(tr("dimensions", b.width(), b.length()));
-            }
-            info.add(tr("area", formatMetric(area.geometry().area())));
-            info.add(tr("perimeter", formatLength(area.geometry().perimeter())));
-            int lineY = copies ? areaCopiesTop(y) + 36 : areaCopiesTop(y) + 4;
-            for (Component line : info) {
-                // Stop above the Selected section.
-                if (lineY + 9 > selectedTop - 6) break;
-                g.drawString(mc.font, mc.font.plainSubstrByWidth(line.getString(), col), right, lineY, 0xFF9BAAB7);
-                lineY += 12;
-            }
-        }
+        placeAreaInfo(y, h, right, g, col);
         renderManagementStatus(g, x, y, w, h, "areas_selection_hint");
     }
 
     /** Save stays under Edit and Export unless autosave covers every waiting change. */
     private boolean areaSaveShown() { return !autosave.enabled() || areaDraft.needsSave(autosave); }
 
-    /** The Copy header follows the territory's buttons and closes the gap a hidden Save leaves. */
-    private int areaCopiesTop(int y) { return y + (areaSaveShown() ? 150 : 130); }
+    /** The area's details follow its buttons and close the gap a hidden Save leaves. */
+    private int areaInfoTop(int y) { return y + (areaSaveShown() ? 152 : 132); }
 
     /** The Selected section sits at the bottom of the column, clear of the territory's own controls. */
     private int selectedSectionTop(int y, int h) {
-        int territoryEnd = areaCopiesFit(h) ? areaCopiesTop(y) + 28 : areaCopiesTop(y) - 6;
-        return Math.max(y + h - 84, territoryEnd + 8);
+        return Math.max(y + h - 84, areaInfoTop(y) + 4);
     }
 
-    /** Room for the copy row below the property buttons; small windows leave it out. */
-    private static boolean areaCopiesFit(int height) { return height >= 300; }
+    /** Details of the single checked area with copy buttons after the values; lines that do not fit are left out. */
+    private List<MetricLine> areaInfo(SavedAreaStore.Area area) {
+        List<MetricLine> info = new ArrayList<>();
+        info.add(new MetricLine(List.of(areaVisibilityDescription(area)), List.of()));
+        SelectionBounds b = area.bounds();
+        info.add(new MetricLine(List.of(area.geometry() instanceof PolygonGeometry polygon
+                ? tr("vertices_count", polygon.vertices().size()).getString()
+                : coordinateLine(b, true) + METRIC_SEPARATOR + coordinateLine(b, false)), List.of(areaCopies[1])));
+        if (area.geometry() instanceof RectangleGeometry)
+            info.add(new MetricLine(dimensionParts(b, false), List.of(areaCopies[5], areaCopies[4])));
+        info.add(new MetricLine(List.of(tr("area", formatMetric(area.geometry().area())).getString()), List.of(areaCopies[2])));
+        info.add(new MetricLine(List.of(tr("perimeter", formatLength(area.geometry().perimeter())).getString()), List.of(areaCopies[3])));
+        return info;
+    }
 
-    /** A titled divider inside a window column, matching the panel's Copy header. */
+    /** Lays out (g == null) or draws the area details. */
+    private void placeAreaInfo(int y, int h, int right, GuiGraphics g, int col) {
+        SavedAreaStore.Area area = selectedAreaIds.size() == 1 ? selectedArea() : null;
+        if (area == null) return;
+        if (g == null) for (int i = 1; i < areaCopies.length; i++) areaCopies[i].visible = false;
+        int lineY = areaInfoTop(y), limit = selectedSectionTop(y, h) - 6;
+        for (MetricLine line : areaInfo(area)) {
+            if (lineY + 9 > limit) break;
+            if (g == null) {
+                for (Button copy : line.copies()) copy.visible = true;
+                placeMetricLine(line, right, lineY, col);
+            } else drawMetricLine(g, line, right, lineY, col, 0xFF9BAAB7);
+            lineY += 12;
+        }
+    }
+
+    /** A titled divider inside a window column. */
     private void dialogSection(GuiGraphics g, Component text, int x, int y, int width) {
         g.drawString(mc.font, text, x, y, 0xFF9BAAB7);
         int start = x + 4 + mc.font.width(text);

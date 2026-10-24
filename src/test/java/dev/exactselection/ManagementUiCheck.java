@@ -1123,8 +1123,8 @@ public final class ManagementUiCheck {
             Button[] copies = (Button[]) get(controller, "areaCopies");
             call(controller, "layoutDialog");
             require(save.getX() == load.getX() && save.getY() >= load.getY() + load.getHeight()
-                    && copies[0].getY() > save.getY() + save.getHeight()
-                    && shown.getY() > copies[0].getY() + copies[0].getHeight() + 12,
+                    && copies[1].getY() > save.getY() + save.getHeight()
+                    && shown.getY() > copies[3].getY() + copies[3].getHeight() + 6,
                     "Save is not under Edit/Export, or Selected is not below the territory's controls");
             require(gear.getWidth() <= 20 && gear.getMessage().getString().isEmpty(), "Autosave settings button is not a gear");
             int depth = ((Deque<?>) get(get(controller, "history"), "undo")).size();
@@ -1155,7 +1155,7 @@ public final class ManagementUiCheck {
             press(controller, "autosaveClose");
             require(!save.visible, "Save stays visible under autosave with nothing pending");
             call(controller, "layoutDialog");
-            require(copies[0].getY() == load.getY() + load.getHeight() + 18, "Hidden Save leaves a gap above Copy");
+            require(copies[1].getY() == load.getY() + load.getHeight() + 19, "Hidden Save leaves a gap above the area details");
             press(controller, "areaOpacity");
             require(store.state().areas().get(1).opacity() == 50, "Autosaved fill was not written immediately");
             text(controller, 4).setValue("Manual name");
@@ -1164,7 +1164,12 @@ public final class ManagementUiCheck {
                     "A change outside autosave must keep Save visible and wait for it");
             press(controller, "areaSaveChanges");
             require(store.state().areas().get(1).name().equals("Manual name"), "Save did not write the non-autosaved name");
+            call(controller, "layoutDialog");
             for (Button copy : (Button[]) get(controller, "areaCopies")) require(copy.visible && copy.active, "Area copy buttons are missing");
+            Button[] small = (Button[]) get(controller, "areaCopies");
+            require(small[2].getWidth() <= 12 && small[2].getMessage().getString().isEmpty()
+                    && small[5].getY() == small[4].getY() && small[5].getX() < small[4].getX(),
+                    "Area copy buttons are not small icons after their values");
 
             pick(controller, store, a.id());
             press(controller, "areaLoad");
@@ -1317,8 +1322,9 @@ public final class ManagementUiCheck {
             press(controller, "selectionExportButton");
             require(window(controller).equals("EXPORT"), "Selection export did not open the export window");
             EditBox folder = text(controller, 11);
-            require(Path.of(folder.getValue()).equals(directory.resolve("xaero-exact-selection").resolve("map-exports").toAbsolutePath()),
-                    "Export window does not start in the default folder: " + folder.getValue());
+            Path defaultFolder = directory.resolve("xaero-exact-selection").resolve("map-exports").toAbsolutePath();
+            require(folder.getValue().isEmpty() && call(controller, "exportFolder").equals(defaultFolder),
+                    "Default export folder must remain an empty field resolving to the default path: " + folder.getValue());
             Button run = (Button) get(controller, "exportRun");
             require(run.visible && run.active, "Export is unavailable for a small selection");
             int scale = (Integer) get(get(controller, "exportPreferences"), "scale");
@@ -1330,7 +1336,8 @@ public final class ManagementUiCheck {
             folder.setValue("relative/path"); call(controller, "updateVisibility");
             require(!run.active, "A relative folder can be exported to");
             press(controller, "exportDefaultFolder");
-            require(run.active, "Default folder button did not restore a usable folder");
+            require(run.active && folder.getValue().isEmpty() && call(controller, "exportFolder").equals(defaultFolder),
+                    "Default folder button did not clear the field and restore a usable folder");
             for (int[] size : List.of(new int[]{320, 240}, new int[]{480, 270}, new int[]{960, 540}, new int[]{640, 360})) {
                 map.width = size[0]; map.height = size[1];
                 // Screen.rebuildWidgets clears the old widgets before init() adds new ones.

@@ -10,3 +10,4 @@ logs/
 *.iml
 out/
 .vscode/
+graphify-out/

@@ -32,7 +32,7 @@ The compact panel is enabled by default. Expand it for coordinate input, dimensi
 
 Blocks are the default unit. Both endpoint blocks are included: `(0, 0)` to `(15, 15)` is **16 × 16 = 256 blocks²**. Chunk mode snaps rectangle edges to the 16-block grid, including negative coordinates. Coordinate input stays exact. Width is the X extent and length is the Z extent. Polygon dimensions describe its bounding box; area and perimeter follow its actual shape.
 
-The separate **Copy** section copies coordinates, area, perimeter, length or width. The Center dialog copies the bounding-box center or creates a waypoint there at the player’s current Y level. A 3×6 rectangle has a perimeter of 18 blocks. Non-integer lengths are displayed to two decimal places.
+Small copy-icon buttons sit immediately after the coordinates, width, length, area and perimeter values in both panel modes. The expanded panel keeps coordinate copying beside Apply coordinates. The Center dialog copies the bounding-box center or creates a waypoint there at the player’s current Y level. A 3×6 rectangle has a perimeter of 18 blocks. Non-integer lengths are displayed to two decimal places.
 
 ### Polygons
 
@@ -58,7 +58,7 @@ Areas and Groups have separate windows. The Areas window opens with nothing chec
 
 - Name, **Group**, **Color…** (24 colors or custom `#RRGGBB` / `#RGB`) and fill are edited in the form and marked with `*` until **Save** (below Edit territory and Export map) writes them to every checked area in one undoable step. Checking other areas or closing the window discards unsaved changes.
 - The gear button at the bottom opens its settings in the same window: a main switch and separate switches for name, group, color, fill and territory shape. Enabled changes are written immediately and Save disappears unless a change outside autosave is waiting; a "● Autosave" indicator shows that it is on. With territory-shape autosave, each edit of a loaded area is written together with the selection change and undone in one step. The settings are shared by all worlds.
-- The **Selected** section at the bottom of the column, apart from the area's own controls, shows or hides and deletes the checked areas; the **Copy** section copies the name, coordinates, area, perimeter, length or width of a single checked area. Its width, length (rectangles), area and perimeter are listed below.
+- The **Selected** section at the bottom of the column, apart from the area's own controls, shows or hides and deletes the checked areas. Small copy icons follow the name and each coordinate or metric value of a single checked area. Rectangles show width and length; polygons show their vertex count. Both show area and perimeter.
 - Create, rename, hide or delete groups in the Groups window.
 - Individual visibility and group visibility are independent. A hidden group suppresses its areas without changing their individual settings.
 - Delete checked areas after confirmation; deletion supports undo.
@@ -78,7 +78,7 @@ Before each write, the addon checks that the points and set still match the disp
 
 Expand the selection panel and choose **Export selection as PNG…**, or **Export map…** for one saved area in the Areas window. Saving the working selection first is unnecessary. The export window shows:
 
-- **Folder**: Xaero's own export folder (normally `map exports/` in the game directory) or any absolute path; **Choose…** opens the system folder picker, **Default folder** restores Xaero's folder, and the full path of the file to be written is shown below.
+- **Folder**: Xaero's own export folder (normally `map exports/` in the game directory) or any absolute path; **Choose…** opens the system folder picker. **Default folder** clears the field. An empty, unfocused field shows the default path in grey as a placeholder and still exports there. The full path of the file to be written is shown below.
 - **Time: day / night**: night uses Xaero's own night export, with the dark sky and block light.
 - **Scale**: 1, 2, 4 or 8 image pixels per block; the map is enlarged without blurring and the resulting image size is shown.
 - **Labels: on / off**.

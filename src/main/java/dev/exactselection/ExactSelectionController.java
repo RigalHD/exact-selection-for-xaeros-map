@@ -5,6 +5,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -39,7 +40,7 @@ public final class ExactSelectionController {
     private static final int ACCENT = 0xFF59E3CE;
     private record MapLabel(Component text, int x, int y, int color) {}
     private record ScreenPoint(double x, double y) {}
-    private enum Dialog { NONE, SIZE, MOVE, CENTER, AREAS, GROUPS, ASSIGN_GROUP, AREA_NAME, GROUP_NAME, WAYPOINTS, COLOR }
+    private enum Dialog { NONE, SIZE, MOVE, CENTER, AREAS, GROUPS, ASSIGN_GROUP, AREA_NAME, GROUP_NAME, WAYPOINTS, COLOR, IMPORT }
     private final GuiMap screen;
     private final MapBridge bridge;
     private final Minecraft mc;
@@ -61,12 +62,22 @@ public final class ExactSelectionController {
     private Button centerCopy, centerCreate, areaSave, areaLoad, areaDelete;
     private Button areaSelectAll, areaClearSelection, areaSaveChanges, autosaveButton, autosaveToggle, autosaveClose;
     /** Copy buttons of the Areas window, in the panel's order: coordinates, area, perimeter, length, width. */
-    private final Button[] areaCopies = new Button[5];
+    private final Button[] areaCopies = new Button[6];
+    /** List order of the Areas window; DATE is the order areas were added, oldest first. */
+    private enum AreaSort { DATE, NAME, GROUP, VISIBILITY }
+    private AreaSort areaSort = AreaSort.DATE;
+    private Button areaSortButton;
     private final Map<AutosaveSettings.Field, Button> autosaveFields = new java.util.EnumMap<>(AutosaveSettings.Field.class);
     private final AreaDraft areaDraft = new AreaDraft();
     private final AutosaveSettings autosave;
     /** The Areas window shows the autosave settings instead of the area properties. */
     private boolean autosaveOpen;
+    private Button areaExportFile, areaImport, groupExport, importOpenFolder;
+    /** Exchange files listed by the import window, newest first; refreshed each time it opens. */
+    private List<Path> importFiles = List.of();
+    private int importScroll;
+    /** The last row clicked without Shift; Shift+click checks the range from it. */
+    private String areaAnchorId;
     private Button groupCreate, groupRename, groupAssign, groupVisibility, areaVisibility, areaColor, areaOpacity;
     private Button groupDelete, manageGroups, managementClose, managementUndo, managementRedo;
     private Button areaExportButton, openExportButton;
@@ -233,15 +244,33 @@ public final class ExactSelectionController {
                 if (autosave.covers(field)) commitDraft(f -> f == field);
                 updateVisibility();
             }));
+        areaSortButton = button("area_sort_date", 0, 0, 130, () -> {
+            areaSort = AreaSort.values()[(areaSort.ordinal() + 1) % AreaSort.values().length];
+            areaScroll = 0;
+            updateVisibility();
+        });
+        areaSortButton.setTooltip(Tooltip.create(tr("area_sort_tooltip")));
+        areaExportFile = button("areas_export", 0, 0, 110, this::exportAreaFile);
+        areaImport = button("areas_import", 0, 0, 110, this::openImport);
+        groupExport = button("group_export", 0, 0, 120, this::exportGroupFile);
+        importOpenFolder = button("import_open_folder", 0, 0, 150, () -> {
+            try { Files.createDirectories(transferFolder()); } catch (java.io.IOException ignored) { }
+            net.minecraft.util.Util.getPlatform().openPath(transferFolder());
+        });
+        areaExportFile.setTooltip(Tooltip.create(tr("areas_export_tooltip")));
+        areaImport.setTooltip(Tooltip.create(tr("areas_import_tooltip")));
+        groupExport.setTooltip(Tooltip.create(tr("group_export_tooltip")));
         autosaveClose = button("autosave_close", 0, 0, 120, () -> { autosaveOpen = false; focus(null); updateVisibility(); });
-        String[][] copies = {{"copy_coordinates_short", "copy_coordinates_tooltip"}, {"copy_area_short", "copy_area_tooltip"},
-                {"copy_perimeter_short", "copy_perimeter_tooltip"}, {"copy_length_short", "copy_length_tooltip"},
-                {"copy_width_short", "copy_width_tooltip"}};
+        String[][] copies = {{"copy_name_short", "copy_name_tooltip"}, {"copy_coordinates_short", "copy_coordinates_tooltip"},
+                {"copy_area_short", "copy_area_tooltip"}, {"copy_perimeter_short", "copy_perimeter_tooltip"},
+                {"copy_length_short", "copy_length_tooltip"}, {"copy_width_short", "copy_width_tooltip"}};
         for (int i = 0; i < areaCopies.length; i++) {
-            int kind = i;
+            int kind = i - 1;
             areaCopies[i] = copyButton(copies[i][0], copies[i][1], () -> {
                 SavedAreaStore.Area area = selectedAreas().size() == 1 ? selectedArea() : null;
-                if (area != null) copyMetric(kind, area.geometry(), area.bounds());
+                if (area == null) return;
+                if (kind < 0) copyToClipboard(area.name());
+                else copyMetric(kind, area.geometry(), area.bounds());
             });
         }
         areaSelectAll = button("area_select_all", 0, 0, 110, this::selectAllAreas);
@@ -411,6 +440,7 @@ public final class ExactSelectionController {
             // The window opens with nothing checked; properties apply only to areas the user picks.
             selectedAreaIds.clear();
             areaId = null;
+            areaAnchorId = null;
             areaDraft.clear();
             autosaveOpen = false;
             areaDeleteConfirmation = groupDeleteConfirmation = false;
@@ -497,7 +527,7 @@ public final class ExactSelectionController {
         dialog = switch (dialog) {
             case AREA_NAME -> areaNameReturn;
             case COLOR -> colorReturn;
-            case ASSIGN_GROUP -> Dialog.AREAS;
+            case ASSIGN_GROUP, IMPORT -> Dialog.AREAS;
             case GROUP_NAME -> Dialog.GROUPS;
             case GROUPS -> groupsReturnDialog;
             default -> Dialog.NONE;
@@ -520,7 +550,7 @@ public final class ExactSelectionController {
             case AREA_NAME -> Math.min(210, screen.height - 16);
             case GROUP_NAME -> Math.min(140, screen.height - 16);
             case COLOR -> Math.min(140, screen.height - 16);
-            case WAYPOINTS -> Math.min(330, screen.height - 16);
+            case WAYPOINTS, IMPORT -> Math.min(330, screen.height - 16);
             default -> 0;
         };
         return new int[]{(screen.width - width) / 2, (screen.height - height) / 2, width, height};
@@ -535,7 +565,8 @@ public final class ExactSelectionController {
     }
 
     private int visibleAreaDialogRows(int height) {
-        int fitting = Math.max(1, (height - 128) / 20);
+        // The list ends above the export/import, select, save and overlay rows at the bottom of the window.
+        int fitting = Math.max(1, (height - 148) / 20);
         return Math.min(areaDialogRows(), fitting);
     }
 
@@ -607,6 +638,9 @@ public final class ExactSelectionController {
                     mainRow(areaCopies, right, y + 194, col, 16);
                 }
                 place(openExportButton, right, y + h - 44, col, 16);
+                place(areaSortButton, x + 14 + col - 130, y + 27, 130, 16);
+                place(areaExportFile, x + 12, y + h - 92, half, 18);
+                place(areaImport, x + 15 + half, y + h - 92, col - half - 3, 18);
                 place(areaSelectAll, x + 12, y + h - 72, half, 18);
                 place(areaClearSelection, x + 15 + half, y + h - 72, col - half - 3, 18);
                 place(areaSave, x + 12, y + h - 52, col, 18);
@@ -627,6 +661,12 @@ public final class ExactSelectionController {
                 place(groupRename, right, y + 100, col, 18);
                 place(groupVisibility, right, y + 122, col, 18);
                 place(groupDelete, right, y + 144, col, 18);
+                place(groupExport, right, y + 166, col, 18);
+                place(openExportButton, right, y + h - 44, col, 16);
+            }
+            case IMPORT -> {
+                place(managementClose, x + w - 82, y + 7, 70, 18);
+                place(importOpenFolder, x + 12, y + h - 28, 150, 18);
             }
             case ASSIGN_GROUP -> {
                 place(managementClose, x + w - 82, y + 7, 70, 18);
@@ -1210,6 +1250,109 @@ public final class ExactSelectionController {
             }
         } catch (RuntimeException unavailable) { }
         net.minecraft.util.Util.getPlatform().openPath(lastExport.getParent());
+    }
+
+    /** Areas in the Areas window's display order; rows, Shift ranges and scrolling all use it. */
+    private List<SavedAreaStore.Area> displayedAreas() {
+        List<SavedAreaStore.Area> stored = areaStore.state().areas();
+        java.text.Collator collator = java.text.Collator.getInstance();
+        collator.setStrength(java.text.Collator.SECONDARY);
+        Comparator<SavedAreaStore.Area> byName = (a, b) -> collator.compare(a.name(), b.name());
+        return switch (areaSort) {
+            case DATE -> stored;
+            case NAME -> stored.stream().sorted(byName).toList();
+            // Grouped areas by group name, then ungrouped ones.
+            case GROUP -> stored.stream().sorted(Comparator.<SavedAreaStore.Area, Boolean>comparing(a -> findGroup(a.groupId()) == null)
+                    .thenComparing((a, b) -> findGroup(a.groupId()) == null ? 0
+                            : collator.compare(findGroup(a.groupId()).name(), findGroup(b.groupId()).name()))
+                    .thenComparing(byName)).toList();
+            // Shown first; an area hidden by itself or by its group counts as hidden.
+            case VISIBILITY -> stored.stream().sorted(Comparator.<SavedAreaStore.Area, Boolean>comparing(a -> !shownOnMap(a))
+                    .thenComparing(byName)).toList();
+        };
+    }
+
+    private boolean shownOnMap(SavedAreaStore.Area area) {
+        SavedAreaStore.Group group = findGroup(area.groupId());
+        return area.visible() && (group == null || group.visible());
+    }
+
+    private Path transferFolder() { return AreaTransfer.folder(areaStore.root()); }
+
+    /** Exports the checked areas, or every area of this world when none is checked. */
+    private void exportAreaFile() {
+        if (loadFailed) return;
+        List<SavedAreaStore.Area> areas = selectedAreas().isEmpty() ? areaStore.state().areas() : selectedAreas();
+        exportTransfer(selectedAreas().isEmpty() ? "areas" : areas.size() == 1 ? areas.get(0).name() : "areas", areas);
+    }
+
+    private void exportGroupFile() {
+        SavedAreaStore.Group group = selectedGroup();
+        if (group == null || loadFailed) return;
+        exportTransfer(group.name(), areaStore.state().areas().stream().filter(a -> Objects.equals(a.groupId(), group.id())).toList());
+    }
+
+    private void exportTransfer(String label, List<SavedAreaStore.Area> areas) {
+        if (areas.isEmpty()) return;
+        try {
+            Path file = AreaTransfer.export(transferFolder(), label, areas, areaStore.state().groups());
+            lastExport = file.toAbsolutePath().normalize();
+            exportNotice = tr("areas_exported", areas.size(), file.getFileName().toString()).getString();
+            message = exportNotice;
+            openExportButton.setTooltip(Tooltip.create(Component.literal(lastExport.toString())));
+        } catch (Exception e) {
+            message = tr("areas_export_failed").getString();
+            LoggerFactory.getLogger("xaero-exact-selection").error("Could not export areas", e);
+        }
+        layoutDialog(); updateVisibility();
+    }
+
+    private void openImport() {
+        if (loadFailed) return;
+        flushDraft();
+        try { importFiles = AreaTransfer.list(transferFolder()); }
+        catch (Exception e) { importFiles = List.of(); }
+        importScroll = 0;
+        dialog = Dialog.IMPORT;
+        message = "";
+        focus(null); updateVisibility();
+    }
+
+    private static int importRows(int height) { return Math.max(1, (height - 84) / 20); }
+
+    /** Adds a file's areas to this world as one undo step and returns to the Areas window. */
+    private void importFile(Path file) {
+        try {
+            AreaTransfer.Merge merge = AreaTransfer.merge(areaStore.state(), AreaTransfer.read(file));
+            if (merge.added() > 0 || merge.groupsAdded() > 0) {
+                if (!changeAreas(merge.state(), "area_import")) return;
+            }
+            dialog = Dialog.AREAS;
+            message = tr("areas_imported", merge.added(), merge.skipped()).getString();
+        } catch (Exception e) {
+            message = tr("areas_import_failed", file.getFileName().toString()).getString();
+            LoggerFactory.getLogger("xaero-exact-selection").warn("Could not import " + file, e);
+        }
+        focus(null); updateVisibility();
+    }
+
+    private void renderImportDialog(GuiGraphics g, int x, int y, int w, int h) {
+        g.drawString(mc.font, mc.font.plainSubstrByWidth(tr("import_hint").getString(), w - 24), x + 12, y + 32, 0xFF9BAAB7);
+        int rows = importRows(h);
+        importScroll = Math.min(importScroll, Math.max(0, importFiles.size() - rows));
+        g.fill(x + 10, y + 46, x + w - 10, y + 48 + rows * 20, 0xFF0C141D);
+        if (importFiles.isEmpty()) g.drawString(mc.font, tr("import_empty"), x + 16, y + 54, 0xFF9BAAB7);
+        java.time.format.DateTimeFormatter time = java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")
+                .withZone(java.time.ZoneId.systemDefault());
+        for (int i = 0; i < rows && i + importScroll < importFiles.size(); i++) {
+            Path file = importFiles.get(i + importScroll);
+            int rowY = y + 48 + i * 20;
+            String when;
+            try { when = time.format(Files.getLastModifiedTime(file).toInstant()); } catch (Exception e) { when = ""; }
+            g.drawString(mc.font, mc.font.plainSubstrByWidth(file.getFileName().toString(), w - 150), x + 16, rowY + 6, -1);
+            g.drawString(mc.font, when, x + w - 16 - mc.font.width(when), rowY + 6, 0xFF9BAAB7);
+        }
+        if (!message.isEmpty()) g.drawString(mc.font, mc.font.plainSubstrByWidth(message, w - 190), x + 172, y + h - 23, 0xFFFFCF62);
     }
 
     private void askDeleteGroup() {
@@ -2151,7 +2294,7 @@ public final class ExactSelectionController {
         if (dialog == Dialog.AREAS) {
             if (areaDeleteConfirmation) show(true, confirm, cancel);
             else {
-                show(true, managementClose, manageGroups, managementUndo, managementRedo, areaSave,
+                show(true, managementClose, manageGroups, managementUndo, managementRedo, areaSave, areaExportFile, areaImport, areaSortButton,
                         areaSelectAll, areaClearSelection, areaMapVisibility, areaMinimapVisibility, autosaveButton);
                 if (autosaveOpen) {
                     show(true, autosaveToggle, autosaveClose);
@@ -2168,7 +2311,11 @@ public final class ExactSelectionController {
         }
         if (dialog == Dialog.GROUPS) {
             if (groupDeleteConfirmation) show(true, confirm, cancel);
-            else show(true, managementClose, managementUndo, managementRedo, groupCreate, groupRename, groupVisibility, groupDelete);
+            else {
+                show(true, managementClose, managementUndo, managementRedo, groupCreate, groupRename, groupVisibility,
+                        groupDelete, groupExport);
+                show(hasExportNotice(), openExportButton);
+            }
         }
         if (dialog == Dialog.WAYPOINTS) show(true, dialogFields[7], dialogFields[RENAME_FIELD],
                 pointVisibility, pointColor, pointScope, pointRename, pointRecolor, confirm, cancel);
@@ -2235,6 +2382,13 @@ public final class ExactSelectionController {
         dialogFields[4].active = singleArea && !loadFailed;
         groupCreate.active = !loadFailed;
         groupRename.active = groupVisibility.active = groupDelete.active = group != null && !loadFailed;
+        groupExport.active = group != null && !loadFailed
+                && areaStore.state().areas().stream().anyMatch(a -> Objects.equals(a.groupId(), group.id()));
+        areaExportFile.active = !loadFailed && !areaStore.state().areas().isEmpty();
+        areaExportFile.setMessage(selectedCount > 0 ? tr("areas_export_count", selectedCount) : tr("areas_export"));
+        areaImport.active = !loadFailed;
+        areaSortButton.setMessage(tr("area_sort_" + areaSort.name().toLowerCase(Locale.ROOT)));
+        if (dialog == Dialog.IMPORT) show(true, managementClose, importOpenFolder);
         groupVisibility.setMessage(tr(group != null && group.visible() ? "group_hide" : "group_show"));
         boolean hideAreas = selectedAreas().stream().anyMatch(SavedAreaStore.Area::visible);
         areaVisibility.setMessage(tr(hideAreas ? "area_hide_selected" : "area_show_selected", selectedCount));
@@ -2296,9 +2450,10 @@ public final class ExactSelectionController {
             case AREAS -> "areas_window"; case GROUPS -> "groups_window";
             case ASSIGN_GROUP -> "group_picker_title"; case AREA_NAME -> "area_new_title";
             case GROUP_NAME -> renamingGroup ? "group_rename_title" : "group_new_title";
-            case WAYPOINTS -> "dialog_waypoints"; case COLOR -> "color_title"; default -> "title";
+            case WAYPOINTS -> "dialog_waypoints"; case COLOR -> "color_title";
+            case IMPORT -> "import_title"; default -> "title";
         };
-        if (dialog == Dialog.AREAS || dialog == Dialog.GROUPS || dialog == Dialog.ASSIGN_GROUP)
+        if (dialog == Dialog.AREAS || dialog == Dialog.GROUPS || dialog == Dialog.ASSIGN_GROUP || dialog == Dialog.IMPORT)
             g.drawString(mc.font, tr(title), x + 12, y + 12, ACCENT);
         else g.drawCenteredString(mc.font, tr(title), x + w / 2, y + 10, ACCENT);
         switch (dialog) {
@@ -2323,6 +2478,7 @@ public final class ExactSelectionController {
             case AREAS -> renderAreasDialog(g, x, y, w, h);
             case GROUPS -> renderGroupsDialog(g, x, y, w, h);
             case ASSIGN_GROUP -> renderGroupChooser(g, x, y, w, h);
+            case IMPORT -> renderImportDialog(g, x, y, w, h);
             case AREA_NAME, GROUP_NAME -> {
                 g.drawString(mc.font, tr(dialog == Dialog.AREA_NAME ? "area_name" : "group_name"), x + 16, y + 32, -1);
                 if (dialog == Dialog.AREA_NAME) renderSwatches(g, x, y, w, AreaPalette.COLORS, newAreaColor);
@@ -2341,11 +2497,12 @@ public final class ExactSelectionController {
             return;
         }
         int col = (w - 36) / 2, right = x + w - col - 12;
-        List<SavedAreaStore.Area> areas = areaStore.state().areas();
+        List<SavedAreaStore.Area> areas = displayedAreas();
         int rows = visibleAreaDialogRows(h);
         areaScroll = Math.min(areaScroll, Math.max(0, areas.size() - rows));
-        g.drawString(mc.font, tr("area_list_count", selectedAreaIds.size()), x + 12, y + 34, 0xFF9BAAB7);
-        g.fill(x + 10, y + 46, x + 14 + col, y + h - 78, 0xFF0C141D);
+        g.drawString(mc.font, mc.font.plainSubstrByWidth(tr("area_list_count", selectedAreaIds.size()).getString(), col - 136),
+                x + 12, y + 34, 0xFF9BAAB7);
+        g.fill(x + 10, y + 46, x + 14 + col, y + h - 98, 0xFF0C141D);
         if (areas.isEmpty()) g.drawString(mc.font, tr("areas_empty"), x + 16, y + 54, 0xFF9BAAB7);
         for (int i = 0; i < rows && i + areaScroll < areas.size(); i++) {
             SavedAreaStore.Area area = areas.get(i + areaScroll);
@@ -2537,6 +2694,14 @@ public final class ExactSelectionController {
                     if (i >= 0) applyColor(colorReturn == Dialog.WAYPOINTS ? i : colors[i]);
                     return true;
                 }
+                if (dialog == Dialog.IMPORT) {
+                    int rows = importRows(h);
+                    if (event.x() >= x + 10 && event.x() < x + w - 10 && event.y() >= y + 48 && event.y() < y + 48 + rows * 20) {
+                        int index = importScroll + (int) ((event.y() - y - 48) / 20);
+                        if (index < importFiles.size()) importFile(importFiles.get(index));
+                    }
+                    return true;
+                }
                 if (dialog == Dialog.AREA_NAME) {
                     int i = swatchAt(x, y, w, AreaPalette.COLORS.length, event.x(), event.y());
                     if (i >= 0) { newAreaColor = AreaPalette.COLORS[i]; focus(null); updateVisibility(); }
@@ -2547,14 +2712,25 @@ public final class ExactSelectionController {
                     if (event.x() >= x + 10 && event.x() < x + 14 + col
                             && event.y() >= y + 48 && event.y() < y + 48 + rows * 20) {
                         int index = areaScroll + (int) ((event.y() - y - 48) / 20);
-                        List<SavedAreaStore.Area> areas = areaStore.state().areas();
+                        List<SavedAreaStore.Area> areas = displayedAreas();
                         if (index < areas.size()) {
                             SavedAreaStore.Area area = areas.get(index);
                             flushDraft();
-                            boolean multiple = event.x() < x + 27
+                            // Like file managers: Ctrl/Cmd (or the checkbox) toggles one row, Shift checks the range
+                            // from the last plainly clicked row, and both together add that range.
+                            boolean toggle = event.x() < x + 27
                                     || (event.modifiers() & (GLFW.GLFW_MOD_CONTROL | GLFW.GLFW_MOD_SUPER)) != 0;
-                            if (!multiple) { selectedAreaIds.clear(); selectedAreaIds.add(area.id()); }
-                            else if (!selectedAreaIds.remove(area.id())) selectedAreaIds.add(area.id());
+                            boolean range = (event.modifiers() & GLFW.GLFW_MOD_SHIFT) != 0;
+                            int anchor = -1;
+                            for (int i = 0; i < areas.size(); i++) if (areas.get(i).id().equals(areaAnchorId)) anchor = i;
+                            if (range && anchor >= 0) {
+                                if (!toggle) selectedAreaIds.clear();
+                                for (int i = Math.min(anchor, index); i <= Math.max(anchor, index); i++) selectedAreaIds.add(areas.get(i).id());
+                            } else {
+                                if (!toggle) selectedAreaIds.clear();
+                                if (!selectedAreaIds.remove(area.id()) || !toggle) selectedAreaIds.add(area.id());
+                                areaAnchorId = area.id();
+                            }
                             areaId = selectedAreaIds.contains(area.id()) ? area.id()
                                     : selectedAreaIds.stream().reduce((first, last) -> last).orElse(null);
                             setDialogValue(4, selectedAreaIds.size() == 1 && selectedArea() != null ? selectedArea().name() : "");
@@ -2727,6 +2903,10 @@ public final class ExactSelectionController {
             return true;
         }
         int step = vertical > 0 ? 1 : vertical < 0 ? -1 : 0;
+        if (dialog == Dialog.IMPORT) {
+            importScroll = Math.max(0, Math.min(Math.max(0, importFiles.size() - importRows(dialogRect()[3])), importScroll - step));
+            return true;
+        }
         if (dialog == Dialog.AREAS || dialog == Dialog.GROUPS || dialog == Dialog.ASSIGN_GROUP) {
             if (areaDeleteConfirmation || groupDeleteConfirmation) return true;
             int[] r = dialogRect();

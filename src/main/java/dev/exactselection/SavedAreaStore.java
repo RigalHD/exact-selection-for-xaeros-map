@@ -180,7 +180,7 @@ public final class SavedAreaStore {
         catch (NoSuchAlgorithmException e) { throw new IllegalStateException(e); }
     }
 
-    private static JsonObject encode(State state) {
+    static JsonObject encode(State state) {
         JsonObject root = new JsonObject();
         root.addProperty("schema", 3);
         root.addProperty("showOnMap", state.showOnMap());
@@ -219,7 +219,7 @@ public final class SavedAreaStore {
         return root;
     }
 
-    private static State decode(JsonObject root) {
+    static State decode(JsonObject root) {
         int schema = root.get("schema").getAsInt();
         if (schema < 1 || schema > 3) throw new IllegalArgumentException("Unsupported area file schema");
         List<Area> areas = new ArrayList<>();

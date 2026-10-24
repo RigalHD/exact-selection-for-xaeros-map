@@ -2,6 +2,7 @@
 
 ## 1.3.0+1.21.11
 
+- Export checked areas, all areas or a whole group to JSON exchange files and import them into any world (groups matched by name, duplicates skipped, one undo step). Shift/Ctrl/Cmd range and toggle selection in the Areas list, list sorting by date added, name, group or visibility, and a copy-name button.
 - Areas window: name, group, color and fill are edited as a draft and written with Save in one undo step; Autosave settings (main switch plus name, group, color, fill and territory shape) with an indicator. Edit becomes Edit territory and shows when that territory is being edited; its stored shape is drawn faded. Added Selected and Copy sections and labelled metrics; the window opens with nothing checked. Removed Rename and Merge.
 - Fix waypoints in the selection not being found (0 or "no set") when the World Map shows the minimap's current waypoint world rather than the auto-detected one, e.g. on servers with custom subworlds. Selections, highlights, editing and center waypoints now use the waypoint world the map displays, including Xaero's coordinate division between dimensions.
 - Choose the color (24-color palette) and fill opacity directly in the New area window; both are remembered for the next area. The selection is cleared after saving, as its own undo step.

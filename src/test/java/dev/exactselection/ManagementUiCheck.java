@@ -1180,6 +1180,99 @@ public final class ManagementUiCheck {
         System.out.println("PASS: area properties wait for Save as one undo step, autosave settings, Save hiding, area copy, territory shape autosave");
     }
 
+    private static void clickRow(ExactSelectionController controller, int index, int modifiers) throws Exception {
+        int[] rect = (int[]) call(controller, "dialogRect");
+        controller.mouseClicked(new MouseButtonEvent(rect[0] + 54, rect[1] + 54 + index * 20,
+                new MouseButtonInfo(GLFW.GLFW_MOUSE_BUTTON_LEFT, modifiers)), false);
+    }
+
+    private static Set<String> checkedNames(ExactSelectionController controller, SavedAreaStore store) throws Exception {
+        Set<?> ids = (Set<?>) get(controller, "selectedAreaIds");
+        Set<String> names = new java.util.TreeSet<>();
+        for (SavedAreaStore.Area area : store.state().areas()) if (ids.contains(area.id())) names.add(area.name());
+        return names;
+    }
+
+    private static void checkAreaListAndTransfer(ExactSelectionController controller, SavedAreaStore store, Path directory) throws Exception {
+        SavedAreaStore.State saved = store.state();
+        var roads = new SavedAreaStore.Group("roads", "Roads", true);
+        var c = SavedAreaStore.create("Charlie", new SelectionBounds(0, 0, 4, 4), 0x111111, 25, null);
+        var a = SavedAreaStore.create("alpha", new SelectionBounds(10, 0, 14, 4), 0x222222, 25, "roads");
+        var d = SavedAreaStore.create("Delta", new SelectionBounds(20, 0, 24, 4), 0x333333, 25, "roads");
+        var b = SavedAreaStore.create("Bravo", new SelectionBounds(30, 0, 34, 4), 0x444444, 25, null);
+        try {
+            store.replace(new SavedAreaStore.State(List.of(c, a, d, b), List.of(roads), true, true));
+            press(controller, "areasButton");
+            clickRow(controller, 0, 0);
+            clickRow(controller, 2, GLFW.GLFW_MOD_SHIFT);
+            require(checkedNames(controller, store).equals(Set.of("Charlie", "alpha", "Delta")), "Shift+click did not check the range");
+            clickRow(controller, 1, GLFW.GLFW_MOD_CONTROL);
+            require(checkedNames(controller, store).equals(Set.of("Charlie", "Delta")), "Ctrl+click did not toggle one area");
+            clickRow(controller, 3, GLFW.GLFW_MOD_CONTROL | GLFW.GLFW_MOD_SHIFT);
+            // The Ctrl+click on alpha moved the anchor there, so the added range is alpha..Bravo.
+            require(checkedNames(controller, store).equals(Set.of("Charlie", "alpha", "Delta", "Bravo")),
+                    "Ctrl+Shift+click did not add the range from the last clicked area");
+            clickRow(controller, 1, 0);
+            require(checkedNames(controller, store).equals(Set.of("alpha")), "Plain click did not check a single area");
+
+            press(controller, "areaSortButton");
+            List<?> order = (List<?>) call(controller, "displayedAreas");
+            require(order.stream().map(area -> ((SavedAreaStore.Area) area).name()).toList()
+                    .equals(List.of("alpha", "Bravo", "Charlie", "Delta")), "Name order is wrong: " + order);
+            clickRow(controller, 1, 0);
+            require(checkedNames(controller, store).equals(Set.of("Bravo")), "Rows do not follow the sorted order");
+            press(controller, "areaSortButton");
+            require(((List<?>) call(controller, "displayedAreas")).stream().map(area -> ((SavedAreaStore.Area) area).name()).toList()
+                    .equals(List.of("alpha", "Delta", "Bravo", "Charlie")), "Group order must list grouped areas by group, then the rest");
+            press(controller, "areaSortButton"); press(controller, "areaSortButton");
+            require(get(controller, "areaSort").toString().equals("DATE"), "Sort did not cycle back to date order");
+            require(((Button[]) get(controller, "areaCopies")).length == 6, "Copy section lacks the name button");
+
+            press(controller, "areaClearSelection");
+            press(controller, "areaExportFile");
+            Path folder = AreaTransfer.folder(directory);
+            List<Path> files = AreaTransfer.list(folder);
+            require(files.size() == 1 && AreaTransfer.read(files.get(0)).areas().size() == 4, "Exporting all areas wrote no complete file");
+            require(((Button) get(controller, "openExportButton")).visible, "Export did not offer to show the file");
+            press(controller, "areaImport");
+            require(window(controller).equals("IMPORT"), "Import window did not open");
+            checkLayout(controller);
+            int[] rect = (int[]) call(controller, "dialogRect");
+            controller.mouseClicked(left(rect[0] + 40, rect[1] + 54, 0), false);
+            require(window(controller).equals("AREAS") && store.state().areas().size() == 4,
+                    "Re-importing the same areas created duplicates");
+            store.replace(new SavedAreaStore.State(List.of(c), List.of(), true, true));
+            press(controller, "areaImport");
+            controller.mouseClicked(left(rect[0] + 40, rect[1] + 54, 0), false);
+            require(store.state().areas().size() == 4 && store.state().groups().size() == 1
+                    && store.state().groups().get(0).name().equals("Roads")
+                    && store.state().areas().stream().filter(area -> area.name().equals("Delta"))
+                    .allMatch(area -> area.groupId().equals(store.state().groups().get(0).id())),
+                    "Import did not restore areas with their group matched by name");
+            press(controller, "managementUndo");
+            require(store.state().areas().size() == 1, "Import was not one undo step");
+            press(controller, "managementRedo");
+
+            press(controller, "manageGroups");
+            row(controller, 0, false);
+            press(controller, "groupExport");
+            checkLayout(controller);
+            Path groupFile = AreaTransfer.list(folder).get(0);
+            require(AreaTransfer.read(groupFile).areas().stream().map(SavedAreaStore.Area::name).sorted().toList()
+                    .equals(List.of("Delta", "alpha")), "Group export must contain exactly that group's areas");
+            press(controller, "managementClose");
+        } finally {
+            store.replace(saved);
+            set(controller, "dialog", dialog(controller, "NONE"));
+            ((Set<?>) get(controller, "selectedAreaIds")).clear(); set(controller, "areaId", null);
+            set(controller, "areaSort", get(controller, "areaSort").getClass().getEnumConstants()[0]);
+            ((SelectionHistory) get(controller, "history")).clear();
+            set(controller, "message", "");
+            call(controller, "updateVisibility");
+        }
+        System.out.println("PASS: Shift/Ctrl area selection, sorting, name copy, export/import with duplicate skipping and group matching, group export");
+    }
+
     public static void main(String[] args) throws Exception {
         SharedConstants.tryDetectVersion();
         Field unsafeField = Unsafe.class.getDeclaredField("theUnsafe");
@@ -1223,6 +1316,7 @@ public final class ManagementUiCheck {
             checkHintFitting(controller);
             checkFramedAreasAndMetrics(controller, store);
             checkAreaDraftAndAutosave(controller, map, store, unsafe);
+            checkAreaListAndTransfer(controller, store, directory);
             checkExportNotice(controller, map, directory);
             checkPolygonEditing(controller, map, store, directory, context);
             checkSavedLabelLayering(controller, store, unsafe);

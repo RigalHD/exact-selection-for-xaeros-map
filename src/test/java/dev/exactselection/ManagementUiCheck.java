@@ -95,6 +95,12 @@ public final class ManagementUiCheck {
         return method.invoke(object);
     }
 
+    private static Object call(Object object, String name, boolean value) throws Exception {
+        Method method = object.getClass().getDeclaredMethod(name, boolean.class);
+        method.setAccessible(true);
+        return method.invoke(object, value);
+    }
+
     private static void press(ExactSelectionController controller, String name) throws Exception {
         Button button = (Button) get(controller, name);
         require(button.visible && button.active, "Button is unavailable: " + name + ", window=" + get(controller, "dialog"));
@@ -407,7 +413,7 @@ public final class ManagementUiCheck {
         controller.mouseReleased(left(600, 95, GLFW.GLFW_MOD_SUPER));
         AreaGeometry editedSaved = selection.geometry();
         require(!editedSaved.equals(moved), "Loaded saved polygon cannot be edited with Cmd");
-        press(controller, "areasButton"); press(controller, "areaUpdate");
+        press(controller, "quickSave");
         require(store.state().areas().stream().filter(a -> a.id().equals(area.id())).findFirst().orElseThrow()
                 .geometry().equals(editedSaved), "Updating saved polygon converted it to a rectangle or lost edits");
         SavedAreaStore reload = new SavedAreaStore(directory); reload.useContext(context);
@@ -463,11 +469,9 @@ public final class ManagementUiCheck {
         require(selection.geometry().equals(polygon), "Insertion undo did not restore the original polygon");
         key(controller, GLFW.GLFW_KEY_Y, GLFW.GLFW_MOD_CONTROL);
         require(selection.geometry().equals(inserted), "Insertion redo did not restore the new vertex");
-        press(controller, "areasButton");
-        call(controller, "layoutDialog");
-        Button update = (Button) get(controller, "areaUpdate");
+        Button update = (Button) get(controller, "quickSave");
         require(update.visible && update.active, "Polygon geometry update is unavailable");
-        press(controller, "areaUpdate");
+        press(controller, "quickSave");
         require(window(controller).equals("NONE") && store.state().areas().get(0).equals(area.withGeometry(inserted)),
                 "Update geometry lost polygon vertices or area metadata");
         SavedAreaStore reload = new SavedAreaStore(directory); reload.useContext(context);
@@ -479,7 +483,7 @@ public final class ManagementUiCheck {
         controller.mouseReleased(left(480, 40, GLFW.GLFW_MOD_SUPER));
         PolygonGeometry moved = (PolygonGeometry) selection.geometry();
         require(moved.vertices().get(1).equals(new GridPoint(160, -140)), "Inserted vertex cannot be moved with Cmd");
-        press(controller, "areasButton"); press(controller, "areaUpdate");
+        press(controller, "quickSave");
         require(store.state().areas().get(0).equals(area.withGeometry(moved)), "Moved inserted vertex did not update saved geometry");
         press(controller, "areasButton"); press(controller, "areaLoad");
         doubleClickMap(controller, 400, 160, 0);
@@ -746,6 +750,185 @@ public final class ManagementUiCheck {
         System.out.println("PASS: map previews follow the fractional cursor used by clicks");
     }
 
+    private static void checkReleaseFeatures(ExactSelectionController controller, GuiMap map,
+                                              SavedAreaStore store) throws Exception {
+        SelectionState selection = (SelectionState) get(controller, "state");
+        SelectionState.Snapshot initial = selection.snapshot();
+        SavedAreaStore.State saved = store.state();
+        List<GridPoint> draft = (List<GridPoint>) get(controller, "polygonDraft");
+        try {
+            selection.setGeometry(new RectangleGeometry(new SelectionBounds(80, -120, 240, 80)));
+            call(controller, "syncFields"); call(controller, "updateVisibility");
+            require(((Button) get(controller, "quickSave")).visible, "Ready selection has no quick save");
+            require(get(get(get(controller, "undo"), "tooltip"), "tooltip") != null
+                    && get(get(get(controller, "redo"), "tooltip"), "tooltip") != null, "History arrows need tooltips even with no history");
+            press(controller, "quickSave");
+            require(window(controller).equals("AREA_NAME") && get(controller, "newAreaGroupId") == null,
+                    "Quick save did not start with no group");
+            checkLayout(controller);
+            var groups = List.of(new SavedAreaStore.Group("release-group", "Release group", true));
+            store.replace(new SavedAreaStore.State(saved.areas(), groups, true, true));
+            press(controller, "newAreaGroup");
+            require(get(controller, "newAreaGroupId").equals("release-group"), "New-area group button did not choose the group");
+            enter(controller, map, 8, "Quick saved");
+            SavedAreaStore.Area added = store.state().areas().getLast();
+            require(window(controller).equals("NONE") && added.groupId().equals("release-group")
+                    && selection.source() == null, "Quick save lost the group or enabled editing implicitly");
+            press(controller, "areasButton"); press(controller, "areaSelectAll");
+            press(controller, "areaColor"); checkLayout(controller);
+            enter(controller, map, 10, "invalid");
+            require(window(controller).equals("COLOR") && get(controller, "message").toString().contains("color_invalid"),
+                    "Invalid RGB color was accepted");
+            int[] rect = (int[]) call(controller, "dialogRect");
+            controller.mouseClicked(left(rect[0] + 14, rect[1] + 36, 0), false);
+            require(window(controller).equals("AREAS") && store.state().areas().stream().allMatch(a -> a.color() == AreaPalette.COLORS[0]),
+                    "Palette did not recolor every selected area");
+            press(controller, "areaOpacity");
+            require(store.state().areas().stream().map(SavedAreaStore.Area::opacity).distinct().count() == 1
+                    && store.state().areas().get(0).opacity() == 50, "Opacity did not change every selected area");
+            press(controller, "areaColor"); enter(controller, map, 10, "#abc");
+            require(store.state().areas().stream().allMatch(a -> a.color() == 0xAABBCC), "Custom RGB did not apply to all selected areas");
+            row(controller, store.state().areas().size() - 1, false);
+            press(controller, "areaLoad");
+            require(selection.source().equals(added.id()) && !((Button) get(controller, "quickSave")).active,
+                    "Edit did not link the saved area or unchanged geometry can be applied");
+            clickMap(controller, 400, 60, GLFW.GLFW_MOD_CONTROL);
+            require(selection.geometry() instanceof RectangleGeometry, "Stationary Ctrl click converted a rectangle");
+            clickMap(controller, 480, 60, 0);
+            require(selection.geometry() instanceof RectangleGeometry && selection.phase() == SelectionState.Phase.SELECTED,
+                    "First edge click destroyed the editing selection");
+            controller.mouseClicked(left(480, 60, 0), true); controller.mouseReleased(left(480, 60, 0));
+            require(selection.geometry() instanceof PolygonGeometry && selection.geometry().vertices().size() == 5
+                    && selection.source().equals(added.id()), "Rectangle side insertion did not retain its editing source");
+            press(controller, "quickSave");
+            require(store.state().areas().getLast().geometry().equals(selection.geometry()), "Apply did not save the linked area");
+            key(controller, GLFW.GLFW_KEY_Z, GLFW.GLFW_MOD_CONTROL);
+            require(store.state().areas().getLast().geometry() instanceof RectangleGeometry, "Apply undo lost the original rectangle");
+            doubleClickMap(controller, 480, 60, GLFW.GLFW_MOD_CONTROL);
+            require(selection.geometry().vertices().size() == 4, "Ctrl double click did not delete a polygon vertex");
+            doubleClickMap(controller, 400, 60, GLFW.GLFW_MOD_SUPER);
+            require(selection.geometry().vertices().size() == 3, "Cmd double click did not delete a polygon vertex");
+            AreaGeometry triangle = selection.geometry();
+            doubleClickMap(controller, 561, 60, GLFW.GLFW_MOD_CONTROL);
+            require(selection.geometry().equals(triangle), "Deleting a triangle vertex was allowed");
+            press(controller, "clear"); press(controller, "polygonModeButton");
+            clickMap(controller, 400, 60, 0); clickMap(controller, 560, 60, 0); clickMap(controller, 560, 260, 0);
+            doubleClickMap(controller, 560, 60, GLFW.GLFW_MOD_CONTROL);
+            require(draft.size() == 2, "Ctrl double click did not delete a draft vertex");
+            key(controller, GLFW.GLFW_KEY_Z, GLFW.GLFW_MOD_CONTROL);
+            require(draft.size() == 3, "Draft vertex deletion cannot be undone");
+            key(controller, GLFW.GLFW_KEY_ESCAPE, 0);
+            selection.set(new SelectionBounds(80, -120, 240, 80)); call(controller, "updateVisibility");
+            controller.mouseClicked(left(400, 60, GLFW.GLFW_MOD_CONTROL), false);
+            controller.mouseReleased(left(410, 50, GLFW.GLFW_MOD_CONTROL));
+            require(selection.geometry() instanceof PolygonGeometry
+                    && selection.geometry().vertices().get(0).equals(new GridPoint(90, -130)), "Ctrl corner drag did not convert the rectangle");
+            for (int[] size : List.of(new int[]{320, 240}, new int[]{480, 270}, new int[]{960, 540})) {
+                map.width = size[0]; map.height = size[1]; controller.init();
+                press(controller, "areasButton"); press(controller, "areaSelectAll");
+                press(controller, "areaColor"); checkLayout(controller); press(controller, "colorBack");
+                press(controller, "areaSave"); checkLayout(controller); press(controller, "modalCancel");
+                press(controller, "managementClose");
+            }
+            require(new RectangleGeometry(new SelectionBounds(0, 0, 2, 5)).perimeter() == 18, "Incorrect rectangle perimeter");
+            System.out.println("PASS: quick save and groups, linked Apply/undo, bulk palette/hex/opacity, vertex deletion and rectangle conversion");
+        } finally {
+            store.replace(saved); selection.restore(initial); draft.clear();
+            set(controller, "polygonMode", false); set(controller, "gesture", null);
+            set(controller, "areaId", null); ((Set<?>) get(controller, "selectedAreaIds")).clear();
+            set(controller, "dialog", dialog(controller, "NONE")); set(controller, "message", "");
+            ((SelectionHistory) get(controller, "history")).clear();
+            ((java.util.Deque<?>) get(controller, "polygonDraftUndo")).clear();
+            ((java.util.Deque<?>) get(controller, "polygonDraftRedo")).clear();
+            map.width = 640; map.height = 360; controller.init();
+        }
+    }
+
+    private static final class FakeWaypoints implements WaypointAccess {
+        final Object world = new Object(), set = new Object();
+        final List<Point> points = new ArrayList<>();
+        FakeWaypoints() {
+            points.add(new Point(new Object(), 0, 64, 0, "First", false, true));
+            points.add(new Point(new Object(), 10, 64, 10, "Second", false, true));
+            points.add(new Point(new Object(), 100, 64, 100, "Outside", false, true));
+        }
+        @Override public Snapshot all(MapBridge.Context context) { return new Snapshot(world, set, "test", points); }
+        @Override public Snapshot select(MapBridge.Context context, SelectionBounds bounds) {
+            return select(context, new RectangleGeometry(bounds));
+        }
+        @Override public Snapshot select(MapBridge.Context context, AreaGeometry geometry) {
+            return new Snapshot(world, set, "test", points.stream().filter(p -> geometry.containsBlockCenter(p.x(), p.z())).toList());
+        }
+        @Override public Snapshot captureSet(Snapshot snapshot) {
+            return snapshot == null ? null : new Snapshot(world, set, "test", snapshot.points(), points);
+        }
+        @Override public int colorRgb(int index) { return index * 0x10101; }
+        @Override public void edit(Snapshot snapshot, List<Point> from, List<Point> to) {
+            for (Point p : from) if (!points.contains(p)) throw new IllegalStateException("stale point");
+            for (int i = 0; i < from.size(); i++) points.set(points.indexOf(from.get(i)), to.get(i));
+        }
+        @Override public void delete(Snapshot snapshot) { points.removeAll(snapshot.points()); }
+        @Override public void restore(Snapshot snapshot) { points.addAll(snapshot.points()); }
+        @Override public Point create(MapBridge.Context c, int x, int y, int z, String n) { throw new UnsupportedOperationException(); }
+        @Override public Point recreate(MapBridge.Context c, Point p) { throw new UnsupportedOperationException(); }
+        @Override public void removeCreated(MapBridge.Context c, Point p) { throw new UnsupportedOperationException(); }
+    }
+
+    private static void checkWaypointManagement(GuiMap map, MapBridge bridge, Minecraft minecraft,
+                                                SavedAreaStore store, MapBridge.Context context) throws Exception {
+        FakeWaypoints access = new FakeWaypoints();
+        ExactSelectionController controller = new ExactSelectionController(map, bridge, minecraft, store, access);
+        controller.init();
+        SelectionState selection = (SelectionState) get(controller, "state");
+        selection.enable(); set(controller, "context", context); set(controller, "historyContext", context);
+        set(controller, "compact", false); call(controller, "layoutMainPanel"); call(controller, "updateVisibility");
+        try {
+            press(controller, "pointsButton"); checkLayout(controller);
+            require(((Set<?>) get(controller, "chosenPoints")).isEmpty(), "Opening all waypoints selected the entire set");
+            require(!((Button) get(controller, "confirm")).active, "Entire set can be deleted without explicit selection");
+            int[] rect = (int[]) call(controller, "dialogRect");
+            controller.mouseClicked(left(rect[0] + 20, rect[1] + 85, 0), false);
+            enter(controller, map, 9, "Renamed");
+            require(access.points.get(0).name().equals("Renamed") && access.points.get(1).name().equals("Second")
+                    && window(controller).equals("WAYPOINTS"), "Waypoint rename changed unselected points or closed the window");
+            key(controller, GLFW.GLFW_KEY_Z, GLFW.GLFW_MOD_CONTROL);
+            require(access.points.get(0).name().equals("First"), "Waypoint rename undo failed");
+            call(controller, "refreshPending", false);
+            press(controller, "pointRecolor"); checkLayout(controller);
+            rect = (int[]) call(controller, "dialogRect");
+            int sw = Math.min(40, (rect[2] - 52) / 8);
+            controller.mouseClicked(left(rect[0] + 14 + 2 * (sw + 4), rect[1] + 36, 0), false);
+            require(access.points.get(0).color() == 2 && access.points.get(1).color() == 0
+                    && window(controller).equals("WAYPOINTS"), "Waypoint palette did not edit only checked rows");
+            access.points.set(0, access.points.get(0).with("External", 2));
+            enter(controller, map, 9, "Stale attempt");
+            require(access.points.get(0).name().equals("External") && get(controller, "message").toString().contains("changed"),
+                    "Stale waypoint edit was not rejected");
+            press(controller, "confirm");
+            require(access.points.size() == 2 && window(controller).equals("WAYPOINTS"), "Waypoint delete did not retain the management window");
+            key(controller, GLFW.GLFW_KEY_Z, GLFW.GLFW_MOD_CONTROL);
+            require(access.points.size() == 3, "Waypoint deletion cannot be undone from its window");
+            press(controller, "cancel");
+            selection.set(new SelectionBounds(-1, -1, 15, 15)); call(controller, "updateSelection"); call(controller, "updateVisibility");
+            press(controller, "pointsButton");
+            require(((Set<?>) get(controller, "chosenPoints")).size() == 2, "Opening selection did not select its two waypoints");
+            press(controller, "pointScope");
+            require(((Set<?>) get(controller, "chosenPoints")).size() == 2, "Entire-set switch unexpectedly selected more points");
+            press(controller, "pointScope");
+            require(((Set<?>) get(controller, "chosenPoints")).size() == 2, "Selection scope did not select the contained points");
+            for (int[] size : List.of(new int[]{320, 240}, new int[]{480, 270}, new int[]{960, 540})) {
+                map.width = size[0]; map.height = size[1]; controller.init(); checkLayout(controller);
+                press(controller, "pointRecolor"); checkLayout(controller); press(controller, "colorBack");
+            }
+            press(controller, "cancel");
+            System.out.println("PASS: safe entire-set waypoint management, rename/color/delete, undo, stale snapshot guards, scope and responsive layouts");
+        } finally {
+            List<AbstractWidget> added = (List<AbstractWidget>) get(controller, "widgets");
+            map.children().removeIf(added::contains);
+            map.width = 640; map.height = 360;
+        }
+    }
+
     @SuppressWarnings({"unchecked", "rawtypes"})
     private static Object dialog(ExactSelectionController controller, String name) throws Exception {
         return Enum.valueOf((Class) field(controller.getClass(), "dialog").getType(), name);
@@ -761,10 +944,10 @@ public final class ManagementUiCheck {
         Set<?> chosen = (Set<?>) get(controller, "chosenPoints");
         chosen.clear();
         try {
-            // 640x360: dialog at (40, 15), 330 high, 15 visible rows starting at y + 81.
-            controller.mouseClicked(left(60, 15 + 81 + 14 * 14 + 5, 0), false);
-            require(chosen.size() == 1 && chosen.contains(points.get(14).identity()), "Last visible waypoint row is not clickable");
-            controller.mouseClicked(left(60, 15 + 81 + 15 * 14 + 1, 0), false);
+            // 640x360: dialog at (40, 15), 330 high, 12 visible rows starting at y + 81.
+            controller.mouseClicked(left(60, 15 + 81 + 11 * 14 + 5, 0), false);
+            require(chosen.size() == 1 && chosen.contains(points.get(11).identity()), "Last visible waypoint row is not clickable");
+            controller.mouseClicked(left(60, 15 + 81 + 12 * 14 + 1, 0), false);
             require(chosen.size() == 1, "Clicking below the waypoint list toggled a hidden row");
         } finally {
             chosen.clear();
@@ -822,6 +1005,9 @@ public final class ManagementUiCheck {
             checkGestureEdgeCases(controller, context);
             checkPrecisePointer(controller, minecraft, unsafe);
             checkWaypointRows(controller);
+            checkReleaseFeatures(controller, map, store);
+            checkWaypointManagement(map, bridge, minecraft, store, context);
+            controller.init();
             press(controller, "groupsButton");
             require(window(controller).equals("GROUPS"), "Groups did not open separately");
             checkLayout(controller);

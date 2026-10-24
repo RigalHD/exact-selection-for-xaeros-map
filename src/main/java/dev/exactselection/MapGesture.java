@@ -192,6 +192,9 @@ abstract sealed class MapGesture {
                 GridPoint start = original.get(index);
                 GridPoint point = new GridPoint(start.x() + Math.round(frame.worldX(x)) - pointerX,
                         start.z() + Math.round(frame.worldZ(y)) - pointerZ);
+                if (point.equals(start) && draftBefore == null) {
+                    invalid = false; host.state().restore(before); host.selectionMoved(); return;
+                }
                 List<GridPoint> moved = new ArrayList<>(original);
                 moved.set(index, point);
                 if (new HashSet<>(moved).size() != moved.size()) throw new IllegalArgumentException();

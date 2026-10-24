@@ -10,6 +10,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -31,10 +32,12 @@ import xaero.map.gui.GuiMap;
 
 public final class ExactSelectionController {
     private static final int PANEL_X = 34, PANEL_Y = 26;
+    private static final int COMPACT_HEIGHT = 186, EXPANDED_HEIGHT = 314;
+    private static final int RENAME_FIELD = 9, HEX_FIELD = 10;
     private static final int ACCENT = 0xFF59E3CE;
     private record MapLabel(Component text, int x, int y, int color) {}
     private record ScreenPoint(double x, double y) {}
-    private enum Dialog { NONE, SIZE, MOVE, CENTER, AREAS, GROUPS, ASSIGN_GROUP, AREA_NAME, GROUP_NAME, WAYPOINTS }
+    private enum Dialog { NONE, SIZE, MOVE, CENTER, AREAS, GROUPS, ASSIGN_GROUP, AREA_NAME, GROUP_NAME, WAYPOINTS, COLOR }
     private final GuiMap screen;
     private final MapBridge bridge;
     private final Minecraft mc;
@@ -44,15 +47,16 @@ public final class ExactSelectionController {
     private final SavedAreaStore areaStore;
     private final List<AbstractWidget> widgets = new ArrayList<>();
     private final EditBox[] fields = new EditBox[4];
-    private final EditBox[] dialogFields = new EditBox[9];
-    private Button toggle, apply, clear, delete, confirm, cancel;
-    private Button copyCoordinates, copyArea, copyLength, copyWidth;
+    // 0–3 dimensions/offsets, 4–8 area/group/waypoint names and search, 9 waypoint rename, 10 RGB color.
+    private final EditBox[] dialogFields = new EditBox[11];
+    private Button toggle, apply, clear, pointsButton, confirm, cancel;
+    private Button copyCoordinates, copyArea, copyPerimeter, copyLength, copyWidth;
     private Button undo, redo, chunkMode, sizeButton, moveButton, centerButton, areasButton, groupsButton;
     private Button polygonModeButton, panelModeButton, selectionExportButton;
     private boolean compact = true;
     private int panelHeight, panelScroll;
     private Button modalApply, modalCancel, anchorButton, moveUnitsButton;
-    private Button centerCopy, centerCreate, areaSave, areaLoad, areaUpdate, areaDelete;
+    private Button centerCopy, centerCreate, areaSave, areaLoad, areaDelete;
     private Button areaMerge, areaSelectAll, areaClearSelection;
     private Button groupCreate, groupRename, groupAssign, groupVisibility, areaVisibility, areaColor, areaOpacity;
     private Button areaRename, groupDelete, manageGroups, managementClose, managementUndo, managementRedo;
@@ -61,7 +65,11 @@ public final class ExactSelectionController {
     private boolean exportRunning;
     private String exportNotice = "";
     private Button areaMapVisibility, areaMinimapVisibility;
-    private Button pointVisibility, pointColor;
+    private Button pointVisibility, pointColor, pointScope, pointRename, pointRecolor;
+    private Button quickSave, zonesButton, newAreaGroup, colorHexApply, colorBack;
+    private Dialog areaNameReturn = Dialog.AREAS, colorReturn = Dialog.AREAS;
+    private String newAreaGroupId;
+    private boolean pointsInSelection;
     private MapBridge.Context context;
     private WaypointAccess.Snapshot selected, pending;
     private boolean syncing, dirty, dragging, chunks, sizeFromCenter, moveInChunks, loadFailed;
@@ -149,10 +157,11 @@ public final class ExactSelectionController {
         apply = button("apply", 0, 0, 100, this::applyFields);
         copyCoordinates = copyButton("copy_coordinates_short", "copy_coordinates_tooltip", this::copyCoordinates);
         copyArea = copyButton("copy_area_short", "copy_area_tooltip", this::copyArea);
+        copyPerimeter = copyButton("copy_perimeter_short", "copy_perimeter_tooltip", this::copyPerimeter);
         copyLength = copyButton("copy_length_short", "copy_length_tooltip", this::copyLength);
         copyWidth = copyButton("copy_width_short", "copy_width_tooltip", this::copyWidth);
-        undo = button("undo", 0, 0, 100, this::undo);
-        redo = button("redo", 0, 0, 100, this::redo);
+        undo = arrowButton("↶", this::undo);
+        redo = arrowButton("↷", this::redo);
         chunkMode = button("units_blocks", 0, 0, 100, this::toggleChunks);
         sizeButton = button("size", 0, 0, 100, () -> openDialog(Dialog.SIZE));
         moveButton = button("move", 0, 0, 100, () -> openDialog(Dialog.MOVE));
@@ -161,12 +170,16 @@ public final class ExactSelectionController {
         areasButton = button("areas_window", 0, 0, 100, () -> openDialog(Dialog.AREAS));
         groupsButton = button("groups_window", 0, 0, 100, () -> openGroupsWindow(Dialog.NONE));
         clear = button("clear", 0, 0, 100, this::reset);
-        delete = button("delete", 0, 0, 100, this::askDelete);
+        quickSave = button("quick_save", 0, 0, 100, this::quickSave);
+        zonesButton = button("zones_all", 0, 0, 100, () -> { openDialog(Dialog.AREAS); if (dialog == Dialog.AREAS) selectAllAreas(); });
+        zonesButton.setTooltip(Tooltip.create(tr("zones_all_tooltip")));
+        pointsButton = button("waypoints_all", 0, 0, 100, this::openWaypoints);
         confirm = button("confirm", 0, 0, 110, this::confirmDelete);
         cancel = button("cancel", 0, 0, 110, this::cancelDialog);
         for (int i = 0; i < dialogFields.length; i++) {
             EditBox field = new EditBox(mc.font, 0, 0, 100, 18, Component.empty());
-            field.setMaxLength(i < 4 ? 10 : 128);
+            field.setMaxLength(i < 4 ? 10 : i == HEX_FIELD ? 7 : 128);
+            if (i == HEX_FIELD) field.setHint(Component.literal("#RRGGBB"));
             field.setResponder(value -> { if (!syncing) updateVisibility(); });
             dialogFields[i] = field;
             widgets.add(field);
@@ -185,9 +198,8 @@ public final class ExactSelectionController {
         moveUnitsButton.setMessage(tr(moveInChunks ? "units_chunks" : "units_blocks"));
         centerCopy = button("copy_center", 0, 0, 130, this::copyCenter);
         centerCreate = button("create_center_waypoint", 0, 0, 180, this::createCenterWaypoint);
-        areaSave = button("area_save_selection", 0, 0, 110, this::openAreaNameDialog);
-        areaLoad = button("area_load", 0, 0, 110, this::loadArea);
-        areaUpdate = button("area_update", 0, 0, 110, this::updateArea);
+        areaSave = button("area_save_selection", 0, 0, 110, () -> { areaNameReturn = Dialog.AREAS; openAreaNameDialog(); });
+        areaLoad = button("area_edit", 0, 0, 110, this::loadArea);
         areaDelete = button("area_delete", 0, 0, 110, this::deleteArea);
         areaMerge = button("area_merge", 0, 0, 110, this::mergeAreas);
         areaSelectAll = button("area_select_all", 0, 0, 110, this::selectAllAreas);
@@ -197,26 +209,37 @@ public final class ExactSelectionController {
         groupAssign = button("group_choose", 0, 0, 120, this::openGroupChooser);
         groupVisibility = button("group_toggle", 0, 0, 120, this::toggleGroup);
         areaVisibility = button("area_toggle", 0, 0, 120, this::toggleArea);
-        areaColor = button("area_color", 0, 0, 100, this::cycleAreaColor);
+        areaColor = button("area_color", 0, 0, 100, () -> openColorDialog(Dialog.AREAS));
         areaOpacity = button("area_fill", 0, 0, 100, this::cycleAreaOpacity);
         areaMapVisibility = button("area_map_on", 0, 0, 120, this::toggleAreaMapVisibility);
         areaMinimapVisibility = button("area_minimap_on", 0, 0, 120, this::toggleAreaMinimapVisibility);
         manageGroups = button("groups_manage", 0, 0, 120,
                 () -> openGroupsWindow(dialog == Dialog.ASSIGN_GROUP ? Dialog.ASSIGN_GROUP : Dialog.AREAS));
         managementClose = button("done", 0, 0, 80, this::cancelDialog);
-        managementUndo = button("undo", 0, 0, 80, this::undo);
-        managementRedo = button("redo", 0, 0, 80, this::redo);
+        managementUndo = arrowButton("↶", this::undo);
+        managementRedo = arrowButton("↷", this::redo);
         areaRename = button("area_rename", 0, 0, 120, this::renameArea);
         groupDelete = button("group_delete", 0, 0, 120, this::askDeleteGroup);
         areaExportButton = button("area_export", 0, 0, 120, this::exportSelectedArea);
         pointVisibility = button("filter_all", 0, 0, 120, this::cycleVisibilityFilter);
         pointColor = button("filter_color_all", 0, 0, 120, this::cycleColorFilter);
-        delete.setTooltip(Tooltip.create(tr(waypoints == null ? "minimap_missing" : "scope")));
+        pointScope = button("point_scope_all", 0, 0, 100, this::togglePointScope);
+        pointRename = button("point_rename", 0, 0, 110, this::renamePoints);
+        pointRecolor = button("area_color", 0, 0, 110, () -> openColorDialog(Dialog.WAYPOINTS));
+        newAreaGroup = button("group_none", 0, 0, 100, this::cycleNewAreaGroup);
+        colorHexApply = button("apply", 0, 0, 90, this::applyHexColor);
+        colorBack = button("back", 0, 0, 110, this::cancelDialog);
+        pointsButton.setTooltip(Tooltip.create(tr(waypoints == null ? "minimap_missing" : "waypoints_tooltip")));
+        pointScope.setTooltip(Tooltip.create(tr("point_scope_tooltip")));
+        pointRename.setTooltip(Tooltip.create(tr("point_rename_tooltip")));
+        pointRecolor.setTooltip(Tooltip.create(tr("point_color_tooltip")));
+        newAreaGroup.setTooltip(Tooltip.create(tr("area_new_group_tooltip")));
+        colorHexApply.setTooltip(Tooltip.create(tr("color_hex_tooltip")));
+        colorBack.setTooltip(Tooltip.create(tr("color_back_tooltip")));
         areaVisibility.setTooltip(Tooltip.create(tr("area_visibility_rules")));
         groupVisibility.setTooltip(Tooltip.create(tr("group_toggle_tooltip")));
         groupAssign.setTooltip(Tooltip.create(tr("group_picker_tooltip")));
-        areaLoad.setTooltip(Tooltip.create(tr("area_load_tooltip")));
-        areaUpdate.setTooltip(Tooltip.create(tr("area_update_tooltip")));
+        areaLoad.setTooltip(Tooltip.create(tr("area_edit_tooltip")));
         areaColor.setTooltip(Tooltip.create(tr("area_color_tooltip")));
         areaOpacity.setTooltip(Tooltip.create(tr("area_opacity_tooltip")));
         areaMapVisibility.setTooltip(Tooltip.create(tr("area_map_tooltip")));
@@ -251,29 +274,40 @@ public final class ExactSelectionController {
 
     private void layoutMainPanel() {
         panelWidth = Math.min(compact ? 256 : 420, Math.max(224, screen.width - 68));
-        panelHeight = Math.min(compact ? 170 : 314, screen.height - PANEL_Y - 8);
+        panelHeight = Math.min(compact ? COMPACT_HEIGHT : EXPANDED_HEIGHT, screen.height - PANEL_Y - 8);
         panelScroll = Math.max(0, Math.min(panelScroll, maxPanelScroll()));
-        int x = PANEL_X + 8, y = PANEL_Y - (compact ? 0 : panelScroll);
+        int x = PANEL_X + 8, y = PANEL_Y - (compact ? 0 : panelScroll), w = panelWidth - 16;
         place(panelModeButton, PANEL_X + panelWidth - 80, PANEL_Y + 4, 72, 16);
+        Button[] copies = {copyCoordinates, copyArea, copyPerimeter, copyLength, copyWidth};
         if (compact) {
-            Button[] copies = {copyCoordinates, copyArea, copyLength, copyWidth};
-            mainRow(copies, x, y + 87, panelWidth - 16, 16);
-            mainRow(new Button[]{undo, redo, clear}, x, y + 108, panelWidth - 16, 18);
-            mainRow(new Button[]{areasButton, groupsButton, polygonModeButton}, x, y + 129, panelWidth - 16, 18);
+            place(quickSave, PANEL_X + panelWidth - 86, y + 31, 78, 18);
+            mainRow(copies, x, y + 105, w, 16);
+            arrowRow(new Button[]{clear, polygonModeButton}, x, y + 128, w);
+            mainRow(new Button[]{areasButton, groupsButton}, x, y + 149, w, 18);
         } else {
             fieldWidth = (panelWidth - 16 - coordinateLabelWidth - zLabelWidth - fieldGap * 3) / 2;
             int xField = x + coordinateLabelWidth + fieldGap;
             int zField = xField + fieldWidth + fieldGap * 2 + zLabelWidth;
             for (int i = 0; i < fields.length; i++)
                 place(fields[i], i % 2 == 0 ? xField : zField, y + 34 + i / 2 * 24, fieldWidth, 18);
-            place(apply, x, y + 82, panelWidth - 16, 18);
-            mainRow(new Button[]{copyCoordinates, copyArea, copyLength, copyWidth}, x, y + 129, panelWidth - 16, 16);
-            mainRow(new Button[]{undo, redo, chunkMode}, x, y + 151, panelWidth - 16, 18);
-            mainRow(new Button[]{sizeButton, moveButton, centerButton, polygonModeButton}, x, y + 174, panelWidth - 16, 18);
-            mainRow(new Button[]{areasButton, groupsButton, clear}, x, y + 197, panelWidth - 16, 18);
-            place(delete, x, y + 220, panelWidth - 16, 18);
-            place(selectionExportButton, x, y + 243, panelWidth - 16, 18);
+            place(apply, x, y + 82, w, 18);
+            mainRow(copies, x, y + 154, w, 16);
+            arrowRow(new Button[]{chunkMode, sizeButton, moveButton, centerButton}, x, y + 180, w);
+            mainRow(new Button[]{polygonModeButton, quickSave, groupsButton, clear}, x, y + 202, w, 18);
+            mainRow(new Button[]{zonesButton, pointsButton}, x, y + 224, w, 18);
+            place(selectionExportButton, x, y + 246, w, 18);
         }
+    }
+
+    private void arrowRow(Button[] buttons, int x, int y, int width) {
+        place(undo, x, y, 20, 18); place(redo, x + 23, y, 20, 18);
+        mainRow(buttons, x + 46, y, width - 46, 18);
+    }
+
+    private Button arrowButton(String arrow, Runnable action) {
+        Button result = Button.builder(Component.literal(arrow), button -> action.run()).bounds(0, 0, 20, 18).build();
+        widgets.add(result);
+        return result;
     }
 
     private void mainRow(Button[] buttons, int x, int y, int width, int height) {
@@ -283,7 +317,7 @@ public final class ExactSelectionController {
     }
 
     private int maxPanelScroll() {
-        return compact ? 0 : Math.max(0, 314 - panelHeight + (panelHeight < 314 ? 10 : 0));
+        return compact ? 0 : Math.max(0, EXPANDED_HEIGHT - panelHeight + (panelHeight < EXPANDED_HEIGHT ? 12 : 0));
     }
 
     private Button button(String key, int x, int y, int width, Runnable action) {
@@ -351,6 +385,7 @@ public final class ExactSelectionController {
     private void openAreaNameDialog() {
         if (state.phase() != SelectionState.Phase.SELECTED || dirty || loadFailed) return;
         dialog = Dialog.AREA_NAME;
+        newAreaGroupId = null;
         setDialogValue(8, tr("area_default_name", areaStore.state().areas().size() + 1).getString());
         message = "";
         updateVisibility();
@@ -398,7 +433,9 @@ public final class ExactSelectionController {
         }
         if (dialog == Dialog.WAYPOINTS) pending = null;
         dialog = switch (dialog) {
-            case AREA_NAME, ASSIGN_GROUP -> Dialog.AREAS;
+            case AREA_NAME -> areaNameReturn;
+            case COLOR -> colorReturn;
+            case ASSIGN_GROUP -> Dialog.AREAS;
             case GROUP_NAME -> Dialog.GROUPS;
             case GROUPS -> groupsReturnDialog;
             default -> Dialog.NONE;
@@ -410,7 +447,7 @@ public final class ExactSelectionController {
     private int[] dialogRect() {
         int width = Math.min(switch (dialog) {
             case AREAS, GROUPS -> 760;
-            case ASSIGN_GROUP, AREA_NAME, GROUP_NAME -> 420;
+            case ASSIGN_GROUP, AREA_NAME, GROUP_NAME, COLOR -> 420;
             default -> 560;
         }, screen.width - 20);
         int height = switch (dialog) {
@@ -418,7 +455,9 @@ public final class ExactSelectionController {
             case CENTER -> Math.min(150, screen.height - 16);
             case AREAS, GROUPS -> Math.min(460, screen.height - 16);
             case ASSIGN_GROUP -> Math.min(330, screen.height - 16);
-            case AREA_NAME, GROUP_NAME -> Math.min(140, screen.height - 16);
+            case AREA_NAME -> Math.min(160, screen.height - 16);
+            case GROUP_NAME -> Math.min(140, screen.height - 16);
+            case COLOR -> Math.min(170, screen.height - 16);
             case WAYPOINTS -> Math.min(330, screen.height - 16);
             default -> 0;
         };
@@ -434,7 +473,7 @@ public final class ExactSelectionController {
     }
 
     private int visibleAreaDialogRows(int height) {
-        int fitting = Math.max(1, (height - 150) / 20);
+        int fitting = Math.max(1, (height - 128) / 20);
         return Math.min(areaDialogRows(), fitting);
     }
 
@@ -482,6 +521,8 @@ public final class ExactSelectionController {
                     break;
                 }
                 int col = (w - 36) / 2, right = x + w - col - 12, half = (col - 3) / 2;
+                place(managementUndo, x + w - 232, y + 7, 22, 18);
+                place(managementRedo, x + w - 207, y + 7, 22, 18);
                 place(manageGroups, x + w - 180, y + 7, 92, 18);
                 place(managementClose, x + w - 82, y + 7, 70, 18);
                 place(dialogFields[4], right, y + 46, col, 18);
@@ -490,19 +531,16 @@ public final class ExactSelectionController {
                 place(areaVisibility, right, y + 106, col, 18);
                 place(areaColor, right, y + 126, half, 18);
                 place(areaOpacity, right + half + 3, y + 126, col - half - 3, 18);
-                place(areaLoad, right, y + 146, half, 18);
-                place(areaUpdate, right + half + 3, y + 146, col - half - 3, 18);
+                place(areaLoad, right, y + 146, col, 18);
                 place(areaExportButton, right, y + 166, col, 18);
                 place(openExportButton, right, y + h - 20, col, 16);
                 place(areaDelete, right, y + 186, half, 18);
                 place(areaMerge, right + half + 3, y + 186, col - half - 3, 18);
-                place(areaSelectAll, x + 12, y + h - 92, half, 18);
-                place(areaClearSelection, x + 15 + half, y + h - 92, col - half - 3, 18);
-                place(areaSave, x + 12, y + h - 72, col, 18);
-                place(areaMapVisibility, x + 12, y + h - 52, half, 18);
-                place(areaMinimapVisibility, x + 15 + half, y + h - 52, col - half - 3, 18);
-                place(managementUndo, x + 12, y + h - 32, half, 18);
-                place(managementRedo, x + 15 + half, y + h - 32, col - half - 3, 18);
+                place(areaSelectAll, x + 12, y + h - 72, half, 18);
+                place(areaClearSelection, x + 15 + half, y + h - 72, col - half - 3, 18);
+                place(areaSave, x + 12, y + h - 52, col, 18);
+                place(areaMapVisibility, x + 12, y + h - 32, half, 18);
+                place(areaMinimapVisibility, x + 15 + half, y + h - 32, col - half - 3, 18);
             }
             case GROUPS -> {
                 if (groupDeleteConfirmation) {
@@ -511,13 +549,13 @@ public final class ExactSelectionController {
                     break;
                 }
                 int col = (w - 36) / 2, right = x + w - col - 12, half = (col - 3) / 2;
+                place(managementUndo, x + w - 154, y + 7, 22, 18);
+                place(managementRedo, x + w - 129, y + 7, 22, 18);
                 place(managementClose, x + w - 102, y + 7, 90, 18);
                 place(groupCreate, right, y + 78, col, 18);
                 place(groupRename, right, y + 100, col, 18);
                 place(groupVisibility, right, y + 122, col, 18);
                 place(groupDelete, right, y + 144, col, 18);
-                place(managementUndo, right, y + h - 32, half, 18);
-                place(managementRedo, right + half + 3, y + h - 32, col - half - 3, 18);
             }
             case ASSIGN_GROUP -> {
                 place(managementClose, x + w - 82, y + 7, 70, 18);
@@ -525,15 +563,28 @@ public final class ExactSelectionController {
             }
             case AREA_NAME, GROUP_NAME -> {
                 place(dialogFields[dialog == Dialog.AREA_NAME ? 8 : 5], x + 16, y + 48, w - 32, 18);
+                if (dialog == Dialog.AREA_NAME) place(newAreaGroup, x + 16, y + 72, w - 32, 18);
                 place(modalApply, x + w / 2 - 116, buttonY, 110, 18);
                 place(modalCancel, x + w / 2 + 6, buttonY, 110, 18);
             }
+            case COLOR -> {
+                place(dialogFields[HEX_FIELD], x + 12, y + 110, w - 24 - 94, 18);
+                place(colorHexApply, x + w - 102, y + 110, 90, 18);
+                place(colorBack, x + w / 2 - 55, buttonY, 110, 18);
+            }
             case WAYPOINTS -> {
                 place(dialogFields[7], x + 12, y + 38, w - 24, 18);
-                place(pointVisibility, x + 12, y + 60, (w - 27) / 2, 18);
-                place(pointColor, x + 15 + (w - 27) / 2, y + 60, (w - 27) / 2, 18);
-                place(confirm, x + w / 2 - 116, buttonY, 110, 18);
-                place(cancel, x + w / 2 + 6, buttonY, 110, 18);
+                int third = (w - 30) / 3;
+                place(pointVisibility, x + 12, y + 60, third, 18);
+                place(pointColor, x + 15 + third, y + 60, third, 18);
+                place(pointScope, x + 18 + 2 * third, y + 60, w - 30 - 2 * third, 18);
+                place(dialogFields[RENAME_FIELD], x + 12, y + h - 52, w - 140, 18);
+                place(pointRename, x + w - 122, y + h - 52, 110, 18);
+                int actionWidth = Math.min(110, (w - 30) / 3);
+                int start = x + (w - actionWidth * 3 - 6) / 2;
+                place(confirm, start, buttonY, actionWidth, 18);
+                place(pointRecolor, start + actionWidth + 3, buttonY, actionWidth, 18);
+                place(cancel, start + (actionWidth + 3) * 2, buttonY, actionWidth, 18);
             }
             default -> {}
         }
@@ -666,14 +717,15 @@ public final class ExactSelectionController {
         String name = dialogFields[8].getValue().trim();
         if (name.isEmpty()) name = tr("area_default_name", areaStore.state().areas().size() + 1).getString();
         AreaGeometry geometry = state.geometry() == null ? new RectangleGeometry(b) : state.geometry();
-        SavedAreaStore.Area area = SavedAreaStore.create(name, geometry, 0x59E3CE, 25, null);
+        SavedAreaStore.Area area = SavedAreaStore.create(name, geometry, AreaPalette.DEFAULT, 25,
+                findGroup(newAreaGroupId) == null ? null : newAreaGroupId);
         List<SavedAreaStore.Area> areas = new ArrayList<>(areaStore.state().areas()); areas.add(area);
         if (!changeAreas(areaState(areas, areaStore.state().groups()), "area_save")) return;
         selectedAreaIds.clear(); selectedAreaIds.add(area.id()); areaId = area.id();
         setDialogValue(4, area.name());
-        dialog = Dialog.AREAS;
-        areaScroll = Math.max(0, areas.size() - visibleAreaDialogRows(dialogRect()[3]));
-        message = tr("area_created").getString();
+        dialog = areaNameReturn;
+        if (dialog == Dialog.AREAS) areaScroll = Math.max(0, areas.size() - visibleAreaDialogRows(dialogRect()[3]));
+        message = tr(areaNameReturn == Dialog.NONE ? "area_saved_named" : "area_created", name).getString();
         focus(null); updateVisibility();
     }
 
@@ -681,7 +733,7 @@ public final class ExactSelectionController {
         SavedAreaStore.Area area = selectedArea();
         if (area == null) return;
         SelectionState.Snapshot before = state.snapshot();
-        state.setGeometry(area.geometry());
+        state.load(area.geometry(), area.id());
         polygonMode = false;
         commitSelection(before, state.snapshot(), "area_load");
         dialog = Dialog.NONE;
@@ -690,22 +742,33 @@ public final class ExactSelectionController {
         updateVisibility();
     }
 
-    private void updateArea() {
-        SavedAreaStore.Area a = selectedArea(); AreaGeometry geometry = state.geometry();
-        if (a == null || selectedAreas().size() != 1 || geometry == null || dirty || !polygonDraft.isEmpty()
-                || holding() || loadFailed || state.phase() != SelectionState.Phase.SELECTED) return;
-        if (a.geometry().equals(geometry)) {
-            message = tr("area_geometry_unchanged").getString();
-            return;
-        }
-        List<SavedAreaStore.Area> areas = new ArrayList<>(areaStore.state().areas());
-        areas.replaceAll(v -> v.id().equals(a.id()) ? v.withGeometry(geometry) : v);
-        if (changeAreas(areaState(areas, areaStore.state().groups()), "area_update")) {
-            dialog = Dialog.NONE;
-            message = tr("area_updated").getString();
-            focus(null);
-            updateVisibility();
-        }
+    private SavedAreaStore.Area editedArea() {
+        return areaStore.state().areas().stream().filter(a -> Objects.equals(a.id(), state.source())).findFirst().orElse(null);
+    }
+
+    private void quickSave() {
+        if (editedArea() != null) applyEditedArea();
+        else { areaNameReturn = Dialog.NONE; openAreaNameDialog(); }
+    }
+
+    private void applyEditedArea() {
+        SavedAreaStore.Area area = editedArea();
+        AreaGeometry geometry = state.geometry();
+        if (area == null || geometry == null || dirty || !polygonDraft.isEmpty() || holding() || loadFailed
+                || state.phase() != SelectionState.Phase.SELECTED || area.geometry().equals(geometry)) return;
+        List<SavedAreaStore.Area> areas = areaStore.state().areas().stream()
+                .map(a -> a.id().equals(area.id()) ? a.withGeometry(geometry) : a).toList();
+        if (changeAreas(areaState(areas, areaStore.state().groups()), "area_update"))
+            message = tr("area_applied", area.name()).getString();
+        updateVisibility();
+    }
+
+    private void cycleNewAreaGroup() {
+        List<SavedAreaStore.Group> groups = areaStore.state().groups();
+        int index = -1;
+        for (int i = 0; i < groups.size(); i++) if (Objects.equals(groups.get(i).id(), newAreaGroupId)) index = i;
+        newAreaGroupId = index + 1 < groups.size() ? groups.get(index + 1).id() : null;
+        updateVisibility();
     }
 
     private void deleteArea() {
@@ -813,23 +876,73 @@ public final class ExactSelectionController {
             message = tr(visible ? "areas_shown" : "areas_hidden", targets.size()).getString();
     }
 
-    private void cycleAreaColor() {
-        SavedAreaStore.Area a = selectedArea(); if (a == null) return;
-        int[] colors = {0x59E3CE, 0xFFCF62, 0x63A8FF, 0xFF6B6B, 0xB78BFF, 0x7CE38B, 0xFFFFFF};
-        int index = -1; for (int i = 0; i < colors.length; i++) if (colors[i] == a.color()) index = i;
-        int next = colors[(index + 1) % colors.length];
-        updateArea(a, new SavedAreaStore.Area(a.id(), a.name(), a.x1(), a.z1(), a.x2(), a.z2(), next, a.opacity(), a.groupId(), a.visible(), a.vertices()), "area_update");
+    private void openColorDialog(Dialog returnTo) {
+        if (returnTo == Dialog.AREAS && (selectedAreas().isEmpty() || loadFailed)) return;
+        if (returnTo == Dialog.WAYPOINTS && !validatePointSnapshot()) return;
+        if (returnTo == Dialog.WAYPOINTS && filteredChosenPoints().isEmpty()) return;
+        colorReturn = returnTo;
+        dialog = Dialog.COLOR;
+        SavedAreaStore.Area area = selectedArea();
+        if (area == null && !selectedAreas().isEmpty()) area = selectedAreas().get(0);
+        setDialogValue(HEX_FIELD, AreaPalette.format(area == null ? AreaPalette.DEFAULT : area.color()));
+        message = ""; focus(null); updateVisibility();
+    }
+
+    private void applyHexColor() {
+        int color = AreaPalette.parse(dialogFields[HEX_FIELD].getValue());
+        if (color < 0) { message = tr("color_invalid").getString(); return; }
+        applyColor(color);
+    }
+
+    private void applyColor(int color) {
+        if (colorReturn == Dialog.WAYPOINTS) {
+            editPoints(null, color);
+            return;
+        }
+        if (loadFailed) return;
+        List<SavedAreaStore.Area> areas = areaStore.state().areas().stream().map(a -> selectedAreaIds.contains(a.id())
+                ? new SavedAreaStore.Area(a.id(), a.name(), a.x1(), a.z1(), a.x2(), a.z2(), color,
+                        a.opacity(), a.groupId(), a.visible(), a.vertices()) : a).toList();
+        SavedAreaStore.State next = areaState(areas, areaStore.state().groups());
+        if (!next.equals(areaStore.state()) && !changeAreas(next, "area_color")) return;
+        dialog = Dialog.AREAS; message = ""; focus(null); updateVisibility();
+    }
+
+    private int[] paletteColors() {
+        if (colorReturn != Dialog.WAYPOINTS) return AreaPalette.COLORS;
+        int[] colors = new int[WaypointAccess.COLOR_COUNT];
+        for (int i = 0; i < colors.length; i++) colors[i] = waypoints.colorRgb(i);
+        return colors;
+    }
+
+    private int colorSampleWidth(int width) { return Math.min(40, (width - 24 - 28) / AreaPalette.COLUMNS); }
+
+    private void renderColorDialog(GuiGraphics g, int x, int y, int w, int h) {
+        int[] colors = paletteColors(); int sw = colorSampleWidth(w);
+        int current = colorReturn == Dialog.WAYPOINTS ? -1 : AreaPalette.parse(dialogFields[HEX_FIELD].getValue());
+        for (int i = 0; i < colors.length; i++) {
+            int sx = x + 12 + (i % AreaPalette.COLUMNS) * (sw + 4), sy = y + 34 + (i / AreaPalette.COLUMNS) * 22;
+            g.fill(sx, sy, sx + sw, sy + 18, 0xFF000000 | colors[i]);
+            g.renderOutline(sx, sy, sw, 18, current == colors[i] ? -1 : 0xFF42636D);
+        }
+        if (!message.isEmpty()) g.drawString(mc.font, mc.font.plainSubstrByWidth(message, w - 24),
+                x + 12, y + (colorReturn == Dialog.WAYPOINTS ? 86 : 98), 0xFFFFCF62);
     }
 
     private void cycleAreaOpacity() {
-        SavedAreaStore.Area a = selectedArea(); if (a == null) return;
+        SavedAreaStore.Area a = selectedArea();
+        if (a == null && !selectedAreas().isEmpty()) a = selectedAreas().get(0);
+        if (a == null || loadFailed) return;
         int[] values = {0, 25, 50, 75, 100};
         int index = 0;
         for (int i = 1; i < values.length; i++) {
             if (Math.abs(values[i] - a.opacity()) < Math.abs(values[index] - a.opacity())) index = i;
         }
         int nextOpacity = values[(index + 1) % values.length];
-        updateArea(a, new SavedAreaStore.Area(a.id(), a.name(), a.x1(), a.z1(), a.x2(), a.z2(), a.color(), nextOpacity, a.groupId(), a.visible(), a.vertices()), "area_update");
+        List<SavedAreaStore.Area> areas = areaStore.state().areas().stream().map(v -> selectedAreaIds.contains(v.id())
+                ? new SavedAreaStore.Area(v.id(), v.name(), v.x1(), v.z1(), v.x2(), v.z2(), v.color(), nextOpacity,
+                        v.groupId(), v.visible(), v.vertices()) : v).toList();
+        changeAreas(areaState(areas, areaStore.state().groups()), "area_update");
     }
 
     private void updateArea(SavedAreaStore.Area old, SavedAreaStore.Area next, String label) {
@@ -1060,6 +1173,14 @@ public final class ExactSelectionController {
         if (b != null) copyToClipboard(formatMetric(state.geometry().area()));
     }
 
+    private void copyPerimeter() {
+        if (copyableBounds() != null) copyToClipboard(formatLength(state.geometry().perimeter()));
+    }
+
+    private static String formatLength(double value) {
+        return value == Math.rint(value) ? Long.toString((long) value) : String.format(Locale.ROOT, "%.2f", value);
+    }
+
     private void copyLength() {
         SelectionBounds b = copyableBounds();
         if (b != null) copyToClipboard(Long.toString(b.length()));
@@ -1232,9 +1353,31 @@ public final class ExactSelectionController {
         return nearest;
     }
 
+    private void deleteVertex(MapBridge.Frame frame, double x, double y) {
+        if (polygonMode && !polygonDraft.isEmpty()) {
+            int index = hitVertex(frame, polygonDraft, x, y);
+            if (index < 0) return;
+            recordDraftChange(List.copyOf(polygonDraft)); polygonDraft.remove(index); polygonCursor = null;
+            message = tr("polygon_vertex_deleted").getString(); updateSelection(); updateVisibility();
+            return;
+        }
+        if (state.phase() != SelectionState.Phase.SELECTED || state.geometry() == null) return;
+        List<GridPoint> points = new ArrayList<>(state.geometry().vertices());
+        int index = hitVertex(frame, points, x, y);
+        if (index < 0) return;
+        if (points.size() <= 3) { message = tr("polygon_minimum_points").getString(); return; }
+        try {
+            SelectionState.Snapshot before = state.snapshot(); points.remove(index);
+            PolygonGeometry next = new PolygonGeometry(points); next.triangulate();
+            state.setGeometry(next); commitSelection(before, state.snapshot(), "vertex_delete");
+            message = tr("polygon_vertex_deleted").getString();
+        } catch (IllegalArgumentException | IllegalStateException e) { message = tr("polygon_invalid").getString(); }
+        updateVisibility();
+    }
+
     private void beginVertexDrag(MapBridge.Frame frame, double x, double y) {
         List<GridPoint> points = polygonMode && !polygonDraft.isEmpty() ? polygonDraft
-                : state.geometry() instanceof PolygonGeometry polygon ? polygon.vertices() : List.of();
+                : state.geometry() != null && state.phase() == SelectionState.Phase.SELECTED ? state.geometry().vertices() : List.of();
         int index = hitVertex(frame, points, x, y);
         if (index < 0) return;
         gesture = new MapGesture.VertexDrag(state.snapshot(), index, Math.round(frame.worldX(x)), Math.round(frame.worldZ(y)),
@@ -1702,17 +1845,22 @@ public final class ExactSelectionController {
         g.renderOutline(PANEL_X, PANEL_Y, panelWidth, panelHeight, 0xFF42636D);
         g.drawString(mc.font, mc.font.plainSubstrByWidth(tr("title").getString(), panelWidth - 96),
                 PANEL_X + 8, PANEL_Y + 7, ACCENT);
-        g.drawString(mc.font, mc.font.plainSubstrByWidth(tr(polygonMode ? compact ? "polygon_controls_short" : "polygon_controls" :
-                state.geometry() instanceof PolygonGeometry ? "polygon_edit_controls" :
-                state.phase() == SelectionState.Phase.PREVIEW ? "second_corner" :
-                state.phase() == SelectionState.Phase.SELECTED ? "new_selection" : "first_corner").getString(), panelWidth - 16),
+        String hint = polygonMode ? compact ? "polygon_controls_short" : "polygon_controls"
+                : state.geometry() instanceof PolygonGeometry ? "polygon_edit_controls"
+                : state.source() != null && state.phase() == SelectionState.Phase.SELECTED ? "rectangle_edit_controls"
+                : state.phase() == SelectionState.Phase.PREVIEW ? "second_corner"
+                : state.phase() == SelectionState.Phase.SELECTED ? "new_selection" : "first_corner";
+        g.drawString(mc.font, mc.font.plainSubstrByWidth(tr(hint).getString(), panelWidth - 16),
                 PANEL_X + 8, PANEL_Y + 20, 0xFFD0DBE2);
         g.enableScissor(PANEL_X + 1, PANEL_Y + 32, PANEL_X + panelWidth - 1,
                 PANEL_Y + panelHeight - (maxPanelScroll() > 0 ? 16 : 3));
         SelectionBounds b = state.bounds();
         if (compact) {
-            line(g, Component.literal(b == null ? "A: —" : "A: X " + b.x1() + "  Z " + b.z1()), 34, -1);
-            line(g, Component.literal(b == null ? "B: —" : "B: X " + b.x2() + "  Z " + b.z2()), 47, -1);
+            int available = panelWidth - 16 - (quickSave.visible ? 90 : 0);
+            g.drawString(mc.font, mc.font.plainSubstrByWidth(b == null ? "A: —" : "A: X " + b.x1() + "  Z " + b.z1(), available),
+                    PANEL_X + 8, PANEL_Y + 33, -1);
+            g.drawString(mc.font, mc.font.plainSubstrByWidth(b == null ? "B: —" : "B: X " + b.x2() + "  Z " + b.z2(), available),
+                    PANEL_X + 8, PANEL_Y + 45, -1);
         } else {
             int labelX = fields[0].getX() - fieldGap - coordinateLabelWidth;
             int zX = fields[1].getX() - fieldGap - zLabelWidth;
@@ -1723,21 +1871,33 @@ public final class ExactSelectionController {
         }
         line(g, b == null ? tr("dimensions_empty") : chunks
                 ? tr("dimensions_chunks", b.width(), b.length(), b.chunkCount())
-                : tr("dimensions", b.width(), b.length()), compact ? 60 : 106, -1);
-        line(g, b == null ? tr("area_empty") : tr("area", formatMetric(state.geometry().area())), compact ? 73 : 119, ACCENT);
+                : tr("dimensions", b.width(), b.length()), compact ? 57 : 106, -1);
+        line(g, b == null ? tr("area_empty") : tr("area", formatMetric(state.geometry().area())), compact ? 69 : 118, ACCENT);
+        line(g, tr("perimeter", b == null ? "—" : formatLength(state.geometry().perimeter())), compact ? 81 : 130, ACCENT);
+        sectionHeader(g, tr("copy_header"), compact ? 94 : 144);
+        int lineY = PANEL_Y + (compact ? 124 : 174 - panelScroll);
+        g.fill(PANEL_X + 8, lineY, PANEL_X + panelWidth - 8, lineY + 1, 0xFF42636D);
         if (!compact) {
             int n = selected == null ? 0 : selected.points().size();
             Component count = waypoints == null ? tr("minimap_missing") : selected == null
                     ? tr("waypoints_unavailable") : tr("count", n, setNameDisplay(selected.setName()));
-            line(g, count, 267, 0xFFFFCF62);
-            line(g, tr(loadFailed ? "area_load_failed" : "scope"), 280, 0xFF9BAAB7);
+            line(g, count, 270, 0xFFFFCF62);
+            line(g, tr(loadFailed ? "area_load_failed" : "scope"), 282, 0xFF9BAAB7);
         }
-        if (!hasExportNotice())
-            line(g, message.isEmpty() ? tr("controls") : Component.literal(message), compact ? 153 : 295,
-                    message.isEmpty() ? 0xFF9BAAB7 : 0xFFFFCF62);
+        SavedAreaStore.Area editing = editedArea();
+        Component status = !message.isEmpty() ? Component.literal(message)
+                : editing == null ? tr("controls") : tr("editing_area", editing.name());
+        if (!hasExportNotice()) line(g, status, compact ? 171 : 297, message.isEmpty() ? 0xFF9BAAB7 : 0xFFFFCF62);
         g.disableScissor();
         if (maxPanelScroll() > 0)
             g.drawString(mc.font, tr("panel_scroll"), PANEL_X + 8, PANEL_Y + panelHeight - 12, 0xFF9BAAB7);
+    }
+
+    private void sectionHeader(GuiGraphics g, Component text, int y) {
+        int drawY = PANEL_Y + y - (compact ? 0 : panelScroll);
+        g.drawString(mc.font, text, PANEL_X + 8, drawY, 0xFF9BAAB7);
+        int start = PANEL_X + 12 + mc.font.width(text);
+        g.fill(start, drawY + 4, PANEL_X + panelWidth - 8, drawY + 5, 0xFF42636D);
     }
 
     private void line(GuiGraphics g, Component text, int y, int color) {
@@ -1753,15 +1913,28 @@ public final class ExactSelectionController {
         if (toggle == null) return;
         for (AbstractWidget widget : widgets) widget.visible = false;
         boolean main = enabled() && dialog == Dialog.NONE;
-        show(main, panelModeButton, copyCoordinates, copyArea, copyLength, copyWidth,
-                undo, redo, polygonModeButton, areasButton, groupsButton, clear);
+        show(main, panelModeButton, copyCoordinates, copyArea, copyPerimeter, copyLength, copyWidth,
+                undo, redo, polygonModeButton, groupsButton, clear);
+        show(main && compact, areasButton);
+        show(main && (!compact || state.phase() == SelectionState.Phase.SELECTED), quickSave);
         show(main && !compact, fields[0], fields[1], fields[2], fields[3], apply, chunkMode,
-                sizeButton, moveButton, centerButton, delete, selectionExportButton);
+                sizeButton, moveButton, centerButton, zonesButton, pointsButton, selectionExportButton);
         if (main && hasExportNotice()) {
-            place(openExportButton, PANEL_X + 8, PANEL_Y + (compact ? 151 : 290 - panelScroll),
+            place(openExportButton, PANEL_X + 8, PANEL_Y + (compact ? 168 : 294 - panelScroll),
                     panelWidth - 16, 16);
             show(true, openExportButton);
         }
+        String copySuffix = compact ? "_short" : "_full";
+        copyCoordinates.setMessage(tr("copy_coordinates" + copySuffix));
+        copyArea.setMessage(tr("copy_area" + copySuffix));
+        copyPerimeter.setMessage(tr("copy_perimeter" + copySuffix));
+        copyLength.setMessage(tr("copy_length" + copySuffix));
+        copyWidth.setMessage(tr("copy_width" + copySuffix));
+        SavedAreaStore.Area editing = editedArea();
+        quickSave.setMessage(tr(editing == null ? "quick_save" : "quick_apply"));
+        quickSave.setTooltip(Tooltip.create(editing == null ? tr("quick_save_tooltip") : tr("quick_apply_tooltip", editing.name())));
+        quickSave.active = state.phase() == SelectionState.Phase.SELECTED && !dirty && polygonDraft.isEmpty()
+                && !holding() && !loadFailed && (editing == null || !editing.geometry().equals(state.geometry()));
         panelModeButton.setMessage(tr(compact ? "panel_expand" : "panel_compact"));
         panelModeButton.setTooltip(Tooltip.create(tr(compact ? "panel_expand_tooltip" : "panel_compact_tooltip")));
         if (main && !compact) {
@@ -1795,17 +1968,21 @@ public final class ExactSelectionController {
         sizeButton.active = !(state.geometry() instanceof PolygonGeometry) && !dirty && !contourDraft && !holding();
         chunkMode.active = !(state.geometry() instanceof PolygonGeometry) && !contourDraft && !holding();
         moveButton.active = centerButton.active = !dirty && !contourDraft && !holding();
-        areasButton.active = groupsButton.active = !dirty && !contourDraft && !holding();
+        areasButton.active = zonesButton.active = groupsButton.active = !dirty && !contourDraft && !holding();
         if (dialog == Dialog.SIZE) show(true, dialogFields[0], dialogFields[1], anchorButton, modalApply, modalCancel);
         if (dialog == Dialog.MOVE) show(true, dialogFields[2], dialogFields[3], moveUnitsButton, modalApply, modalCancel);
         if (dialog == Dialog.CENTER) show(true, dialogFields[6], centerCopy, centerCreate);
-        if (dialog == Dialog.AREA_NAME) show(true, dialogFields[8], modalApply, modalCancel);
+        if (dialog == Dialog.AREA_NAME) show(true, dialogFields[8], newAreaGroup, modalApply, modalCancel);
+        if (dialog == Dialog.COLOR) {
+            show(true, colorBack);
+            if (colorReturn == Dialog.AREAS) show(true, dialogFields[HEX_FIELD], colorHexApply);
+        }
         if (dialog == Dialog.GROUP_NAME) show(true, dialogFields[5], modalApply, modalCancel);
         if (dialog == Dialog.ASSIGN_GROUP) show(true, manageGroups, managementClose);
         if (dialog == Dialog.AREAS) {
             if (areaDeleteConfirmation) show(true, confirm, cancel);
             else show(true, managementClose, manageGroups, managementUndo, managementRedo,
-                    dialogFields[4], areaSave, areaRename, groupAssign, areaLoad, areaUpdate, areaExportButton,
+                    dialogFields[4], areaSave, areaRename, groupAssign, areaLoad, areaExportButton,
                     areaDelete, areaMerge, areaSelectAll, areaClearSelection, areaVisibility, areaColor, areaOpacity,
                     areaMapVisibility, areaMinimapVisibility);
             if (!areaDeleteConfirmation && hasExportNotice()) show(true, openExportButton);
@@ -1814,15 +1991,26 @@ public final class ExactSelectionController {
             if (groupDeleteConfirmation) show(true, confirm, cancel);
             else show(true, managementClose, managementUndo, managementRedo, groupCreate, groupRename, groupVisibility, groupDelete);
         }
-        if (dialog == Dialog.WAYPOINTS) show(true, dialogFields[7], pointVisibility, pointColor, confirm, cancel);
+        if (dialog == Dialog.WAYPOINTS) show(true, dialogFields[7], dialogFields[RENAME_FIELD],
+                pointVisibility, pointColor, pointScope, pointRename, pointRecolor, confirm, cancel);
         apply.active = enabled() && !polygonSelection && !contourDraft && !holding() && (dirty || state.bounds() != null);
         clear.active = state.bounds() != null || dirty || contourDraft;
         int pointCount = selected == null ? 0 : selected.points().size();
-        delete.setMessage(tr("delete_count", pointCount));
-        delete.active = enabled() && !dirty && dialog == Dialog.NONE && pointCount > 0 && !contourDraft && !holding()
-                && state.phase() == SelectionState.Phase.SELECTED;
+        pointsButton.setMessage(state.phase() == SelectionState.Phase.SELECTED ? tr("waypoints_button", pointCount) : tr("waypoints_all"));
+        pointsButton.active = waypoints != null && !dirty && !contourDraft && !holding();
+        pointScope.setMessage(tr(pointsInSelection ? "point_scope_selection" : "point_scope_all"));
+        pointScope.active = state.phase() == SelectionState.Phase.SELECTED;
+        pointRename.active = !filteredChosenPoints().isEmpty() && !dialogFields[RENAME_FIELD].getValue().trim().isEmpty();
+        pointRecolor.active = !filteredChosenPoints().isEmpty();
+        if (dialog == Dialog.WAYPOINTS) {
+            confirm.setMessage(tr("delete_count", filteredChosenPoints().size()));
+            cancel.setMessage(tr("done"));
+        }
+        colorHexApply.active = true;
+        SavedAreaStore.Group newGroup = findGroup(newAreaGroupId);
+        newAreaGroup.setMessage(tr("area_group_button", newGroup == null ? tr("group_none").getString() : newGroup.name()));
         boolean canCopy = enabled() && !dirty && !contourDraft && !holding() && dialog == Dialog.NONE && state.bounds() != null;
-        copyCoordinates.active = copyArea.active = copyLength.active = copyWidth.active = canCopy;
+        copyCoordinates.active = copyArea.active = copyPerimeter.active = copyLength.active = copyWidth.active = canCopy;
         if (dialog == Dialog.WAYPOINTS && pending != null) confirm.active = !filteredChosenPoints().isEmpty();
         if (areaDeleteConfirmation && dialog == Dialog.AREAS || groupDeleteConfirmation && dialog == Dialog.GROUPS) {
             confirm.setMessage(tr(groupDeleteConfirmation ? "group_delete_confirm_button" : "area_delete_confirm_button"));
@@ -1850,10 +2038,8 @@ public final class ExactSelectionController {
         areaLoad.active = singleArea;
         areaExportButton.active = singleArea && !loadFailed && !exportRunning;
         areaDelete.active = selectedCount > 0 && !loadFailed;
-        areaColor.active = areaOpacity.active = singleArea && !loadFailed;
+        areaColor.active = areaOpacity.active = selectedCount > 0 && !loadFailed;
         areaVisibility.active = selectedCount > 0 && !loadFailed;
-        areaUpdate.active = singleArea && state.phase() == SelectionState.Phase.SELECTED
-                && !dirty && !contourDraft && !holding() && !loadFailed;
         groupAssign.active = selectedCount > 0 && !loadFailed;
         areaSave.active = state.phase() == SelectionState.Phase.SELECTED && !dirty && !loadFailed;
         areaRename.active = singleArea && !dialogFields[4].getValue().trim().isEmpty() && !loadFailed;
@@ -1877,7 +2063,7 @@ public final class ExactSelectionController {
     }
 
     private Tooltip historyTooltip(String key, String label) {
-        return label.isEmpty() ? null : Tooltip.create(tr(key, label));
+        return Tooltip.create(label.isEmpty() ? tr(key + "_plain") : tr(key, label));
     }
 
     private String selectedGroupName() {
@@ -1917,7 +2103,7 @@ public final class ExactSelectionController {
             case AREAS -> "areas_window"; case GROUPS -> "groups_window";
             case ASSIGN_GROUP -> "group_picker_title"; case AREA_NAME -> "area_new_title";
             case GROUP_NAME -> renamingGroup ? "group_rename_title" : "group_new_title";
-            case WAYPOINTS -> "dialog_waypoints"; default -> "title";
+            case WAYPOINTS -> "dialog_waypoints"; case COLOR -> "color_title"; default -> "title";
         };
         if (dialog == Dialog.AREAS || dialog == Dialog.GROUPS || dialog == Dialog.ASSIGN_GROUP)
             g.drawString(mc.font, tr(title), x + 12, y + 12, ACCENT);
@@ -1946,9 +2132,10 @@ public final class ExactSelectionController {
             case ASSIGN_GROUP -> renderGroupChooser(g, x, y, w, h);
             case AREA_NAME, GROUP_NAME -> {
                 g.drawString(mc.font, tr(dialog == Dialog.AREA_NAME ? "area_name" : "group_name"), x + 16, y + 32, -1);
-                if (!message.isEmpty()) g.drawString(mc.font, mc.font.plainSubstrByWidth(message, w - 32), x + 16, y + 80, 0xFFFFCF62);
+                if (!message.isEmpty()) g.drawString(mc.font, mc.font.plainSubstrByWidth(message, w - 32), x + 16, y + (dialog == Dialog.AREA_NAME ? 98 : 80), 0xFFFFCF62);
             }
             case WAYPOINTS -> renderWaypointsDialog(g, x, y, w, h);
+            case COLOR -> renderColorDialog(g, x, y, w, h);
             default -> {}
         }
     }
@@ -1964,7 +2151,7 @@ public final class ExactSelectionController {
         int rows = visibleAreaDialogRows(h);
         areaScroll = Math.min(areaScroll, Math.max(0, areas.size() - rows));
         g.drawString(mc.font, tr("area_list_count", selectedAreaIds.size()), x + 12, y + 34, 0xFF9BAAB7);
-        g.fill(x + 10, y + 46, x + 14 + col, y + h - 100, 0xFF0C141D);
+        g.fill(x + 10, y + 46, x + 14 + col, y + h - 78, 0xFF0C141D);
         if (areas.isEmpty()) g.drawString(mc.font, tr("areas_empty"), x + 16, y + 54, 0xFF9BAAB7);
         for (int i = 0; i < rows && i + areaScroll < areas.size(); i++) {
             SavedAreaStore.Area area = areas.get(i + areaScroll);
@@ -1982,7 +2169,7 @@ public final class ExactSelectionController {
             SavedAreaStore.Area area = selectedArea();
             g.drawString(mc.font, mc.font.plainSubstrByWidth(areaVisibilityDescription(area), col), right, y + 218, 0xFF9BAAB7);
             GeometryBounds bounds = area.geometry().bounds();
-            String dimensions = tr("area_geometry_metrics", bounds.width(), bounds.length(), formatMetric(area.geometry().area())).getString();
+            String dimensions = tr("area_geometry_metrics", bounds.width(), bounds.length(), formatMetric(area.geometry().area()), formatLength(area.geometry().perimeter())).getString();
             g.drawString(mc.font, mc.font.plainSubstrByWidth(dimensions, col), right, y + 232, 0xFF9BAAB7);
         }
         renderManagementStatus(g, x, y, w, h, "areas_selection_hint");
@@ -2058,7 +2245,7 @@ public final class ExactSelectionController {
     private void renderWaypointsDialog(GuiGraphics g, int x, int y, int w, int h) {
         if (pending == null) return;
         List<WaypointAccess.Point> points = filteredPoints();
-        int rows = Math.max(1, (h - 116) / 14);
+        int rows = waypointRows(h);
         modalScroll = Math.min(modalScroll, Math.max(0, points.size() - rows));
         int chosen = filteredChosenPoints().size();
         g.drawString(mc.font, tr("waypoint_filter_count", chosen, points.size()), x + 12, y + 29, 0xFF9BAAB7);
@@ -2070,7 +2257,7 @@ public final class ExactSelectionController {
             g.drawString(mc.font, mc.font.plainSubstrByWidth(text, w - 26), x + 13, rowY, p.disabled() ? 0xFF9BAAB7 : -1);
         }
         String hint = message.isEmpty() ? tr("waypoint_modal_hint").getString() : message;
-        g.drawString(mc.font, mc.font.plainSubstrByWidth(hint, w - 24), x + 12, y + h - 42, message.isEmpty() ? 0xFF9BAAB7 : 0xFFFFCF62);
+        g.drawString(mc.font, mc.font.plainSubstrByWidth(hint, w - 24), x + 12, y + h - 70, message.isEmpty() ? 0xFF9BAAB7 : 0xFFFFCF62);
         confirm.setMessage(tr("delete_count", chosen));
         confirm.active = chosen > 0;
     }
@@ -2104,6 +2291,16 @@ public final class ExactSelectionController {
             if (event.button() == GLFW.GLFW_MOUSE_BUTTON_LEFT) {
                 int[] r = dialogRect(); int x = r[0], y = r[1], w = r[2], h = r[3];
                 int col = (w - 36) / 2;
+                if (dialog == Dialog.COLOR) {
+                    int sw = colorSampleWidth(w); int[] colors = paletteColors();
+                    for (int i = 0; i < colors.length; i++) {
+                        int sx = x + 12 + (i % AreaPalette.COLUMNS) * (sw + 4), sy = y + 34 + (i / AreaPalette.COLUMNS) * 22;
+                        if (event.x() >= sx && event.x() < sx + sw && event.y() >= sy && event.y() < sy + 18) {
+                            applyColor(colorReturn == Dialog.WAYPOINTS ? i : colors[i]); return true;
+                        }
+                    }
+                    return true;
+                }
                 if (dialog == Dialog.AREAS && !areaDeleteConfirmation) {
                     int rows = visibleAreaDialogRows(h);
                     if (event.x() >= x + 10 && event.x() < x + 14 + col
@@ -2148,7 +2345,7 @@ public final class ExactSelectionController {
             }
             if (event.button() == GLFW.GLFW_MOUSE_BUTTON_LEFT && dialog == Dialog.WAYPOINTS && pending != null) {
                 int[] r = dialogRect(); int x = r[0], y = r[1], w = r[2], h = r[3];
-                int rows = Math.max(1, (h - 116) / 14);
+                int rows = waypointRows(h);
                 List<WaypointAccess.Point> points = filteredPoints();
                 // Row i is drawn over [y + 81 + 14i, y + 95 + 14i); a taller hit area would toggle a hidden row.
                 if (event.x() >= x + 8 && event.x() < x + w - 8 && event.y() >= y + 81 && event.y() < y + 81 + rows * 14) {
@@ -2184,9 +2381,20 @@ public final class ExactSelectionController {
         } else if (event.button() == GLFW.GLFW_MOUSE_BUTTON_LEFT) {
             if (dirty || holding()) return true;
             if ((event.modifiers() & (GLFW.GLFW_MOD_CONTROL | GLFW.GLFW_MOD_SUPER)) != 0
-                    && (polygonMode || state.geometry() instanceof PolygonGeometry)) {
-                beginVertexDrag(frame, event.x(), event.y());
-                return true;
+                    && (polygonMode || state.geometry() instanceof PolygonGeometry
+                            || state.geometry() instanceof RectangleGeometry && state.phase() == SelectionState.Phase.SELECTED)) {
+                if (twice) deleteVertex(frame, event.x(), event.y());
+                else beginVertexDrag(frame, event.x(), event.y());
+                if (holding() || !(state.geometry() instanceof RectangleGeometry) || twice) return true;
+            }
+            if (state.source() != null && state.geometry() instanceof RectangleGeometry rectangle
+                    && state.phase() == SelectionState.Phase.SELECTED && polygonDraft.isEmpty() && !polygonMode) {
+                int edge = hitPolygonEdge(frame, rectangle.vertices(), event.x(), event.y());
+                if (edge >= 0 && (twice || hitHandle(frame, event.x(), event.y()) == null)) {
+                    if (twice) insertPolygonPoint(frame, new PolygonGeometry(rectangle.vertices()), edge, event.x(), event.y());
+                    else message = tr("rectangle_edit_controls").getString();
+                    return true;
+                }
             }
             if (polygonDraft.isEmpty() && state.geometry() instanceof PolygonGeometry polygon) {
                 int edge = hitPolygonEdge(frame, polygon.vertices(), event.x(), event.y());
@@ -2260,7 +2468,7 @@ public final class ExactSelectionController {
 
     public boolean mouseScrolled(double x, double y, double vertical) {
         if (dialog == Dialog.WAYPOINTS && pending != null) {
-            modalScroll = Math.max(0, Math.min(Math.max(0, filteredPoints().size() - Math.max(1, (dialogRect()[3] - 116) / 14)),
+            modalScroll = Math.max(0, Math.min(Math.max(0, filteredPoints().size() - waypointRows(dialogRect()[3])),
                     modalScroll - (vertical > 0 ? 1 : vertical < 0 ? -1 : 0)));
             return true;
         }
@@ -2351,6 +2559,8 @@ public final class ExactSelectionController {
                         && modalApply.active) applyDialog();
                 else if (dialog == Dialog.AREAS && field == dialogFields[4] && areaRename.active) renameArea();
                 else if (dialog == Dialog.CENTER) createCenterWaypoint();
+                else if (dialog == Dialog.COLOR && field == dialogFields[HEX_FIELD]) applyHexColor();
+                else if (dialog == Dialog.WAYPOINTS && field == dialogFields[RENAME_FIELD] && pointRename.active) renamePoints();
                 else if (dialog == Dialog.NONE) applyFields();
             }
             else field.keyPressed(event);
@@ -2390,51 +2600,88 @@ public final class ExactSelectionController {
         } catch (IllegalArgumentException e) { message = tr("invalid_coordinates").getString(); }
     }
 
-    private void askDelete() {
-        if (dirty || state.phase() != SelectionState.Phase.SELECTED || checkedFrame() == null || !enabled()) return;
-        updateSelection();
-        if (selected == null || selected.points().isEmpty()) return;
-        pending = waypoints.captureSet(selected);
-        if (pending == null) {
-            message = tr("changed").getString();
-            return;
-        }
-        modalScroll = 0;
-        chosenPoints.clear();
-        for (WaypointAccess.Point point : pending.points()) if (point.editable()) chosenPoints.add(point.identity());
-        dragging = false;
-        message = "";
-        dialog = Dialog.WAYPOINTS;
+    private static int waypointRows(int height) { return Math.max(1, (height - 150) / 14); }
+
+    private WaypointAccess.Snapshot scopeSnapshot() {
+        return waypoints == null ? null : pointsInSelection ? waypoints.select(context, state.geometry()) : waypoints.all(context);
+    }
+
+    private void openWaypoints() {
+        if (waypoints == null) { message = tr("minimap_missing").getString(); return; }
+        if (dirty || holding() || !polygonDraft.isEmpty() || checkedFrame() == null || !enabled()) return;
+        pointsInSelection = state.phase() == SelectionState.Phase.SELECTED;
+        pending = waypoints.captureSet(scopeSnapshot());
+        if (pending == null) { message = tr("waypoints_unavailable").getString(); return; }
+        modalScroll = 0; chosenPoints.clear();
+        if (pointsInSelection) for (WaypointAccess.Point p : pending.points()) if (p.editable()) chosenPoints.add(p.identity());
+        setDialogValue(7, ""); setDialogValue(RENAME_FIELD, "");
+        visibilityFilter = 0; colorFilter = -1;
+        pointVisibility.setMessage(tr("filter_all")); pointColor.setMessage(tr("filter_color_all"));
+        dragging = false; message = ""; dialog = Dialog.WAYPOINTS;
+        updateVisibility(); focus(cancel);
+    }
+
+    private void togglePointScope() {
+        if (state.phase() != SelectionState.Phase.SELECTED) return;
+        pointsInSelection = !pointsInSelection;
+        refreshPending(pointsInSelection);
         updateVisibility();
-        focus(cancel);
+    }
+
+    private void refreshPending(boolean selectAll) {
+        pending = waypoints.captureSet(scopeSnapshot());
+        Set<Object> existing = new HashSet<>();
+        if (pending != null) for (WaypointAccess.Point p : pending.points()) if (p.editable()) existing.add(p.identity());
+        chosenPoints.retainAll(existing);
+        if (selectAll) chosenPoints.addAll(existing);
+        modalScroll = 0;
+    }
+
+    private boolean validatePointSnapshot() {
+        if (checkedFrame() == null || !enabled() || waypoints == null || pending == null) return false;
+        WaypointAccess.Snapshot current = waypoints.captureSet(scopeSnapshot());
+        if (pending.equals(current)) return true;
+        pending = current;
+        Set<Object> existing = new HashSet<>();
+        if (pending != null) for (WaypointAccess.Point p : pending.points()) if (p.editable()) existing.add(p.identity());
+        chosenPoints.retainAll(existing);
+        modalScroll = 0; message = tr("changed").getString();
+        if (dialog == Dialog.COLOR) dialog = Dialog.WAYPOINTS;
+        focus(cancel); updateVisibility();
+        return false;
+    }
+
+    private void renamePoints() {
+        String name = dialogFields[RENAME_FIELD].getValue().trim();
+        if (!name.isEmpty()) editPoints(name, null);
+    }
+
+    private void editPoints(String name, Integer color) {
+        if (!validatePointSnapshot()) return;
+        List<WaypointAccess.Point> from = filteredChosenPoints();
+        if (from.isEmpty()) return;
+        List<WaypointAccess.Point> to = from.stream().map(p -> p.with(name == null ? p.name() : name, color == null ? p.color() : color)).toList();
+        WaypointAccess.Snapshot target = pending;
+        try {
+            waypoints.edit(target, from, to);
+            history.recordApplied(new SelectionHistory.Action() {
+                @Override public void undo() throws Exception { waypoints.edit(target, to, from); }
+                @Override public void redo() throws Exception { waypoints.edit(target, from, to); }
+                @Override public String label() { return tr("history_waypoint_edit", from.size()).getString(); }
+            });
+            message = tr("waypoints_edited", from.size()).getString();
+            dialog = Dialog.WAYPOINTS; refreshPending(false);
+        } catch (Exception e) {
+            message = tr("save_failed").getString();
+            LoggerFactory.getLogger("xaero-exact-selection").error("Could not edit waypoints", e);
+        }
+        focus(null); updateSelection(); updateVisibility();
     }
 
     private void confirmDelete() {
-        if (dialog == Dialog.GROUPS && groupDeleteConfirmation) {
-            confirmGroupDelete();
-            return;
-        }
-        if (dialog == Dialog.AREAS && areaDeleteConfirmation) {
-            confirmAreaDelete();
-            return;
-        }
-        if (checkedFrame() == null || !enabled() || pending == null || dialog != Dialog.WAYPOINTS) return;
-        WaypointAccess.Snapshot current = waypoints.captureSet(waypoints.select(context, state.geometry()));
-        if (!pending.equals(current)) {
-            if (current == null) {
-                pending = null; dialog = Dialog.NONE;
-                message = tr("changed").getString();
-                focus(null);
-                updateSelection();
-                return;
-            }
-            pending = current;
-            chosenPoints.clear(); for (WaypointAccess.Point point : pending.points()) if (point.editable()) chosenPoints.add(point.identity());
-            modalScroll = 0;
-            message = tr("changed").getString();
-            focus(cancel);
-            return;
-        }
+        if (dialog == Dialog.GROUPS && groupDeleteConfirmation) { confirmGroupDelete(); return; }
+        if (dialog == Dialog.AREAS && areaDeleteConfirmation) { confirmAreaDelete(); return; }
+        if (dialog != Dialog.WAYPOINTS || !validatePointSnapshot()) return;
         List<WaypointAccess.Point> targets = filteredChosenPoints();
         if (targets.isEmpty()) return;
         WaypointAccess.Snapshot deletion = new WaypointAccess.Snapshot(pending.world(), pending.set(), pending.setName(), targets, pending.setPoints());
@@ -2447,13 +2694,12 @@ public final class ExactSelectionController {
                 @Override public String label() { return tr("history_delete_waypoints", count).getString(); }
             });
             message = tr("deleted", count).getString();
+            refreshPending(false);
         } catch (Exception e) {
             LoggerFactory.getLogger("xaero-exact-selection").error("Could not save waypoint deletion; restored in-memory set", e);
             message = tr("save_failed").getString();
         }
-        pending = null; dialog = Dialog.NONE;
-        focus(null);
-        updateSelection();
+        focus(null); updateSelection(); updateVisibility();
     }
 
 }

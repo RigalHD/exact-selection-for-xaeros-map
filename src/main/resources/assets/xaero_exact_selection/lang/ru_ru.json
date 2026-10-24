@@ -256,6 +256,8 @@
   "exactselection.area_edit": "Редактировать",
   "exactselection.area_edit_tooltip": "Загрузить зону в выделение для редактирования. Изменения сохраняет кнопка «Применить» на панели.",
   "exactselection.area_new_group_tooltip": "Выбрать группу для новой области: следующее нажатие переключает группу",
+  "exactselection.area_new_opacity": "Заливка: %s",
+  "exactselection.area_new_opacity_tooltip": "Прозрачность заливки новой области: 0, 25, 50, 75 или 100%",
   "exactselection.zones_all": "Все зоны…",
   "exactselection.zones_all_tooltip": "Открыть список и отметить все сохранённые области",
   "exactselection.waypoints_button": "Точки: %s",

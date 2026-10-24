@@ -48,7 +48,7 @@ Invalid intersecting or duplicate-vertex edits are rejected. Polygon geometry an
 
 ## Saved areas and groups
 
-**Save** appears next to the coordinates in the compact panel and in the expanded panel’s action row. Enter a name and use the Group button to cycle through existing groups; the default is no group. Saving a new area does not automatically enter editing mode.
+**Save** appears next to the coordinates in the compact panel and in the expanded panel’s action row. Enter a name, use the Group button to cycle through existing groups (the default is no group), set the fill with the Fill button (0, 25, 50, 75 or 100%) and pick one of 24 colors right below. Color and fill are remembered for the next area. After saving, the selection is cleared so the next area can be drawn; the first undo brings the selection back, the second removes the saved area. Saving a new area does not enter editing mode.
 
 To change an existing area, select it in **Areas** and choose **Edit**. Change its shape and choose **Apply** on the selection panel. This association survives moves, coordinate edits, redraws and undo/redo. Clear the selection or turn the tool off to end editing. **Save selection…** in the Areas window can save a separate copy while editing.
 

@@ -256,6 +256,8 @@
   "exactselection.area_edit": "Edit",
   "exactselection.area_edit_tooltip": "Load the area for editing. Save changes with Apply on the selection panel.",
   "exactselection.area_new_group_tooltip": "Choose a group for the new area; click to cycle through groups",
+  "exactselection.area_new_opacity": "Fill: %s",
+  "exactselection.area_new_opacity_tooltip": "Fill opacity of the new area: 0, 25, 50, 75 or 100%",
   "exactselection.zones_all": "All areas…",
   "exactselection.zones_all_tooltip": "Open the list with every saved area selected",
   "exactselection.waypoints_button": "Waypoints: %s",

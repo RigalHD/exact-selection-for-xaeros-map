@@ -66,9 +66,11 @@ public final class ExactSelectionController {
     private String exportNotice = "";
     private Button areaMapVisibility, areaMinimapVisibility;
     private Button pointVisibility, pointColor, pointScope, pointRename, pointRecolor;
-    private Button quickSave, zonesButton, newAreaGroup, colorHexApply, colorBack;
+    private Button quickSave, zonesButton, newAreaGroup, newAreaOpacityButton, colorHexApply, colorBack;
     private Dialog areaNameReturn = Dialog.AREAS, colorReturn = Dialog.AREAS;
     private String newAreaGroupId;
+    /** Style for the next saved area; kept between saves so a series of areas can share it. */
+    private int newAreaColor = AreaPalette.DEFAULT, newAreaOpacity = 25;
     private boolean pointsInSelection;
     private MapBridge.Context context;
     private WaypointAccess.Snapshot selected, pending;
@@ -227,6 +229,11 @@ public final class ExactSelectionController {
         pointRename = button("point_rename", 0, 0, 110, this::renamePoints);
         pointRecolor = button("area_color", 0, 0, 110, () -> openColorDialog(Dialog.WAYPOINTS));
         newAreaGroup = button("group_none", 0, 0, 100, this::cycleNewAreaGroup);
+        newAreaOpacityButton = button("area_fill", 0, 0, 100, () -> {
+            newAreaOpacity = nextOpacity(newAreaOpacity);
+            updateVisibility();
+        });
+        newAreaOpacityButton.setTooltip(Tooltip.create(tr("area_new_opacity_tooltip")));
         colorHexApply = button("apply", 0, 0, 90, this::applyHexColor);
         colorBack = button("back", 0, 0, 110, this::cancelDialog);
         pointsButton.setTooltip(Tooltip.create(tr(waypoints == null ? "minimap_missing" : "waypoints_tooltip")));
@@ -455,7 +462,7 @@ public final class ExactSelectionController {
             case CENTER -> Math.min(150, screen.height - 16);
             case AREAS, GROUPS -> Math.min(460, screen.height - 16);
             case ASSIGN_GROUP -> Math.min(330, screen.height - 16);
-            case AREA_NAME -> Math.min(160, screen.height - 16);
+            case AREA_NAME -> Math.min(210, screen.height - 16);
             case GROUP_NAME -> Math.min(140, screen.height - 16);
             case COLOR -> Math.min(170, screen.height - 16);
             case WAYPOINTS -> Math.min(330, screen.height - 16);
@@ -563,7 +570,11 @@ public final class ExactSelectionController {
             }
             case AREA_NAME, GROUP_NAME -> {
                 place(dialogFields[dialog == Dialog.AREA_NAME ? 8 : 5], x + 16, y + 48, w - 32, 18);
-                if (dialog == Dialog.AREA_NAME) place(newAreaGroup, x + 16, y + 72, w - 32, 18);
+                if (dialog == Dialog.AREA_NAME) {
+                    int half = (w - 35) / 2;
+                    place(newAreaGroup, x + 16, y + 72, half, 18);
+                    place(newAreaOpacityButton, x + 19 + half, y + 72, w - 35 - half, 18);
+                }
                 place(modalApply, x + w / 2 - 116, buttonY, 110, 18);
                 place(modalCancel, x + w / 2 + 6, buttonY, 110, 18);
             }
@@ -717,7 +728,7 @@ public final class ExactSelectionController {
         String name = dialogFields[8].getValue().trim();
         if (name.isEmpty()) name = tr("area_default_name", areaStore.state().areas().size() + 1).getString();
         AreaGeometry geometry = state.geometry() == null ? new RectangleGeometry(b) : state.geometry();
-        SavedAreaStore.Area area = SavedAreaStore.create(name, geometry, AreaPalette.DEFAULT, 25,
+        SavedAreaStore.Area area = SavedAreaStore.create(name, geometry, newAreaColor, newAreaOpacity,
                 findGroup(newAreaGroupId) == null ? null : newAreaGroupId);
         List<SavedAreaStore.Area> areas = new ArrayList<>(areaStore.state().areas()); areas.add(area);
         if (!changeAreas(areaState(areas, areaStore.state().groups()), "area_save")) return;
@@ -725,6 +736,8 @@ public final class ExactSelectionController {
         setDialogValue(4, area.name());
         dialog = areaNameReturn;
         if (dialog == Dialog.AREAS) areaScroll = Math.max(0, areas.size() - visibleAreaDialogRows(dialogRect()[3]));
+        // The saved shape now lives in the list; clearing it (its own undo step) frees the map for the next area.
+        reset();
         message = tr(areaNameReturn == Dialog.NONE ? "area_saved_named" : "area_created", name).getString();
         focus(null); updateVisibility();
     }
@@ -917,17 +930,34 @@ public final class ExactSelectionController {
 
     private int colorSampleWidth(int width) { return Math.min(40, (width - 24 - 28) / AreaPalette.COLUMNS); }
 
+    /** Top of the swatch grid: below the title in the color window, below group and fill in the new-area window. */
+    private int swatchTop(int y) { return y + (dialog == Dialog.AREA_NAME ? 98 : 34); }
+
+    /** The swatch under the pointer, or -1. */
+    private int swatchAt(int x, int y, int w, int count, double mouseX, double mouseY) {
+        int sw = colorSampleWidth(w);
+        for (int i = 0; i < count; i++) {
+            int sx = x + 12 + (i % AreaPalette.COLUMNS) * (sw + 4), sy = swatchTop(y) + (i / AreaPalette.COLUMNS) * 22;
+            if (mouseX >= sx && mouseX < sx + sw && mouseY >= sy && mouseY < sy + 18) return i;
+        }
+        return -1;
+    }
+
+    private void renderSwatches(GuiGraphics g, int x, int y, int w, int[] colors, int current) {
+        int sw = colorSampleWidth(w);
+        for (int i = 0; i < colors.length; i++) {
+            int sx = x + 12 + (i % AreaPalette.COLUMNS) * (sw + 4), sy = swatchTop(y) + (i / AreaPalette.COLUMNS) * 22;
+            g.fill(sx, sy, sx + sw, sy + 18, 0xFF000000 | colors[i]);
+            g.renderOutline(sx, sy, sw, 18, current == colors[i] ? -1 : 0xFF42636D);
+        }
+    }
+
     private void renderColorDialog(GuiGraphics g, int x, int y, int w, int h) {
-        int[] colors = paletteColors(); int sw = colorSampleWidth(w);
         List<WaypointAccess.Point> points = filteredChosenPoints();
         int current = colorReturn == Dialog.WAYPOINTS
                 ? points.isEmpty() ? -1 : waypoints.colorRgb(points.get(0).color())
                 : AreaPalette.parse(dialogFields[HEX_FIELD].getValue());
-        for (int i = 0; i < colors.length; i++) {
-            int sx = x + 12 + (i % AreaPalette.COLUMNS) * (sw + 4), sy = y + 34 + (i / AreaPalette.COLUMNS) * 22;
-            g.fill(sx, sy, sx + sw, sy + 18, 0xFF000000 | colors[i]);
-            g.renderOutline(sx, sy, sw, 18, current == colors[i] ? -1 : 0xFF42636D);
-        }
+        renderSwatches(g, x, y, w, paletteColors(), current);
         if (!message.isEmpty()) g.drawString(mc.font, mc.font.plainSubstrByWidth(message, w - 24),
                 x + 12, y + (colorReturn == Dialog.WAYPOINTS ? 86 : 98), 0xFFFFCF62);
     }
@@ -936,16 +966,21 @@ public final class ExactSelectionController {
         SavedAreaStore.Area a = selectedArea();
         if (a == null && !selectedAreas().isEmpty()) a = selectedAreas().get(0);
         if (a == null || loadFailed) return;
-        int[] values = {0, 25, 50, 75, 100};
-        int index = 0;
-        for (int i = 1; i < values.length; i++) {
-            if (Math.abs(values[i] - a.opacity()) < Math.abs(values[index] - a.opacity())) index = i;
-        }
-        int nextOpacity = values[(index + 1) % values.length];
+        int nextOpacity = nextOpacity(a.opacity());
         List<SavedAreaStore.Area> areas = areaStore.state().areas().stream().map(v -> selectedAreaIds.contains(v.id())
                 ? new SavedAreaStore.Area(v.id(), v.name(), v.x1(), v.z1(), v.x2(), v.z2(), v.color(), nextOpacity,
                         v.groupId(), v.visible(), v.vertices()) : v).toList();
         changeAreas(areaState(areas, areaStore.state().groups()), "area_update");
+    }
+
+    /** The fill step after the one closest to {@code opacity}: 0 → 25 → 50 → 75 → 100 → 0. */
+    private static int nextOpacity(int opacity) {
+        int[] values = {0, 25, 50, 75, 100};
+        int index = 0;
+        for (int i = 1; i < values.length; i++) {
+            if (Math.abs(values[i] - opacity) < Math.abs(values[index] - opacity)) index = i;
+        }
+        return values[(index + 1) % values.length];
     }
 
     private void updateArea(SavedAreaStore.Area old, SavedAreaStore.Area next, String label) {
@@ -1975,7 +2010,7 @@ public final class ExactSelectionController {
         if (dialog == Dialog.SIZE) show(true, dialogFields[0], dialogFields[1], anchorButton, modalApply, modalCancel);
         if (dialog == Dialog.MOVE) show(true, dialogFields[2], dialogFields[3], moveUnitsButton, modalApply, modalCancel);
         if (dialog == Dialog.CENTER) show(true, dialogFields[6], centerCopy, centerCreate);
-        if (dialog == Dialog.AREA_NAME) show(true, dialogFields[8], newAreaGroup, modalApply, modalCancel);
+        if (dialog == Dialog.AREA_NAME) show(true, dialogFields[8], newAreaGroup, newAreaOpacityButton, modalApply, modalCancel);
         if (dialog == Dialog.COLOR) {
             show(true, colorBack);
             if (colorReturn == Dialog.AREAS) show(true, dialogFields[HEX_FIELD], colorHexApply);
@@ -2012,6 +2047,7 @@ public final class ExactSelectionController {
         colorHexApply.active = true;
         SavedAreaStore.Group newGroup = findGroup(newAreaGroupId);
         newAreaGroup.setMessage(tr("area_group_button", newGroup == null ? tr("group_none").getString() : newGroup.name()));
+        newAreaOpacityButton.setMessage(tr("area_new_opacity", newAreaOpacity + "%"));
         boolean canCopy = enabled() && !dirty && !contourDraft && !holding() && dialog == Dialog.NONE && state.bounds() != null;
         copyCoordinates.active = copyArea.active = copyPerimeter.active = copyLength.active = copyWidth.active = canCopy;
         if (dialog == Dialog.WAYPOINTS && pending != null) confirm.active = !filteredChosenPoints().isEmpty();
@@ -2135,7 +2171,8 @@ public final class ExactSelectionController {
             case ASSIGN_GROUP -> renderGroupChooser(g, x, y, w, h);
             case AREA_NAME, GROUP_NAME -> {
                 g.drawString(mc.font, tr(dialog == Dialog.AREA_NAME ? "area_name" : "group_name"), x + 16, y + 32, -1);
-                if (!message.isEmpty()) g.drawString(mc.font, mc.font.plainSubstrByWidth(message, w - 32), x + 16, y + (dialog == Dialog.AREA_NAME ? 98 : 80), 0xFFFFCF62);
+                if (dialog == Dialog.AREA_NAME) renderSwatches(g, x, y, w, AreaPalette.COLORS, newAreaColor);
+                if (!message.isEmpty()) g.drawString(mc.font, mc.font.plainSubstrByWidth(message, w - 32), x + 16, y + (dialog == Dialog.AREA_NAME ? 166 : 80), 0xFFFFCF62);
             }
             case WAYPOINTS -> renderWaypointsDialog(g, x, y, w, h);
             case COLOR -> renderColorDialog(g, x, y, w, h);
@@ -2295,13 +2332,14 @@ public final class ExactSelectionController {
                 int[] r = dialogRect(); int x = r[0], y = r[1], w = r[2], h = r[3];
                 int col = (w - 36) / 2;
                 if (dialog == Dialog.COLOR) {
-                    int sw = colorSampleWidth(w); int[] colors = paletteColors();
-                    for (int i = 0; i < colors.length; i++) {
-                        int sx = x + 12 + (i % AreaPalette.COLUMNS) * (sw + 4), sy = y + 34 + (i / AreaPalette.COLUMNS) * 22;
-                        if (event.x() >= sx && event.x() < sx + sw && event.y() >= sy && event.y() < sy + 18) {
-                            applyColor(colorReturn == Dialog.WAYPOINTS ? i : colors[i]); return true;
-                        }
-                    }
+                    int[] colors = paletteColors();
+                    int i = swatchAt(x, y, w, colors.length, event.x(), event.y());
+                    if (i >= 0) applyColor(colorReturn == Dialog.WAYPOINTS ? i : colors[i]);
+                    return true;
+                }
+                if (dialog == Dialog.AREA_NAME) {
+                    int i = swatchAt(x, y, w, AreaPalette.COLORS.length, event.x(), event.y());
+                    if (i >= 0) { newAreaColor = AreaPalette.COLORS[i]; focus(null); updateVisibility(); }
                     return true;
                 }
                 if (dialog == Dialog.AREAS && !areaDeleteConfirmation) {

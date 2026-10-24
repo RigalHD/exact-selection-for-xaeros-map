@@ -95,6 +95,12 @@ public final class ManagementUiCheck {
         return method.invoke(object);
     }
 
+    private static Object call(Object object, String name, int value) throws Exception {
+        Method method = object.getClass().getDeclaredMethod(name, int.class);
+        method.setAccessible(true);
+        return method.invoke(object, value);
+    }
+
     private static Object call(Object object, String name, boolean value) throws Exception {
         Method method = object.getClass().getDeclaredMethod(name, boolean.class);
         method.setAccessible(true);
@@ -770,10 +776,30 @@ public final class ManagementUiCheck {
             store.replace(new SavedAreaStore.State(saved.areas(), groups, true, true));
             press(controller, "newAreaGroup");
             require(get(controller, "newAreaGroupId").equals("release-group"), "New-area group button did not choose the group");
+            press(controller, "newAreaOpacityButton");
+            require((Integer) get(controller, "newAreaOpacity") == 50, "New-area fill did not advance from 25% to 50%");
+            int[] nameRect = (int[]) call(controller, "dialogRect");
+            int swatch = (Integer) call(controller, "colorSampleWidth", nameRect[2]) + 4;
+            // Second row, second swatch: the palette sits below the group and fill buttons.
+            controller.mouseClicked(left(nameRect[0] + 14 + swatch, nameRect[1] + 122, 0), false);
+            require((Integer) get(controller, "newAreaColor") == AreaPalette.COLORS[9] && window(controller).equals("AREA_NAME"),
+                    "New-area palette did not pick the clicked color");
+            SelectionState.Snapshot beforeSave = selection.snapshot();
+            int countBefore = store.state().areas().size();
             enter(controller, map, 8, "Quick saved");
             SavedAreaStore.Area added = store.state().areas().getLast();
             require(window(controller).equals("NONE") && added.groupId().equals("release-group")
                     && selection.source() == null, "Quick save lost the group or enabled editing implicitly");
+            require(added.color() == AreaPalette.COLORS[9] && added.opacity() == 50, "Saved area ignored the chosen color or fill");
+            require(selection.phase() == SelectionState.Phase.READY && selection.bounds() == null,
+                    "Selection was not cleared after saving the area");
+            key(controller, GLFW.GLFW_KEY_Z, GLFW.GLFW_MOD_CONTROL);
+            require(selection.snapshot().equals(beforeSave) && store.state().areas().size() == countBefore + 1,
+                    "First undo after saving should only bring the selection back");
+            key(controller, GLFW.GLFW_KEY_Z, GLFW.GLFW_MOD_CONTROL);
+            require(store.state().areas().size() == countBefore, "Second undo did not remove the saved area");
+            key(controller, GLFW.GLFW_KEY_Y, GLFW.GLFW_MOD_CONTROL); key(controller, GLFW.GLFW_KEY_Y, GLFW.GLFW_MOD_CONTROL);
+            require(store.state().areas().getLast().equals(added) && selection.bounds() == null, "Redo did not restore the save and clear");
             press(controller, "areasButton"); press(controller, "areaSelectAll");
             press(controller, "areaColor"); checkLayout(controller);
             enter(controller, map, 10, "invalid");
@@ -783,9 +809,10 @@ public final class ManagementUiCheck {
             controller.mouseClicked(left(rect[0] + 14, rect[1] + 36, 0), false);
             require(window(controller).equals("AREAS") && store.state().areas().stream().allMatch(a -> a.color() == AreaPalette.COLORS[0]),
                     "Palette did not recolor every selected area");
+            // Select all makes the last area primary; it was saved at 50%, so every checked area moves to 75%.
             press(controller, "areaOpacity");
             require(store.state().areas().stream().map(SavedAreaStore.Area::opacity).distinct().count() == 1
-                    && store.state().areas().get(0).opacity() == 50, "Opacity did not change every selected area");
+                    && store.state().areas().get(0).opacity() == 75, "Opacity did not change every selected area");
             press(controller, "areaColor"); enter(controller, map, 10, "#abc");
             require(store.state().areas().stream().allMatch(a -> a.color() == 0xAABBCC), "Custom RGB did not apply to all selected areas");
             row(controller, store.state().areas().size() - 1, false);
@@ -1097,6 +1124,8 @@ public final class ManagementUiCheck {
             press(controller, "areaSave");
             enter(controller, map, 8, "Third area");
             require(store.state().areas().size() == 3 && ((Set<?>) get(controller, "selectedAreaIds")).size() == 1, "Saved area was not selected");
+            require(selection.bounds() == null, "Saving from the Areas window kept the selection");
+            selection.set(new SelectionBounds(40, 40, 50, 50)); call(controller, "updateVisibility");
             SavedAreaStore reloaded = new SavedAreaStore(directory);
             reloaded.useContext(context);
             require(reloaded.state().equals(store.state()), "Group operations were lost after reloading saved data");

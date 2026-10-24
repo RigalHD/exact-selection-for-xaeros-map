@@ -2,6 +2,7 @@
 
 ## 1.3.0+1.21.11
 
+- Choose the color (24-color palette) and fill opacity directly in the New area window; both are remembered for the next area. The selection is cleared after saving, as its own undo step.
 - Add quick Save with group selection and Apply for editing an existing saved area. The editing source is retained through geometry edits and selection history.
 - Add a 24-color palette and custom RGB input. Apply colors and opacity to multiple checked areas.
 - Add All areas and management of the entire current waypoint set, with no points selected by default outside a selection.

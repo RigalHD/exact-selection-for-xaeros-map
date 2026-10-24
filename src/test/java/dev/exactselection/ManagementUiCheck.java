@@ -662,6 +662,59 @@ public final class ManagementUiCheck {
         System.out.println("PASS: stationary and offset handle drags, release coordinates, reverse chunk selection, polygon movement, and mode labels");
     }
 
+    private static SelectionBounds dragHandle(ExactSelectionController controller, SelectionBounds start,
+                                              int fromX, int fromY, int toX, int toY) {
+        SelectionState selection = (SelectionState) uncheckedGet(controller, "state");
+        selection.set(start);
+        controller.mouseClicked(left(fromX, fromY, 0), false);
+        controller.mouseReleased(left(toX, toY, 0));
+        return selection.bounds();
+    }
+
+    private static void checkGestureEdgeCases(ExactSelectionController controller, MapBridge.Context context) throws Exception {
+        SelectionState selection = (SelectionState) get(controller, "state");
+        SelectionState.Snapshot initial = selection.snapshot();
+        // Frame: scale 1 at the origin, so screen = world + (320, 180). Blocks X 0..15 span screen 320..336.
+        SelectionBounds chunk = new SelectionBounds(0, 100, 15, 115);
+        require(dragHandle(controller, chunk, 320, 288, 352, 288).equals(new SelectionBounds(16, 100, 31, 115)),
+                "Dragging the west edge past the east edge changed the width: " + selection.bounds());
+        require(dragHandle(controller, new SelectionBounds(16, 100, 31, 115), 352, 288, 320, 288).equals(chunk),
+                "Dragging the east edge past the west edge changed the width: " + selection.bounds());
+        require(dragHandle(controller, chunk, 328, 280, 328, 312).equals(new SelectionBounds(0, 116, 15, 131)),
+                "Dragging the north edge past the south edge changed the length: " + selection.bounds());
+        require(dragHandle(controller, chunk, 320, 288, 336, 288).equals(new SelectionBounds(16, 100, 16, 115)),
+                "Dragging onto the opposite edge did not keep the one block under the cursor: " + selection.bounds());
+        set(controller, "chunks", true);
+        try {
+            require(dragHandle(controller, chunk, 320, 288, 352, 288).equals(new SelectionBounds(16, 100, 31, 115)),
+                    "Chunk mode lost the 16-block grid after crossing edges: " + selection.bounds());
+        } finally { set(controller, "chunks", false); }
+
+        // Losing the map context while a handle is held must end the gesture instead of crashing on release.
+        selection.set(chunk);
+        controller.mouseClicked(left(336, 288, 0), false);
+        require(!get(controller, "drag").toString().equals("NONE"), "East handle was not grabbed");
+        set(controller, "context", new MapBridge.Context(new Object(), "other", null, "main"));
+        require(controller.mouseReleased(left(360, 288, 0)), "Release after a context change was not consumed");
+        require(get(controller, "drag").toString().equals("NONE") && !selection.enabled(),
+                "Context change did not end the drag");
+        set(controller, "context", context);
+        selection.restore(initial);
+
+        // A double click within the hit tolerance inserts the vertex on the side and keeps the shape.
+        PolygonGeometry square = new PolygonGeometry(List.of(new GridPoint(0, 100), new GridPoint(40, 100),
+                new GridPoint(40, 140), new GridPoint(0, 140)));
+        selection.setGeometry(square);
+        doubleClickMap(controller, 340, 285, 0);
+        PolygonGeometry inserted = (PolygonGeometry) selection.geometry();
+        require(inserted.vertices().size() == 5 && inserted.vertices().get(1).equals(new GridPoint(20, 100))
+                && inserted.areaTwice() == square.areaTwice(), "Inserted vertex bent the side: " + inserted.vertices());
+        ((SelectionHistory) get(controller, "history")).clear();
+        selection.restore(initial);
+        call(controller, "syncFields"); call(controller, "updateVisibility");
+        System.out.println("PASS: edge crossing keeps sizes, release after context loss, and on-side vertex insertion");
+    }
+
     private static void checkPrecisePointer(ExactSelectionController controller, Minecraft minecraft,
                                             Unsafe unsafe) throws Exception {
         SelectionState selection = (SelectionState) get(controller, "state");
@@ -760,6 +813,7 @@ public final class ManagementUiCheck {
             checkSavedLabelLayering(controller, store, unsafe);
             checkPolygonInsertionAndUpdate(controller, map, store, directory, context);
             checkGeometryGestures(controller, map, unsafe);
+            checkGestureEdgeCases(controller, context);
             checkPrecisePointer(controller, minecraft, unsafe);
             checkWaypointRows(controller);
             press(controller, "groupsButton");

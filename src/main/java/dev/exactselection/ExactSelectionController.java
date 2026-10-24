@@ -59,6 +59,7 @@ public final class ExactSelectionController {
     private Button areaRename, groupDelete, manageGroups, managementClose, managementUndo, managementRedo;
     private Button areaExportButton, openExportButton;
     private Path lastExport;
+    private boolean exportRunning;
     private String exportNotice = "";
     private Button areaMapVisibility, areaMinimapVisibility;
     private Button pointVisibility, pointColor;
@@ -900,14 +901,14 @@ public final class ExactSelectionController {
     private void exportSelectedArea() {
         MapBridge.Frame frame = checkedFrame();
         SavedAreaStore.Area area = selectedArea();
-        if (area == null || frame == null || loadFailed) return;
+        if (area == null || frame == null || loadFailed || exportRunning) return;
         exportGeometry(frame, area.geometry());
     }
 
     private boolean canExportSelection() {
         return enabled() && dialog == Dialog.NONE && state.phase() == SelectionState.Phase.SELECTED
                 && state.geometry() != null && !dirty && !dragging && drag == Drag.NONE
-                && gestureBefore == null && polygonDraft.isEmpty() && !loadFailed;
+                && gestureBefore == null && polygonDraft.isEmpty() && !loadFailed && !exportRunning;
     }
 
     private void exportCurrentSelection() {
@@ -917,16 +918,33 @@ public final class ExactSelectionController {
     }
 
     private void exportGeometry(MapBridge.Frame frame, AreaGeometry geometry) {
+        java.util.concurrent.CompletableFuture<AreaExportService.Result> pendingExport;
         try {
-            AreaExportService.Result result = AreaExportService.export(bridge.exactselection$processor(),
+            pendingExport = AreaExportService.export(bridge.exactselection$processor(),
                     frame.context(), geometry, areaStore.state().areas(), areaStore.state().groups());
-            exportCompleted(result);
         } catch (AreaExportService.TooLargeException e) {
             message = tr("area_export_too_large", AreaExportService.MAX_PIXELS).getString();
+            updateVisibility();
+            return;
         } catch (Exception e) {
-            message = tr("area_export_failed").getString();
-            LoggerFactory.getLogger("xaero-exact-selection").error("Could not export selected area", e);
+            exportFailed(e);
+            return;
         }
+        exportRunning = true;
+        message = tr("area_exporting").getString();
+        // The image is composed in the background; the result returns to the client thread for the UI.
+        pendingExport.whenComplete((result, failure) -> mc.execute(() -> {
+            exportRunning = false;
+            if (failure == null) exportCompleted(result);
+            else exportFailed(failure instanceof java.util.concurrent.CompletionException && failure.getCause() != null
+                    ? failure.getCause() : failure);
+        }));
+        updateVisibility();
+    }
+
+    private void exportFailed(Throwable failure) {
+        message = tr("area_export_failed").getString();
+        LoggerFactory.getLogger("xaero-exact-selection").error("Could not export selected area", failure);
         updateVisibility();
     }
 
@@ -1123,7 +1141,13 @@ public final class ExactSelectionController {
         }
         try {
             List<GridPoint> points = new ArrayList<>(polygon.vertices());
-            GridPoint point = polygonPoint(frame, x, y, points.get(edge));
+            // The hit tolerance is in screen pixels, which can span many blocks when zoomed out; placing the vertex
+            // under the cursor would bend the side. Insert on the side itself; Ctrl/Cmd-drag moves it afterwards.
+            GridPoint a = points.get(edge), b = points.get((edge + 1) % points.size());
+            double ex = b.x() - a.x(), ez = b.z() - a.z();
+            double t = ((frame.worldX(x) - a.x()) * ex + (frame.worldZ(y) - a.z()) * ez) / (ex * ex + ez * ez);
+            t = Math.max(0, Math.min(1, t));
+            GridPoint point = new GridPoint(Math.round(a.x() + t * ex), Math.round(a.z() + t * ez));
             if (points.contains(point)) { message = tr("polygon_duplicate_point").getString(); return; }
             points.add(edge + 1, point);
             PolygonGeometry next = new PolygonGeometry(points);
@@ -1457,35 +1481,44 @@ public final class ExactSelectionController {
                 return;
             }
             long minX=b.minX(), maxX=b.maxX(), minZ=b.minZ(), maxZ=b.maxZ();
-            switch (drag) {
-                case MOVE -> { minX+=dx; maxX+=dx; minZ+=dz; maxZ+=dz; }
-                case WEST, NORTH_WEST, SOUTH_WEST -> {
-                    int edge = SelectionBounds.block(pointerX);
-                    minX = chunks ? Math.floorDiv(edge, 16) * 16L : edge;
-                }
-                case EAST, NORTH_EAST, SOUTH_EAST -> {
-                    int edge = blockBeforeBoundary(pointerX);
-                    maxX = chunks ? Math.floorDiv(edge, 16) * 16L + 15 : edge;
-                }
-                default -> {}
-            }
-            switch (drag) {
-                case NORTH, NORTH_WEST, NORTH_EAST -> {
-                    int edge = SelectionBounds.block(pointerZ);
-                    minZ = chunks ? Math.floorDiv(edge, 16) * 16L : edge;
-                }
-                case SOUTH, SOUTH_WEST, SOUTH_EAST -> {
-                    int edge = blockBeforeBoundary(pointerZ);
-                    maxZ = chunks ? Math.floorDiv(edge, 16) * 16L + 15 : edge;
-                }
-                default -> {}
-            }
-            if (minX > maxX) { long v=minX; minX=maxX; maxX=v; }
-            if (minZ > maxZ) { long v=minZ; minZ=maxZ; maxZ=v; }
+            if (drag == Drag.MOVE) { minX+=dx; maxX+=dx; minZ+=dz; maxZ+=dz; }
+            long[] xs = switch (drag) {
+                case WEST, NORTH_WEST, SOUTH_WEST -> dragEdge(pointerX, (long) b.maxX() + 1, true);
+                case EAST, NORTH_EAST, SOUTH_EAST -> dragEdge(pointerX, b.minX(), false);
+                default -> null;
+            };
+            long[] zs = switch (drag) {
+                case NORTH, NORTH_WEST, NORTH_EAST -> dragEdge(pointerZ, (long) b.maxZ() + 1, true);
+                case SOUTH, SOUTH_WEST, SOUTH_EAST -> dragEdge(pointerZ, b.minZ(), false);
+                default -> null;
+            };
+            if (xs != null) { minX = xs[0]; maxX = xs[1] - 1; }
+            if (zs != null) { minZ = zs[0]; maxZ = zs[1] - 1; }
             if (minX < -30_000_000L || minZ < -30_000_000L || maxX >= 30_000_000L || maxZ >= 30_000_000L) return;
             state.set(new SelectionBounds((int) minX, (int) minZ, (int) maxX, (int) maxZ));
             syncFields(); updateSelection();
         } catch (IllegalArgumentException ignored) { }
+    }
+
+    /**
+     * Outer edges [low, high) after one side is dragged to {@code pointer} while the opposite edge stays at
+     * {@code fixed}. Working with outer edges keeps the size right when the dragged side crosses the fixed one:
+     * the block under the pointer is always included, and chunk mode keeps whole 16-block chunks.
+     */
+    private long[] dragEdge(double pointer, long fixed, boolean lowSide) {
+        long low = lowerBoundary(pointer), high = upperBoundary(pointer), unit = chunks ? 16 : 1;
+        if (lowSide) return low < fixed ? new long[]{low, fixed} : new long[]{fixed, Math.max(high, fixed + unit)};
+        return high > fixed ? new long[]{fixed, high} : new long[]{Math.min(low, fixed - unit), fixed};
+    }
+
+    private long lowerBoundary(double pointer) {
+        int block = SelectionBounds.block(pointer);
+        return chunks ? Math.floorDiv(block, 16) * 16L : block;
+    }
+
+    private long upperBoundary(double pointer) {
+        int block = blockBeforeBoundary(pointer);
+        return chunks ? Math.floorDiv(block, 16) * 16L + 16 : block + 1L;
     }
 
     private static int blockBeforeBoundary(double coordinate) {
@@ -1604,6 +1637,10 @@ public final class ExactSelectionController {
             if (group != null && !group.visible()) continue;
             AreaGeometry geometry = area.geometry();
             GeometryBounds geometryBounds = geometry.bounds();
+            // Cull by screen bounds first: projecting and clipping every triangle of an off-screen polygon is costly.
+            if (frame.screenX(geometryBounds.maxX()) <= 0 || frame.screenX(geometryBounds.minX()) >= screen.width
+                    || frame.screenY(geometryBounds.maxZ()) <= 0 || frame.screenY(geometryBounds.minZ()) >= screen.height)
+                continue;
             if (area.vertices().size() > 0) {
                 GeometryScreenRenderer.draw(g, frame, geometry, screen.width, screen.height,
                         ((area.opacity() * 255 / 100) << 24) | (area.color() & 0xFFFFFF),
@@ -1617,7 +1654,6 @@ public final class ExactSelectionController {
             SelectionBounds b = area.bounds();
             double left = frame.screenX(b.minX()), top = frame.screenY(b.minZ());
             double right = frame.screenX((long) b.maxX() + 1), bottom = frame.screenY((long) b.maxZ() + 1);
-            if (left >= screen.width || right <= 0 || top >= screen.height || bottom <= 0) continue;
             int x1 = clamp(left, 0, screen.width), y1 = clamp(top, 0, screen.height);
             int x2 = clamp(right, 0, screen.width), y2 = clamp(bottom, 0, screen.height);
             GeometryScreenRenderer.draw(g, frame, geometry, screen.width, screen.height,
@@ -1916,7 +1952,7 @@ public final class ExactSelectionController {
         SavedAreaStore.Area area = selectedArea();
         SavedAreaStore.Group group = selectedGroup();
         areaLoad.active = singleArea;
-        areaExportButton.active = singleArea && !loadFailed;
+        areaExportButton.active = singleArea && !loadFailed && !exportRunning;
         areaDelete.active = selectedCount > 0 && !loadFailed;
         areaColor.active = areaOpacity.active = singleArea && !loadFailed;
         areaVisibility.active = selectedCount > 0 && !loadFailed;
@@ -2340,7 +2376,9 @@ public final class ExactSelectionController {
         }
         if (event.button() == GLFW.GLFW_MOUSE_BUTTON_LEFT && drag != Drag.NONE) {
             MapBridge.Frame frame = checkedFrame();
-            if (frame != null && drag != Drag.NONE) updateDrag(frame, event.x(), event.y());
+            // A lost or changed map context disables the tool, which already ended and reset the gesture.
+            if (drag == Drag.NONE || dragBefore == null) return true;
+            if (frame != null) updateDrag(frame, event.x(), event.y());
             commitSelection(dragBefore, state.snapshot(), "drag");
             drag = Drag.NONE; dragBefore = null; dragStartBounds = null; dragStartGeometry = null;
             dragOffsetX = 0; dragOffsetZ = 0;

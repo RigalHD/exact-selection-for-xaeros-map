@@ -4,3 +4,4 @@ run/
 *.log
 .mixin.out/
 .DS_Store
+logs/

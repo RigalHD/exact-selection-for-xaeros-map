@@ -12,6 +12,7 @@ import java.awt.geom.Path2D;
 import java.awt.geom.Rectangle2D;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -22,8 +23,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import javax.imageio.ImageIO;
 import net.minecraft.client.Minecraft;
+import net.minecraft.util.Util;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import xaero.map.MapProcessor;
 import xaero.map.file.MapSaveLoad;
 import xaero.map.file.export.PNGExportResult;
@@ -39,11 +44,36 @@ public final class AreaExportService {
     private record VisibleOverlay(SavedAreaStore.Area area, java.awt.geom.Area visibleShape) {}
     private record LabelLayout(float x, float y, java.awt.Rectangle bounds) {}
     public static final long MAX_PIXELS = 8_000_000L;
+    private static final Logger LOGGER = LoggerFactory.getLogger("xaero-exact-selection");
 
     private AreaExportService() {}
 
-    public static Result export(MapProcessor processor, MapBridge.Context context, AreaGeometry territory,
-                                List<SavedAreaStore.Area> overlays, List<SavedAreaStore.Group> groups) throws Exception {
+    /**
+     * Renders the native Xaero image on the client thread, then crops, composes and writes the PNG in the
+     * background so a large export does not freeze the game. Validation and native rendering errors are thrown
+     * directly; later failures complete the returned future exceptionally.
+     */
+    public static CompletableFuture<Result> export(MapProcessor processor, MapBridge.Context context, AreaGeometry territory,
+                                                   List<SavedAreaStore.Area> overlays, List<SavedAreaStore.Group> groups) throws Exception {
+        RawJob job = renderNative(processor, context, territory, overlays, groups);
+        try {
+            return CompletableFuture.supplyAsync(() -> {
+                try { return finish(job); }
+                catch (IOException e) { throw new UncheckedIOException(e); }
+            }, Util.backgroundExecutor());
+        } catch (RuntimeException rejected) {
+            cleanUp(rejected, job.jobDirectory());
+            throw rejected;
+        }
+    }
+
+    /** A native Xaero image in its own job directory, waiting to be cropped and composed. */
+    record RawJob(Path jobDirectory, Path exportRoot, String id, long rawWidth, long rawHeight, int cropX, int cropZ,
+                  int width, int height, AreaGeometry territory, List<SavedAreaStore.Area> overlays,
+                  List<SavedAreaStore.Group> groups) {}
+
+    private static RawJob renderNative(MapProcessor processor, MapBridge.Context context, AreaGeometry territory,
+                                       List<SavedAreaStore.Area> overlays, List<SavedAreaStore.Group> groups) throws Exception {
         if (!Minecraft.getInstance().isSameThread()) throw new IllegalStateException("Map export must run on the client thread");
         if (processor == null || context == null || territory == null) throw new IllegalArgumentException("Missing map or area context");
         MapWorld world = processor.getMapWorld();
@@ -80,8 +110,6 @@ public final class AreaExportService {
         String id = UUID.randomUUID().toString();
         Path jobDirectory = exportRoot.resolve(".raw-" + id);
         Files.createDirectories(jobDirectory);
-        Path finalPath = exportRoot.resolve("ExactSelection-" + id + ".png");
-        Path tempFinal = exportRoot.resolve(".ExactSelection-" + id + ".tmp");
         saveLoadAccess.exactselection$setExporting(true);
         try {
             exporterAccess.exactselection$setDestinationPath(jobDirectory);
@@ -95,31 +123,57 @@ public final class AreaExportService {
             }
             if (nativeResult == null || !nativeResult.getType().isSuccess())
                 throw new IOException("Xaero map rendering failed: " + (nativeResult == null ? "no result" : nativeResult.getType().name()));
+            return new RawJob(jobDirectory, exportRoot, id, rawWidth, rawHeight,
+                    Math.toIntExact(bounds.minX() - minChunkX * 16L), Math.toIntExact(bounds.minZ() - minChunkZ * 16L),
+                    Math.toIntExact(width), Math.toIntExact(height), territory, overlays, groups);
+        } catch (Throwable failure) {
+            cleanUp(failure, jobDirectory);
+            throw failure;
+        } finally {
+            exporterAccess.exactselection$setDestinationPath(previousDestination);
+            saveLoadAccess.exactselection$setExporting(false);
+        }
+    }
+
+    /** Off the client thread: everything here only touches the job's own files and immutable area data. */
+    static Result finish(RawJob job) throws IOException {
+        Path finalPath = job.exportRoot().resolve("ExactSelection-" + job.id() + ".png");
+        Path tempFinal = job.exportRoot().resolve(".ExactSelection-" + job.id() + ".tmp");
+        try {
             List<Path> rawFiles;
-            try (var paths = Files.walk(jobDirectory)) {
+            try (var paths = Files.walk(job.jobDirectory())) {
                 rawFiles = paths.filter(Files::isRegularFile).filter(path -> path.getFileName().toString()
                         .toLowerCase(java.util.Locale.ROOT).endsWith(".png")).toList();
             }
             if (rawFiles.size() != 1) throw new IOException("Expected one rendered map image, found " + rawFiles.size());
             BufferedImage raw = ImageIO.read(rawFiles.get(0).toFile());
-            if (raw == null || raw.getWidth() != rawWidth || raw.getHeight() != rawHeight)
+            if (raw == null || raw.getWidth() != job.rawWidth() || raw.getHeight() != job.rawHeight())
                 throw new IOException("Xaero returned an unexpected image size");
-            int cropX = Math.toIntExact(bounds.minX() - minChunkX * 16L);
-            int cropZ = Math.toIntExact(bounds.minZ() - minChunkZ * 16L);
-            BufferedImage output = compose(raw, cropX, cropZ, Math.toIntExact(width), Math.toIntExact(height),
-                    territory, overlays, groups);
+            BufferedImage output = compose(raw, job.cropX(), job.cropZ(), job.width(), job.height(),
+                    job.territory(), job.overlays(), job.groups());
             if (!ImageIO.write(output, "png", tempFinal.toFile())) throw new IOException("PNG writer is unavailable");
             try {
                 Files.move(tempFinal, finalPath, StandardCopyOption.ATOMIC_MOVE);
             } catch (AtomicMoveNotSupportedException e) {
                 Files.move(tempFinal, finalPath);
             }
+            // The PNG is complete; leftover temporary files must not turn this into a failed export.
+            cleanUp(null, tempFinal, job.jobDirectory());
             return new Result(finalPath, output.getWidth(), output.getHeight());
-        } finally {
-            exporterAccess.exactselection$setDestinationPath(previousDestination);
-            saveLoadAccess.exactselection$setExporting(false);
-            Files.deleteIfExists(tempFinal);
-            deleteOwnedTree(jobDirectory);
+        } catch (Throwable failure) {
+            cleanUp(failure, tempFinal, job.jobDirectory());
+            throw failure;
+        }
+    }
+
+    /** Best-effort removal: errors are attached to the export failure, or only logged when the export succeeded. */
+    private static void cleanUp(Throwable failure, Path... paths) {
+        for (Path path : paths) {
+            try { deleteOwnedTree(path); }
+            catch (IOException | UncheckedIOException e) {
+                if (failure != null) failure.addSuppressed(e);
+                else LOGGER.warn("Exported map is ready, but temporary files could not be removed: {}", path, e);
+            }
         }
     }
 
@@ -242,8 +296,13 @@ public final class AreaExportService {
 
     private static void deleteOwnedTree(Path root) throws IOException {
         if (!Files.exists(root)) return;
+        IOException first = null;
         try (var paths = Files.walk(root)) {
-            for (Path path : paths.sorted(Comparator.reverseOrder()).toList()) Files.deleteIfExists(path);
+            for (Path path : paths.sorted(Comparator.reverseOrder()).toList()) {
+                try { Files.deleteIfExists(path); }
+                catch (IOException e) { if (first == null) first = e; else first.addSuppressed(e); }
+            }
         }
+        if (first != null) throw first;
     }
 }

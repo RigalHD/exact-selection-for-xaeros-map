@@ -28,5 +28,10 @@
   },
   "authors": [
     "rigalshd"
-  ]
+  ],
+  "contact": {
+    "homepage": "https://github.com/RigalHD/xaero-exact-selection",
+    "sources": "https://github.com/RigalHD/xaero-exact-selection",
+    "issues": "https://github.com/RigalHD/xaero-exact-selection/issues"
+  }
 }

@@ -33,6 +33,8 @@ import xaero.map.gui.GuiMap;
 public final class ExactSelectionController {
     private static final int PANEL_X = 34, PANEL_Y = 26;
     private static final int COMPACT_HEIGHT = 186, EXPANDED_HEIGHT = 314;
+    /** -12 while the perimeter shares the area line: everything below moves up one line and the panel gets shorter. */
+    private int metricsShift;
     private static final int RENAME_FIELD = 9, HEX_FIELD = 10;
     private static final int ACCENT = 0xFF59E3CE;
     private record MapLabel(Component text, int x, int y, int color) {}
@@ -173,8 +175,8 @@ public final class ExactSelectionController {
         groupsButton = button("groups_window", 0, 0, 100, () -> openGroupsWindow(Dialog.NONE));
         clear = button("clear", 0, 0, 100, this::reset);
         quickSave = button("quick_save", 0, 0, 100, this::quickSave);
-        zonesButton = button("zones_all", 0, 0, 100, () -> { openDialog(Dialog.AREAS); if (dialog == Dialog.AREAS) selectAllAreas(); });
-        zonesButton.setTooltip(Tooltip.create(tr("zones_all_tooltip")));
+        zonesButton = button("zones_in_selection", 0, 0, 100, this::openAreasInSelection);
+        zonesButton.setTooltip(Tooltip.create(tr("zones_in_selection_tooltip")));
         pointsButton = button("waypoints_all", 0, 0, 100, this::openWaypoints);
         confirm = button("confirm", 0, 0, 110, this::confirmDelete);
         cancel = button("cancel", 0, 0, 110, this::cancelDialog);
@@ -281,13 +283,14 @@ public final class ExactSelectionController {
 
     private void layoutMainPanel() {
         panelWidth = Math.min(compact ? 256 : 420, Math.max(224, screen.width - 68));
-        panelHeight = Math.min(compact ? COMPACT_HEIGHT : EXPANDED_HEIGHT, screen.height - PANEL_Y - 8);
+        metricsShift = perimeterInline() ? -12 : 0;
+        panelHeight = Math.min(contentHeight(), screen.height - PANEL_Y - 8);
         panelScroll = Math.max(0, Math.min(panelScroll, maxPanelScroll()));
-        int x = PANEL_X + 8, y = PANEL_Y - (compact ? 0 : panelScroll), w = panelWidth - 16;
+        int x = PANEL_X + 8, top = PANEL_Y - (compact ? 0 : panelScroll), y = top + metricsShift, w = panelWidth - 16;
         place(panelModeButton, PANEL_X + panelWidth - 80, PANEL_Y + 4, 72, 16);
         Button[] copies = {copyCoordinates, copyArea, copyPerimeter, copyLength, copyWidth};
         if (compact) {
-            place(quickSave, PANEL_X + panelWidth - 86, y + 33, 78, 18);
+            place(quickSave, PANEL_X + panelWidth - 86, top + 33, 78, 18);
             mainRow(copies, x, y + 105, w, 16);
             arrowRow(new Button[]{clear, polygonModeButton}, x, y + 128, w);
             mainRow(new Button[]{areasButton, groupsButton}, x, y + 149, w, 18);
@@ -296,14 +299,29 @@ public final class ExactSelectionController {
             int xField = x + coordinateLabelWidth + fieldGap;
             int zField = xField + fieldWidth + fieldGap * 2 + zLabelWidth;
             for (int i = 0; i < fields.length; i++)
-                place(fields[i], i % 2 == 0 ? xField : zField, y + 34 + i / 2 * 24, fieldWidth, 18);
-            place(apply, x, y + 82, w, 18);
+                place(fields[i], i % 2 == 0 ? xField : zField, top + 34 + i / 2 * 24, fieldWidth, 18);
+            place(apply, x, top + 82, w, 18);
             mainRow(copies, x, y + 154, w, 16);
             arrowRow(new Button[]{chunkMode, sizeButton, moveButton, centerButton}, x, y + 180, w);
             mainRow(new Button[]{polygonModeButton, quickSave, groupsButton, clear}, x, y + 202, w, 18);
-            mainRow(new Button[]{zonesButton, pointsButton}, x, y + 224, w, 18);
+            mainRow(new Button[]{areasButton, zonesButton, pointsButton}, x, y + 224, w, 18);
             place(selectionExportButton, x, y + 246, w, 18);
         }
+    }
+
+    private int contentHeight() { return (compact ? COMPACT_HEIGHT : EXPANDED_HEIGHT) + metricsShift; }
+
+    private Component areaText() {
+        return state.bounds() == null ? tr("area_empty") : tr("area", formatMetric(state.geometry().area()));
+    }
+
+    private Component perimeterText() {
+        return tr("perimeter", state.bounds() == null ? "—" : formatLength(state.geometry().perimeter()));
+    }
+
+    /** The perimeter goes on the area line when both fit in the panel width. */
+    private boolean perimeterInline() {
+        return mc.font.width(areaText().getString() + " · " + perimeterText().getString()) <= panelWidth - 16;
     }
 
     private void arrowRow(Button[] buttons, int x, int y, int width) {
@@ -324,7 +342,7 @@ public final class ExactSelectionController {
     }
 
     private int maxPanelScroll() {
-        return compact ? 0 : Math.max(0, EXPANDED_HEIGHT - panelHeight + (panelHeight < EXPANDED_HEIGHT ? 12 : 0));
+        return compact ? 0 : Math.max(0, contentHeight() - panelHeight + (panelHeight < contentHeight() ? 12 : 0));
     }
 
     private Button button(String key, int x, int y, int width, Runnable action) {
@@ -919,6 +937,37 @@ public final class ExactSelectionController {
         SavedAreaStore.State next = areaState(areas, areaStore.state().groups());
         if (!next.equals(areaStore.state()) && !changeAreas(next, "area_color")) return;
         dialog = Dialog.AREAS; message = ""; focus(null); updateVisibility();
+    }
+
+    private AreaGeometry overlapGeometry;
+    private SavedAreaStore.State overlapState;
+    private Set<String> overlapIds = Set.of();
+
+    /** Ids of saved areas sharing a positive area with the finished selection; cached per selection and store state. */
+    private Set<String> areasInSelection() {
+        AreaGeometry geometry = state.phase() == SelectionState.Phase.SELECTED ? state.geometry() : null;
+        if (geometry != overlapGeometry || areaStore.state() != overlapState) {
+            overlapGeometry = geometry;
+            overlapState = areaStore.state();
+            Set<String> ids = new LinkedHashSet<>();
+            if (geometry != null) for (SavedAreaStore.Area area : overlapState.areas())
+                if (area.geometry().overlaps(geometry)) ids.add(area.id());
+            overlapIds = ids;
+        }
+        return overlapIds;
+    }
+
+    private void openAreasInSelection() {
+        Set<String> ids = areasInSelection();
+        if (ids.isEmpty()) return;
+        openDialog(Dialog.AREAS);
+        if (dialog != Dialog.AREAS) return;
+        selectedAreaIds.clear();
+        selectedAreaIds.addAll(ids);
+        areaId = ids.stream().reduce((first, last) -> last).orElse(null);
+        setDialogValue(4, selectedAreaIds.size() == 1 && selectedArea() != null ? selectedArea().name() : "");
+        message = tr("zones_in_selection_opened", ids.size()).getString();
+        updateVisibility();
     }
 
     private int[] paletteColors() {
@@ -1603,6 +1652,9 @@ public final class ExactSelectionController {
     public void beforeRender(int renderMouseX, int renderMouseY) {
         if (!enabled()) return;
         double mouseX = pointerX(renderMouseX), mouseY = pointerY(renderMouseY);
+        if (scrollbarDragging) {
+            if (dialog == Dialog.WAYPOINTS) dragWaypointScrollbar(mouseY); else scrollbarDragging = false;
+        }
         MapBridge.Frame frame = checkedFrame();
         if (frame != null && enabled() && dragging && pending == null && dialog == Dialog.NONE)
             bridge.exactselection$pan(mouseX - lastMouseX, mouseY - lastMouseY);
@@ -1910,22 +1962,26 @@ public final class ExactSelectionController {
         line(g, b == null ? tr("dimensions_empty") : chunks
                 ? tr("dimensions_chunks", b.width(), b.length(), b.chunkCount())
                 : tr("dimensions", b.width(), b.length()), compact ? 57 : 106, -1);
-        line(g, b == null ? tr("area_empty") : tr("area", formatMetric(state.geometry().area())), compact ? 69 : 118, ACCENT);
-        line(g, tr("perimeter", b == null ? "—" : formatLength(state.geometry().perimeter())), compact ? 81 : 130, ACCENT);
-        sectionHeader(g, tr("copy_header"), compact ? 94 : 144);
-        int lineY = PANEL_Y + (compact ? 124 : 174 - panelScroll);
+        int sh = metricsShift;
+        if (sh != 0) line(g, Component.literal(areaText().getString() + " · " + perimeterText().getString()), compact ? 69 : 118, ACCENT);
+        else {
+            line(g, areaText(), compact ? 69 : 118, ACCENT);
+            line(g, perimeterText(), compact ? 81 : 130, ACCENT);
+        }
+        sectionHeader(g, tr("copy_header"), (compact ? 94 : 144) + sh);
+        int lineY = PANEL_Y + sh + (compact ? 124 : 174 - panelScroll);
         g.fill(PANEL_X + 8, lineY, PANEL_X + panelWidth - 8, lineY + 1, 0xFF42636D);
         if (!compact) {
             int n = selected == null ? 0 : selected.points().size();
             Component count = waypoints == null ? tr("minimap_missing") : selected == null
                     ? tr("waypoints_unavailable") : tr("count", n, setNameDisplay(selected.setName()));
-            line(g, count, 270, 0xFFFFCF62);
-            line(g, tr(loadFailed ? "area_load_failed" : "scope"), 282, 0xFF9BAAB7);
+            line(g, count, 270 + sh, 0xFFFFCF62);
+            line(g, tr(loadFailed ? "area_load_failed" : "scope"), 282 + sh, 0xFF9BAAB7);
         }
         SavedAreaStore.Area editing = editedArea();
         Component status = !message.isEmpty() ? Component.literal(message)
                 : editing == null ? tr("controls") : tr("editing_area", editing.name());
-        if (!hasExportNotice()) line(g, status, compact ? 171 : 297, message.isEmpty() ? 0xFF9BAAB7 : 0xFFFFCF62);
+        if (!hasExportNotice()) line(g, status, (compact ? 171 : 297) + sh, message.isEmpty() ? 0xFF9BAAB7 : 0xFFFFCF62);
         g.disableScissor();
         if (maxPanelScroll() > 0)
             g.drawString(mc.font, tr("panel_scroll"), PANEL_X + 8, PANEL_Y + panelHeight - 12, 0xFF9BAAB7);
@@ -1962,16 +2018,17 @@ public final class ExactSelectionController {
 
     private void updateVisibility() {
         if (toggle == null) return;
+        if ((perimeterInline() ? -12 : 0) != metricsShift) layoutMainPanel();
         for (AbstractWidget widget : widgets) widget.visible = false;
         boolean main = enabled() && dialog == Dialog.NONE;
         show(main, panelModeButton, copyCoordinates, copyArea, copyPerimeter, copyLength, copyWidth,
                 undo, redo, polygonModeButton, groupsButton, clear);
-        show(main && compact, areasButton);
+        show(main, areasButton);
         show(main && (!compact || state.phase() == SelectionState.Phase.SELECTED), quickSave);
         show(main && !compact, fields[0], fields[1], fields[2], fields[3], apply, chunkMode,
                 sizeButton, moveButton, centerButton, zonesButton, pointsButton, selectionExportButton);
         if (main && hasExportNotice()) {
-            place(openExportButton, PANEL_X + 8, PANEL_Y + (compact ? 168 : 294 - panelScroll),
+            place(openExportButton, PANEL_X + 8, PANEL_Y + metricsShift + (compact ? 168 : 294 - panelScroll),
                     panelWidth - 16, 16);
             show(true, openExportButton);
         }
@@ -2019,7 +2076,10 @@ public final class ExactSelectionController {
         sizeButton.active = !(state.geometry() instanceof PolygonGeometry) && !dirty && !contourDraft && !holding();
         chunkMode.active = !(state.geometry() instanceof PolygonGeometry) && !contourDraft && !holding();
         moveButton.active = centerButton.active = !dirty && !contourDraft && !holding();
-        areasButton.active = zonesButton.active = groupsButton.active = !dirty && !contourDraft && !holding();
+        areasButton.active = groupsButton.active = !dirty && !contourDraft && !holding();
+        int framed = compact ? 0 : areasInSelection().size();
+        zonesButton.setMessage(tr("zones_in_selection", framed));
+        zonesButton.active = framed > 0 && !dirty && !contourDraft && !holding();
         if (dialog == Dialog.SIZE) show(true, dialogFields[0], dialogFields[1], anchorButton, modalApply, modalCancel);
         if (dialog == Dialog.MOVE) show(true, dialogFields[2], dialogFields[3], moveUnitsButton, modalApply, modalCancel);
         if (dialog == Dialog.CENTER) show(true, dialogFields[6], centerCopy, centerCreate);
@@ -2302,12 +2362,19 @@ public final class ExactSelectionController {
         modalScroll = Math.min(modalScroll, Math.max(0, points.size() - rows));
         int chosen = filteredChosenPoints().size();
         g.drawString(mc.font, tr("waypoint_filter_count", chosen, points.size()), x + 12, y + 29, 0xFF9BAAB7);
+        boolean scrollable = points.size() > rows;
+        int rowRight = x + w - (scrollable ? 18 : 9);
         for (int i = 0; i < rows && i + modalScroll < points.size(); i++) {
             WaypointAccess.Point p = points.get(i + modalScroll); int rowY = y + 83 + i * 14;
             boolean checked = chosenPoints.contains(p.identity());
-            if (checked) g.fill(x + 9, rowY - 2, x + w - 9, rowY + 12, 0x3342636D);
+            if (checked) g.fill(x + 9, rowY - 2, rowRight, rowY + 12, 0x3342636D);
             String text = (checked ? "[x] " : "[ ] ") + p.name() + "  " + p.x() + ", " + p.y() + ", " + p.z();
-            g.drawString(mc.font, mc.font.plainSubstrByWidth(text, w - 26), x + 13, rowY, p.disabled() ? 0xFF9BAAB7 : -1);
+            g.drawString(mc.font, mc.font.plainSubstrByWidth(text, rowRight - x - 17), x + 13, rowY, p.disabled() ? 0xFF9BAAB7 : -1);
+        }
+        if (scrollable) {
+            int[] thumb = waypointThumb(y, rows, points.size());
+            g.fill(x + w - 14, y + 81, x + w - 10, y + 81 + rows * 14, 0xFF0C141D);
+            g.fill(x + w - 14, thumb[0], x + w - 10, thumb[0] + thumb[1], scrollbarDragging ? -1 : 0xFF9BAAB7);
         }
         String hint = message.isEmpty() ? tr("waypoint_modal_hint").getString() : message;
         g.drawString(mc.font, mc.font.plainSubstrByWidth(hint, w - 24), x + 12, y + h - 70, message.isEmpty() ? 0xFF9BAAB7 : 0xFFFFCF62);
@@ -2316,6 +2383,8 @@ public final class ExactSelectionController {
     }
 
     private int areaScroll, groupScroll;
+    /** The waypoint list scrollbar follows the pointer while the left button stays down. */
+    private boolean scrollbarDragging;
 
     private boolean overPanel(double x, double y) {
         return enabled() && x >= PANEL_X && x < PANEL_X + panelWidth
@@ -2401,8 +2470,15 @@ public final class ExactSelectionController {
                 int[] r = dialogRect(); int x = r[0], y = r[1], w = r[2], h = r[3];
                 int rows = waypointRows(h);
                 List<WaypointAccess.Point> points = filteredPoints();
+                boolean scrollable = points.size() > rows;
+                if (scrollable && event.x() >= x + w - 17 && event.x() < x + w - 7
+                        && event.y() >= y + 81 && event.y() < y + 81 + rows * 14) {
+                    scrollbarDragging = true;
+                    dragWaypointScrollbar(event.y());
+                    return true;
+                }
                 // Row i is drawn over [y + 81 + 14i, y + 95 + 14i); a taller hit area would toggle a hidden row.
-                if (event.x() >= x + 8 && event.x() < x + w - 8 && event.y() >= y + 81 && event.y() < y + 81 + rows * 14) {
+                if (event.x() >= x + 8 && event.x() < x + w - (scrollable ? 18 : 8) && event.y() >= y + 81 && event.y() < y + 81 + rows * 14) {
                     int index = modalScroll + (int) ((event.y() - (y + 81)) / 14);
                     if (index >= 0 && index < points.size()) {
                         Object identity = points.get(index).identity();
@@ -2508,6 +2584,11 @@ public final class ExactSelectionController {
 
     public boolean mouseReleased(MouseButtonEvent event) {
         if (event.button() == GLFW.GLFW_MOUSE_BUTTON_RIGHT) dragging = false;
+        if (event.button() == GLFW.GLFW_MOUSE_BUTTON_LEFT && scrollbarDragging) {
+            dragWaypointScrollbar(event.y());
+            scrollbarDragging = false;
+            return true;
+        }
         if (event.button() == GLFW.GLFW_MOUSE_BUTTON_LEFT && gesture instanceof MapGesture.Held held) {
             // A lost or changed map context disables the tool, which drops the gesture; update and finish then do nothing.
             MapBridge.Frame frame = checkedFrame();
@@ -2655,6 +2736,22 @@ public final class ExactSelectionController {
     }
 
     private static int waypointRows(int height) { return Math.max(1, (height - 150) / 14); }
+
+    /** Scrollbar thumb {top, height} for a list of {@code total} rows showing {@code rows} from {@code modalScroll}. */
+    private int[] waypointThumb(int y, int rows, int total) {
+        int track = rows * 14, size = Math.max(10, track * rows / total);
+        int range = total - rows, top = y + 81 + (range <= 0 ? 0 : (track - size) * modalScroll / range);
+        return new int[]{top, size};
+    }
+
+    /** Scrolls so the thumb centre follows the pointer along the track. */
+    private void dragWaypointScrollbar(double mouseY) {
+        int[] r = dialogRect(); int rows = waypointRows(r[3]), total = filteredPoints().size();
+        if (total <= rows) return;
+        int size = waypointThumb(r[1], rows, total)[1], track = rows * 14;
+        double ratio = (mouseY - (r[1] + 81) - size / 2.0) / Math.max(1, track - size);
+        modalScroll = (int) Math.round(Math.max(0, Math.min(1, ratio)) * (total - rows));
+    }
 
     private WaypointAccess.Snapshot scopeSnapshot() {
         return waypoints == null ? null : pointsInSelection ? waypoints.select(context, state.geometry()) : waypoints.all(context);

@@ -52,7 +52,7 @@ Invalid intersecting or duplicate-vertex edits are rejected. Polygon geometry an
 
 To change an existing area, select it in **Areas** and choose **Edit**. Change its shape and choose **Apply** on the selection panel. This association survives moves, coordinate edits, redraws and undo/redo. Clear the selection or turn the tool off to end editing. **Save selection…** in the Areas window can save a separate copy while editing.
 
-Areas and Groups have separate windows. Check area rows for bulk actions. **All areas…** in the expanded panel opens the list with all areas selected.
+Areas and Groups have separate windows. Check area rows for bulk actions. **Areas in selection: N** in the expanded panel opens the list with the saved areas that overlap the current selection checked (areas that only touch its edge are not included). **Areas** is available in both panel modes.
 
 - **Color…** offers 24 colors and custom `#RRGGBB` / `#RGB` input. Color and opacity apply to all checked areas in one undoable action.
 - **Group** assigns checked areas to a group; No group removes the assignment. Create, rename, hide or delete groups in the Groups window.
@@ -64,7 +64,7 @@ Settings and areas are stored per world/server, dimension and subworld in `confi
 
 ## Xaero waypoints
 
-**Waypoints: N** / **All waypoints…** opens management of ordinary saved waypoints in the current Xaero set. Search by name, filter visibility/color, check rows, delete points, rename them together or choose one of Xaero’s 16 waypoint colors. Editing names preserves symbols and initials.
+**Waypoints: N** / **All waypoints…** opens management of ordinary saved waypoints in the current Xaero set. Search by name, filter visibility/color, check rows (a scrollbar appears when the list is longer than the window), delete waypoints, rename them together or choose one of Xaero’s 16 waypoint colors. Editing names preserves symbols and initials.
 
 With a completed selection, the window initially shows and checks the points inside it. Without a selection, it opens the entire set with **nothing checked**. The scope button switches between the selection and the whole set. Actions affect only checked rows matching the filters, and the window stays open after each action.
 

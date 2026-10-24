@@ -1000,6 +1000,13 @@ public final class ManagementUiCheck {
             require(chosen.size() == 1 && chosen.contains(points.get(11).identity()), "Last visible waypoint row is not clickable");
             controller.mouseClicked(left(60, 15 + 81 + 12 * 14 + 1, 0), false);
             require(chosen.size() == 1, "Clicking below the waypoint list toggled a hidden row");
+            // 30 rows, 12 visible: the scrollbar sits at x + w - 17 .. x + w - 7 = 583..593 beside the rows.
+            controller.mouseClicked(left(588, 15 + 81 + 12 * 14 - 1, 0), false);
+            require((Integer) get(controller, "modalScroll") == 18 && chosen.size() == 1,
+                    "Clicking the bottom of the scrollbar did not scroll to the end (or toggled a row)");
+            controller.mouseReleased(left(588, 15 + 81, 0));
+            require((Integer) get(controller, "modalScroll") == 0 && !(Boolean) get(controller, "scrollbarDragging"),
+                    "Dragging the scrollbar thumb to the top did not scroll back");
         } finally {
             chosen.clear();
             set(controller, "pending", null);
@@ -1007,6 +1014,39 @@ public final class ManagementUiCheck {
             call(controller, "updateVisibility");
         }
         System.out.println("PASS: waypoint rows accept clicks only where they are drawn");
+    }
+
+    private static void checkFramedAreasAndMetrics(ExactSelectionController controller, SavedAreaStore store) throws Exception {
+        SelectionState selection = (SelectionState) get(controller, "state");
+        SelectionState.Snapshot initial = selection.snapshot();
+        SavedAreaStore.State saved = store.state();
+        var inside = SavedAreaStore.create("Inside", new SelectionBounds(0, 0, 10, 10), 0x123456, 25, null);
+        var touching = SavedAreaStore.create("Touching", new SelectionBounds(21, 0, 30, 10), 0x123456, 25, null);
+        var far = SavedAreaStore.create("Far", new PolygonGeometry(List.of(new GridPoint(100, 100), new GridPoint(120, 100),
+                new GridPoint(100, 120))), 0x123456, 25, null);
+        var crossing = SavedAreaStore.create("Crossing", new PolygonGeometry(List.of(new GridPoint(15, -10), new GridPoint(40, -10),
+                new GridPoint(15, 15))), 0x123456, 25, null);
+        try {
+            store.replace(new SavedAreaStore.State(List.of(inside, touching, far, crossing), List.of(), true, true));
+            selection.set(new SelectionBounds(-5, -5, 20, 20));
+            press(controller, "panelModeButton");
+            Button zones = (Button) get(controller, "zonesButton"), areas = (Button) get(controller, "areasButton");
+            require(areas.visible && zones.visible && zones.active, "Expanded panel lost Areas or Areas in selection");
+            require((Integer) get(controller, "metricsShift") == -12, "Perimeter did not join the area line in the wide panel");
+            press(controller, "zonesButton");
+            require(window(controller).equals("AREAS")
+                    && get(controller, "selectedAreaIds").equals(new java.util.LinkedHashSet<>(List.of(inside.id(), crossing.id()))),
+                    "Areas in selection must check overlapping areas only, not touching or distant ones");
+            press(controller, "managementClose");
+            press(controller, "panelModeButton");
+            require((Integer) get(controller, "metricsShift") == 0, "Perimeter shared a line that is too narrow in the compact panel");
+        } finally {
+            store.replace(saved); selection.restore(initial);
+            if (!(Boolean) get(controller, "compact")) press(controller, "panelModeButton");
+            ((Set<?>) get(controller, "selectedAreaIds")).clear();
+            call(controller, "syncFields"); call(controller, "updateVisibility");
+        }
+        System.out.println("PASS: Areas stays in the expanded panel, areas in selection by overlap, perimeter beside area when it fits");
     }
 
     public static void main(String[] args) throws Exception {
@@ -1049,6 +1089,7 @@ public final class ManagementUiCheck {
             call(controller, "updateVisibility");
             checkSelectionPanel(controller, map);
             checkHintFitting(controller);
+            checkFramedAreasAndMetrics(controller, store);
             checkExportNotice(controller, map, directory);
             checkPolygonEditing(controller, map, store, directory, context);
             checkSavedLabelLayering(controller, store, unsafe);

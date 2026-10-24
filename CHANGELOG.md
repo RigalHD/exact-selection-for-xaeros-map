@@ -5,7 +5,8 @@
 - Choose the color (24-color palette) and fill opacity directly in the New area window; both are remembered for the next area. The selection is cleared after saving, as its own undo step.
 - Add quick Save with group selection and Apply for editing an existing saved area. The editing source is retained through geometry edits and selection history.
 - Add a 24-color palette and custom RGB input. Apply colors and opacity to multiple checked areas.
-- Add All areas and management of the entire current waypoint set, with no points selected by default outside a selection.
+- Add Areas in selection (saved areas overlapping the current selection) next to Areas, and management of the entire current waypoint set, with no waypoints checked by default outside a selection. The waypoint list has a draggable scrollbar.
+- Show the perimeter on the area line when both fit; the panel gets one line shorter.
 - Rename, recolor and delete checked waypoints with snapshot validation, rollback and undo/redo.
 - Delete draft or completed polygon vertices with Ctrl/Cmd + double click. Convert rectangles through corner drags or edge insertion while editing a saved area.
 - Display and copy perimeter. Group copy actions, use full expanded labels, and replace history buttons with tooltip-equipped arrows.

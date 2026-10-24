@@ -36,6 +36,17 @@ public final class WaypointEditCheck {
             throw new AssertionError("Stale edit accepted");
         } catch (IllegalStateException expected) { }
         assert a.getName().equals("External change");
+        a.setName("First");
+        try {
+            XaeroWaypointBridge.editAndSave(set, before, after, () -> { throw new IOException("persistent failure"); });
+            throw new AssertionError("Persistent failure was swallowed");
+        } catch (IOException expected) { assert expected.getSuppressed().length == 1; }
+        assert a.getName().equals("First") && b.getColor() == 1;
+        try {
+            XaeroWaypointBridge.editAndSave(set, List.of(before.get(0), before.get(0)), List.of(after.get(0), after.get(0)),
+                    () -> { throw new AssertionError("Duplicate edit saved"); });
+            throw new AssertionError("Duplicate identity accepted");
+        } catch (IllegalStateException expected) { }
         System.out.println("PASS: waypoint name/color editing, undo, symbol preservation, rollback and stale edit rejection");
     }
 }

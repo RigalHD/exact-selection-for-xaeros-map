@@ -1,86 +1,106 @@
 # Xaero Exact Selection
 
-Клиентский Fabric-аддон для Minecraft **1.21.11**. Он добавляет точное прямоугольное и полигональное выделение на карте Xaero, редактирование границ, сохранённые цветные области и группы, постоянное отображение зон на карте и миникарте, экспорт выбранной зоны в PNG и операции с точками Xaero.
+**English** | [Русский](README.ru.md)
 
-## Установка
+A client-side Fabric addon for Minecraft **1.21.11**. Create precise rectangles and polygons on Xaero’s World Map, save colored areas and groups, show them on the world map and minimap, and export selected map regions as PNG images.
 
-1. Используйте Minecraft 1.21.11, Java 21 и Fabric Loader **0.17.3 или новее**.
-2. Установите Fabric API для Minecraft 1.21.11 (**0.139.4 или новее**), Xaero’s World Map **1.41.0** и XaeroLib **1.1.15 или новее**.
-3. Для создания и удаления точек требуется Xaero’s Minimap **26.1.0**.
-4. Поместите `xaero-exact-selection-1.2.15+1.21.11.jar` в `mods`, откройте полноэкранную карту и включите режим.
+**This is an unofficial addon, not affiliated with or endorsed by Xaero.**
 
-Версии Xaero закреплены, потому что аддон использует внутренние поля World Map. Для других версий требуется отдельная проверка совместимости. Аддон работает только на клиенте; серверная установка не нужна.
+## Installation and compatibility
 
-Панель точного выделения открывается в компактном виде: координаты углов, размеры, площадь, копирование, отмена, области и группы. «Развернуть» открывает поля координат и остальные действия; «Свернуть» возвращает компактный вид. Переключение сохраняет выделение и незавершённый ввод. На небольшом экране расширенная панель прокручивается колесом мыши внутри панели; за её пределами колесо меняет масштаб карты.
+- Minecraft **1.21.11**, Java **21**, Fabric Loader **0.17.3+**, and Fabric API **0.139.4+** for this Minecraft version.
+- Xaero’s World Map **1.41.0** and XaeroLib **1.1.15+** are required.
+- Xaero’s Minimap **26.1.0** is optional. It enables minimap overlays and waypoint creation/editing/deletion. Other Minimap versions are rejected by the addon metadata.
+- Put `xaero-exact-selection-1.3.0+1.21.11.jar` in your instance’s `mods` folder and enable the selection tool on the fullscreen map. Install it on the client only.
 
-## Выделение и геометрия
+The addon uses Xaero internals. Other World Map or Minecraft versions need separate compatibility work.
 
-| Действие | Результат |
+## Selection and editing
+
+| Action | Result |
 |---|---|
-| ЛКМ по карте | Первый угол, затем второй; следующий клик начинает новую рамку |
-| Перетаскивание маркера или стороны рамки | Изменить соответствующий угол или границу |
-| Shift + перетаскивание внутри рамки | Переместить рамку целиком |
-| ПКМ с перетаскиванием | Переместить карту |
-| Колесо вне панели | Масштабировать карту вокруг курсора |
-| Поля X/Z и «Применить координаты» | Ввести точные целые координаты блоков |
-| «Размеры» | Задать ширину и длину от левого нижнего угла или центра |
-| «Сдвиг» | Переместить выделение по X/Z в блоках или чанках |
-| «Центр» | Скопировать координаты центра или создать в нём точку Xaero |
-| «Назад» / «Повторить» или Ctrl+Z / Ctrl+Y | Отменить или повторить действие |
-| Esc | Отменить текущий ввод или диалог; затем сбросить рамку; затем выйти из режима |
+| Left click, then left click | Set the two corners of a rectangle |
+| Drag a handle | Resize the rectangle |
+| Shift + drag inside the selection | Move the whole rectangle or polygon |
+| Right mouse drag | Pan the map |
+| Scroll outside the panel | Zoom around the cursor |
+| Coordinates / Size / Move | Enter exact coordinates, dimensions or offsets |
+| Ctrl/Cmd+Z, Ctrl+Y or Cmd+Shift+Z | Undo / redo |
+| Esc | Cancel a gesture/dialog/draft, clear the selection, then leave the tool |
 
-Кнопка полигонального режима переключает построение контура: ЛКМ добавляет вершину, Enter или ЛКМ рядом с первой вершиной замыкает его, Backspace удаляет последнюю вершину, Esc отменяет черновик. Допустимы простые контуры из 3–256 вершин; самопересекающиеся и вырожденные контуры не принимаются. Двойной ЛКМ по стороне готового полигона вставляет новую вершину на самой стороне (в ближайшую к курсору точку), в том числе на замыкающей стороне; форма контура при этом не меняется, а сдвинуть новую вершину можно Ctrl/Cmd-перетаскиванием. Shift при построении выравнивает новую точку по горизонтали или вертикали относительно предыдущей вершины. Предпросмотр следует той же привязке. Вставка отменяется и повторяется одним действием. Загруженный полигон открывается для редактирования: обычные клики не превращают его в прямоугольник; для нового контура включите инструмент «Контур». Прямоугольные поля координат для полигона доступны только для чтения. При зажатом Ctrl (на macOS — Cmd) перетаскивайте вершины как незамкнутого контура, так и готового полигона. Каждое перемещение отменяется одним действием. Недопустимое перемещение с пересечением сторон или совпадением вершин отклоняется; Esc во время перетаскивания возвращает исходную позицию. Ctrl/Cmd+Z и Ctrl/Cmd+Y отменяют и повторяют также добавление и удаление вершин черновика; Cmd+Shift+Z тоже повторяет действие. После замыкания область имеет заливку, площадь, сохраняется, включается в группы и экспортируется как другие области. Длина и ширина полигона отображаются только в меню, без подписей поверх карты. Названия сохранённых областей рисуются поверх всех заливок и текущего выделения, в том числе сразу после сохранения; сбрасывать выделение для чтения названия не нужно. Как и у прямоугольников, название полигона появляется, когда его видимая часть на экране шире 50 и выше 14 точек интерфейса. Контур, заливка и маркеры вершин используют общую очередь отрисовки интерфейса Minecraft; линии видны также во время построения. Инструмент контура остаётся включённым, чтобы следующий клик начал новый контур; зелёная первая вершина служит кнопкой замыкания. Сохранённый полигон сначала загрузите в выделение, измените вершины и нажмите «Обновить геометрию» в окне областей. Готовый полигон можно переместить Shift-перетаскиванием внутри него или задать сдвиг в диалоге. Размеры и привязка к чанкам для полигона отключены, поскольку они не имеют однозначного смысла для произвольного контура.
+The compact panel is enabled by default. Expand it for coordinate input, dimensions, movement, waypoint management and PNG export. The expanded panel scrolls on small screens. Undo and redo are small arrow buttons with action tooltips.
 
-По умолчанию включены **блоки**. Переключатель чанков расширяет текущее выделение до границ чанков; новые границы при выборе и перетаскивании привязываются к сетке 16×16. Для отрицательных координат используется округление вниз. Ручной ввод координат остаётся точным и не округляется автоматически.
+Blocks are the default unit. Both endpoint blocks are included: `(0, 0)` to `(15, 15)` is **16 × 16 = 256 blocks²**. Chunk mode snaps rectangle edges to the 16-block grid, including negative coordinates. Coordinate input stays exact. Width is the X extent and length is the Z extent. Polygon dimensions describe its bounding box; area and perimeter follow its actual shape.
 
-Оба крайних блока включены. Ширина считается по X, длина — по Z, площадь равна ширине × длине. Например, от `(0, 0)` до `(15, 15)` — это **16 × 16 = 256 блоков²**. Левый нижний угол — `(minX, maxZ)`. Центр отображается в мировых координатах и может оканчиваться на `.5`.
+The separate **Copy** section copies coordinates, area, perimeter, length or width. The Center dialog copies the bounding-box center or creates a waypoint there at the player’s current Y level. A 3×6 rectangle has a perimeter of 18 blocks. Non-integer lengths are displayed to two decimal places.
 
-Кнопки копирования переносят в буфер координаты углов, площадь, длину, ширину и центр. Для центра точки выбирается содержащий его блок; высота Y берётся с текущей позиции игрока.
+### Polygons
 
-История действий хранится в памяти, ограничена последними 100 действиями и очищается при смене контекста карты. Незавершённый ввод и перетаскивание можно отменить до фиксации. Копирование и смена фильтров в историю не записываются. Подсказка кнопок «Назад» и «Повторить» называет действие, которое будет отменено или повторено.
+Enable the Polygon tool, click vertices and finish by clicking the first vertex or pressing Enter. Backspace removes the last draft vertex. Shift aligns new vertices horizontally or vertically. Simple, non-intersecting polygons with 3–256 vertices are supported and have a fill.
 
-## Сохранённые области
+- Ctrl/Cmd + drag a vertex to move it.
+- Double click an edge to insert a vertex on that edge.
+- Ctrl/Cmd + double click a vertex to delete it, in both drafts and completed polygons. A completed shape must keep at least three vertices.
+- Ctrl/Cmd + drag a rectangle corner to turn it into an editable polygon. A click without movement keeps the rectangle.
+- Double click an edge of a saved rectangle opened for editing to insert a vertex and turn it into a polygon.
 
-Кнопки «Области» и «Группы» открывают два отдельных окна. В окне областей нажатие на название выбирает одну зону для редактирования. Флажки слева позволяют отметить несколько зон; повторное нажатие флажка снимает отметку. Кнопка «Объединить» заменяет отмеченные области одной прямоугольной областью, охватывающей их все, включая промежутки между ними. Цвет, прозрачность и группа берутся у последней выбранной области; группа сохраняется только если все объединяемые области были в одной группе. «Все» отмечает список целиком, «Снять» очищает выбор.
+Invalid intersecting or duplicate-vertex edits are rejected. Polygon geometry and draft changes support undo/redo. Polygon width/length labels remain in the panel rather than covering the map.
 
-Кнопка «Удалить: N» удаляет все отмеченные зоны после отдельного подтверждения. Удаление одной записью попадает в историю и отменяется кнопкой «Назад». «Скрыть выбранные» / «Показать выбранные» меняет видимость всех отмеченных областей; если она загружена в рабочее выделение, голубая рамка рабочего выделения останется видна.
+## Saved areas and groups
 
-Имя выбранной области редактируется справа; кнопка сохранения имени или Enter переименовывает существующую запись. «Сохранить выделение» открывает отдельный диалог для создания новой области. Чтобы изменить сохранённые границы, выберите область и нажмите «Загрузить». Список закроется, после чего можно передвинуть рамку или изменить координаты. Затем снова откройте «Области» и нажмите «Обновить геометрию». «Заливка» переключает плотность цвета между 0%, 25%, 50%, 75% и 100%; квадрат цвета в строке показывает текущую прозрачность.
+**Save** appears next to the coordinates in the compact panel and in the expanded panel’s action row. Enter a name and use the Group button to cycle through existing groups; the default is no group. Saving a new area does not automatically enter editing mode.
 
-В окне «Группы» нажмите «Создать группу», введите имя в отдельном диалоге и подтвердите создание. Для переименования выберите группу слева и нажмите «Переименовать». Для назначения группы отметьте области в окне «Области», нажмите кнопку «Группа» и выберите нужное имя в списке. Назначение применяется сразу ко всем отмеченным зонам. Строка «Без группы» снимает назначение. Из окна выбора можно открыть управление группами, создать недостающую группу и вернуться к выбору, сохранив отмеченные области. «Скрыть группу» / «Показать группу» управляет всеми её областями, не меняя индивидуальные настройки видимости. Изменения областей и групп можно отменить или повторить кнопками внизу соответствующего окна. Строка области отдельно сообщает, если её показ заблокирован скрытой группой.
+To change an existing area, select it in **Areas** and choose **Edit**. Change its shape and choose **Apply** on the selection panel. This association survives moves, coordinate edits, redraws and undo/redo. Clear the selection or turn the tool off to end editing. **Save selection…** in the Areas window can save a separate copy while editing.
 
-Для экспорта текущего выделения разверните панель и нажмите «Экспорт выделения в PNG с зонами». Сохранять выделение в список областей не нужно: поддерживаются готовые прямоугольники и полигоны. Пока идёт ввод координат, построение контура или перетаскивание, кнопка недоступна. Также можно отметить ровно одну сохранённую область в окне областей и нажать «Экспорт карты». Получится PNG с размером один пиксель на блок; для полигона пиксели за контуром будут прозрачными. На изображение накладываются видимые области с учётом их цвета, прозрачности и видимости группы. Названия рисуются поверх всех заливок: белый полужирный текст с чёрной обводкой, тёмной подложкой и цветным маркером области. Файлы сохраняются в ту же папку, которую использует экспорт Xaero’s World Map: по умолчанию `map exports/` в папке игры. Аддон берёт текущее расположение из экспортёра Xaero, поэтому учитывается и нестандартное размещение папок. После экспорта вместо длинного пути появляется кнопка «Показать PNG в папке». Она открывает стандартный файловый менеджер с выделенным изображением, если система поддерживает выделение файла; иначе открывает папку с экспортом. Кнопка доступна в панели выделения и в окне областей. Если файл уже удалён или перемещён, аддон сообщит об этом. Штатный рендер Xaero выполняется в игровом потоке, а обрезка, наложение зон и запись PNG — в фоне, поэтому игра не замирает на время обработки изображения; пока экспорт идёт, кнопки экспорта недоступны. Если PNG уже записан, а временные файлы удалить не удалось, экспорт считается успешным, а причина пишется в журнал. Для экспорта данные карты должны быть загружены; экспорт ограничен восемью миллионами пикселей с учётом выравнивания по целым чанкам; для слишком большой области аддон сообщает об этом лимите.
+Areas and Groups have separate windows. Check area rows for bulk actions. **All areas…** in the expanded panel opens the list with all areas selected.
 
-Кнопки «Карта: ВКЛ/ВЫКЛ» и «Миникарта: ВКЛ/ВЫКЛ» независимо управляют постоянным слоем областей. Рамки видны и при выключенном режиме точного выделения. Настройки сохраняются отдельно для каждого мира, измерения и подмира. Обе карты учитывают скрытие выбранной области и группы, а также цвет и плотность заливки. Для миникарты нужен Xaero’s Minimap **26.1.0**.
+- **Color…** offers 24 colors and custom `#RRGGBB` / `#RGB` input. Color and opacity apply to all checked areas in one undoable action.
+- **Group** assigns checked areas to a group; No group removes the assignment. Create, rename, hide or delete groups in the Groups window.
+- Individual visibility and group visibility are independent. A hidden group suppresses its areas without changing their individual settings.
+- Delete checked areas after confirmation. Merge replaces them with one enclosing rectangle, including any gaps between them. Both actions support undo.
+- World map and Minimap switches independently control persistent overlays when the selection tool is off.
 
-Данные хранятся в `config/xaero-exact-selection/` отдельно для каждого мира/сервера, измерения и подмира. Файл записывается через временный файл и атомарную замену. Если существующий файл повреждён, аддон сообщает об этом и не перезаписывает его пустыми данными.
+Settings and areas are stored per world/server, dimension and subworld in `config/xaero-exact-selection/`. The existing schema 3 format is unchanged. Writes use a temporary file and atomic replacement where supported. An unreadable existing file is kept and is not overwritten with empty data.
 
-## Точки Xaero
+## Xaero waypoints
 
-Кнопка удаления открывает список точек внутри рамки. Можно искать по имени, фильтровать видимые/скрытые точки и цвет, а также отмечать отдельные строки. Удаляются только отмеченные точки, проходящие текущие фильтры. Перед удалением аддон повторно сверяет набор и свойства точек; при изменении списка нужно подтвердить действие заново.
+**Waypoints: N** / **All waypoints…** opens management of ordinary saved waypoints in the current Xaero set. Search by name, filter visibility/color, check rows, delete points, rename them together or choose one of Xaero’s 16 waypoint colors. Editing names preserves symbols and initials.
 
-Поддерживаются обычные сохранённые точки текущего набора в отображаемом мире и измерении, включая скрытые. Временные, серверные, точки смерти и назначения остаются вне выборки. Удаление можно отменить; восстановленные точки сохраняют исходные объекты и свойства, а новые точки, созданные после удаления, остаются на месте.
+With a completed selection, the window initially shows and checks the points inside it. Without a selection, it opens the entire set with **nothing checked**. The scope button switches between the selection and the whole set. Actions affect only checked rows matching the filters, and the window stays open after each action.
 
-Без Xaero’s Minimap доступны выделение, редактирование, группы областей и копирование. Создание и удаление точек в этом случае недоступны.
+Before each write, the addon checks that the points and set still match the displayed snapshot. Stale actions refresh the list instead of changing unexpected points. Save failures restore in-memory data and attempt to persist the rollback. Actions support undo/redo. Temporary, server, death and destination waypoints are excluded.
 
-## Сборка
+## PNG export
+
+Expand the selection panel and choose **Export selection as PNG with areas**, or export one saved area from the Areas window. Saving the working selection first is unnecessary. Export uses one pixel per block; pixels outside a polygon are transparent. Visible saved areas are included with their colors, opacity, group visibility and readable labels.
+
+Files use Xaero’s own export destination, normally `map exports/` in the game directory. **Show PNG in folder** reveals the result in the default file manager where supported, or opens its folder. Native map preparation runs on the client thread; image composition and PNG encoding run in the background.
+
+Map data must be loaded. Export is limited to **8,000,000 pixels**, including chunk alignment. Coordinate drafts and unfinished gestures cannot be exported.
+
+## Building
 
 ```sh
 ./gradlew build
 ```
 
-При наличии Loom-кэша Minecraft 1.21.11 можно собрать без Gradle и сети:
+The default build resolves Xaero dependencies from its Maven repository. The exact dependency coordinates above were verified with a successful Gradle build. GitHub Actions builds on Temurin Java 21, checks localization, and uploads `build/libs/*.jar`. To use local Xaero JARs:
 
 ```sh
-python3 tools/build_cached.py \
-  --cache /absolute/path/to/gradle-home/caches \
-  --deps /absolute/path/to/xaero-jars
+./gradlew -PxaeroDeps=build/xaero-deps build
 ```
 
-Этот скрипт компилирует исходники, запускает имеющиеся проверки и переносит JAR в intermediary namespace. Minecraft и сторонние моды в итоговый JAR не включаются.
+With an existing Minecraft 1.21.11 Loom cache, `tools/build_cached.py` compiles the source, runs every standalone `*Check.java` test with assertions, and remaps the output to the intermediary namespace without Gradle or network access:
 
-## Проверка текущей поставки
+```sh
+python3 tools/build_cached.py --cache /absolute/path/to/gradle-home/caches --deps /absolute/path/to/xaero-jars
+python3 tools/check_localization.py
+```
 
-Исходники скомпилированы Java 21 против кэша Minecraft 1.21.11 и Xaero World Map 1.41.0 / Minimap 26.1.0, затем перенесены в intermediary namespace. Выполнены проверки геометрии и операций с точками, сценарии создания и редактирования групп, выбора и массового назначения областей, скрытия, отмены, сохранения и загрузки. Проверены размещение и доступность элементов окон на размерах 320×240, 480×270 и 960×540, совпадение проекции со штатной формулой Xaero и параметры конвейера отрисовки без отсечения обратных граней. Визуальную работу в запущенном Minecraft эта среда не проверяет.
+`tools/IntegrationSmokeCheck.java` initializes Fabric against the real Minecraft/Xaero dependencies in a separate temporary game directory. It verifies mixin application and the remapped GUI bridge without launching a game window. It requires the Fabric runtime classpath, the intermediary Minecraft JAR, Fabric API and the addon/Xaero JARs in the temporary `mods` directory.
 
-Код аддона распространяется по MIT. Это сторонний проект, не официальный продукт Xaero.
+Tests cover geometry, saved-area persistence, waypoint write rollback, editing/undo, localization, and UI widget layouts at 320×240, 480×270 and 960×540. They do not establish visual correctness in a running Minecraft client.
+
+## License
+
+The addon code is licensed under [MIT](LICENSE). Xaero mods remain separate dependencies and are not bundled. See [CHANGELOG.md](CHANGELOG.md) for release notes.

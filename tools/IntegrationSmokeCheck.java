@@ -85,8 +85,13 @@ public final class IntegrationSmokeCheck {
         Class<?> controller = Class.forName("dev.exactselection.ExactSelectionController", false, loader);
         java.util.Set<String> controllerMethods = java.util.Arrays.stream(controller.getDeclaredMethods())
                 .map(java.lang.reflect.Method::getName).collect(java.util.stream.Collectors.toSet());
-        if (!controllerMethods.containsAll(java.util.Set.of("beginVertexDrag", "finishVertexDrag", "finishPolygon", "insertPolygonPoint", "keyReleased")))
+        if (!controllerMethods.containsAll(java.util.Set.of("beginVertexDrag", "finishPolygon", "insertPolygonPoint", "deleteVertex", "quickSave", "openWaypoints", "keyReleased")))
             throw new AssertionError("Polygon vertex editing methods are missing");
+        Class<?> host = Class.forName("dev.exactselection.MapGesture$Host", false, loader);
+        Class<?> vertexDrag = Class.forName("dev.exactselection.MapGesture$VertexDrag", false, loader);
+        if (vertexDrag.getDeclaredMethod("finish", host).getReturnType() != boolean.class
+                || vertexDrag.getDeclaredMethod("cancel", host).getReturnType() != boolean.class)
+            throw new AssertionError("Map gesture completion contract is missing");
         Class<?> saveLoad = Class.forName("xaero.map.file.MapSaveLoad", false, loader);
         Class<?> exporter = Class.forName("xaero.map.file.export.PNGExporter", false, loader);
         if (java.util.Arrays.stream(saveLoad.getInterfaces()).noneMatch(c -> c.getName().equals("dev.exactselection.mixin.MapSaveLoadAccessor")))

@@ -919,7 +919,10 @@ public final class ExactSelectionController {
 
     private void renderColorDialog(GuiGraphics g, int x, int y, int w, int h) {
         int[] colors = paletteColors(); int sw = colorSampleWidth(w);
-        int current = colorReturn == Dialog.WAYPOINTS ? -1 : AreaPalette.parse(dialogFields[HEX_FIELD].getValue());
+        List<WaypointAccess.Point> points = filteredChosenPoints();
+        int current = colorReturn == Dialog.WAYPOINTS
+                ? points.isEmpty() ? -1 : waypoints.colorRgb(points.get(0).color())
+                : AreaPalette.parse(dialogFields[HEX_FIELD].getValue());
         for (int i = 0; i < colors.length; i++) {
             int sx = x + 12 + (i % AreaPalette.COLUMNS) * (sw + 4), sy = y + 34 + (i / AreaPalette.COLUMNS) * 22;
             g.fill(sx, sy, sx + sw, sy + 18, 0xFF000000 | colors[i]);

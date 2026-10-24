@@ -5,3 +5,8 @@ run/
 .mixin.out/
 .DS_Store
 logs/
+.claude/
+.idea/
+*.iml
+out/
+.vscode/

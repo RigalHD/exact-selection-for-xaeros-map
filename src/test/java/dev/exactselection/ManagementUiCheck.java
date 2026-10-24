@@ -792,6 +792,8 @@ public final class ManagementUiCheck {
             press(controller, "areaLoad");
             require(selection.source().equals(added.id()) && !((Button) get(controller, "quickSave")).active,
                     "Edit did not link the saved area or unchanged geometry can be applied");
+            require(((Button) get(controller, "quickSave")).getMessage().getString()
+                    .equals(Component.translatable("exactselection.quick_apply").getString()), "Editing button is not labelled Apply");
             clickMap(controller, 400, 60, GLFW.GLFW_MOD_CONTROL);
             require(selection.geometry() instanceof RectangleGeometry, "Stationary Ctrl click converted a rectangle");
             clickMap(controller, 480, 60, 0);
@@ -916,6 +918,12 @@ public final class ManagementUiCheck {
             require(((Set<?>) get(controller, "chosenPoints")).size() == 2, "Entire-set switch unexpectedly selected more points");
             press(controller, "pointScope");
             require(((Set<?>) get(controller, "chosenPoints")).size() == 2, "Selection scope did not select the contained points");
+            text(controller, 7).setValue("Second");
+            enter(controller, map, 9, "Filtered");
+            require(access.points.stream().filter(p -> p.name().equals("Filtered")).count() == 1
+                    && access.points.stream().anyMatch(p -> p.name().equals("External")),
+                    "Waypoint rename ignored the name filter");
+            text(controller, 7).setValue(""); call(controller, "updateVisibility");
             for (int[] size : List.of(new int[]{320, 240}, new int[]{480, 270}, new int[]{960, 540})) {
                 map.width = size[0]; map.height = size[1]; controller.init(); checkLayout(controller);
                 press(controller, "pointRecolor"); checkLayout(controller); press(controller, "colorBack");

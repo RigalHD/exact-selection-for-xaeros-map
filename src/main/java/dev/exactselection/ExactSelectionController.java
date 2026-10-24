@@ -59,9 +59,16 @@ public final class ExactSelectionController {
     private int panelHeight, panelScroll;
     private Button modalApply, modalCancel, anchorButton, moveUnitsButton;
     private Button centerCopy, centerCreate, areaSave, areaLoad, areaDelete;
-    private Button areaMerge, areaSelectAll, areaClearSelection;
+    private Button areaSelectAll, areaClearSelection, areaSaveChanges, autosaveButton, autosaveToggle, autosaveClose;
+    /** Copy buttons of the Areas window, in the panel's order: coordinates, area, perimeter, length, width. */
+    private final Button[] areaCopies = new Button[5];
+    private final Map<AutosaveSettings.Field, Button> autosaveFields = new java.util.EnumMap<>(AutosaveSettings.Field.class);
+    private final AreaDraft areaDraft = new AreaDraft();
+    private final AutosaveSettings autosave;
+    /** The Areas window shows the autosave settings instead of the area properties. */
+    private boolean autosaveOpen;
     private Button groupCreate, groupRename, groupAssign, groupVisibility, areaVisibility, areaColor, areaOpacity;
-    private Button areaRename, groupDelete, manageGroups, managementClose, managementUndo, managementRedo;
+    private Button groupDelete, manageGroups, managementClose, managementUndo, managementRedo;
     private Button areaExportButton, openExportButton;
     private Path lastExport;
     private boolean exportRunning;
@@ -128,6 +135,7 @@ public final class ExactSelectionController {
         this.mc = mc;
         this.areaStore = areaStore;
         this.waypoints = waypoints;
+        this.autosave = AutosaveSettings.load(areaStore.root());
     }
 
     private Component tr(String key, Object... args) {
@@ -188,6 +196,13 @@ public final class ExactSelectionController {
             dialogFields[i] = field;
             widgets.add(field);
         }
+        dialogFields[4].setResponder(value -> {
+            if (syncing) return;
+            SavedAreaStore.Area area = selectedAreas().size() == 1 ? selectedArea() : null;
+            String name = value.trim();
+            areaDraft.name = area == null || name.isEmpty() || name.equals(area.name()) ? null : name;
+            updateVisibility();
+        });
         modalApply = button("apply", 0, 0, 110, this::applyDialog);
         modalCancel = button("cancel", 0, 0, 110, this::cancelDialog);
         anchorButton = button("anchor_lower_left", 0, 0, 150, () -> {
@@ -205,7 +220,30 @@ public final class ExactSelectionController {
         areaSave = button("area_save_selection", 0, 0, 110, () -> { areaNameReturn = Dialog.AREAS; openAreaNameDialog(); });
         areaLoad = button("area_edit", 0, 0, 110, this::loadArea);
         areaDelete = button("area_delete", 0, 0, 110, this::deleteArea);
-        areaMerge = button("area_merge", 0, 0, 110, this::mergeAreas);
+        areaSaveChanges = button("area_save_changes", 0, 0, 110, () -> commitDraft(field -> true));
+        autosaveButton = button("autosave_button", 0, 0, 120, () -> { autosaveOpen = !autosaveOpen; focus(null); updateVisibility(); });
+        autosaveToggle = button("autosave_off", 0, 0, 120, () -> {
+            autosave.setEnabled(!autosave.enabled());
+            if (autosave.enabled()) commitDraft(autosave::covers);
+            updateVisibility();
+        });
+        for (AutosaveSettings.Field field : AutosaveSettings.Field.values())
+            autosaveFields.put(field, button("autosave_field", 0, 0, 120, () -> {
+                autosave.toggle(field);
+                if (autosave.covers(field)) commitDraft(f -> f == field);
+                updateVisibility();
+            }));
+        autosaveClose = button("autosave_close", 0, 0, 120, () -> { autosaveOpen = false; focus(null); updateVisibility(); });
+        String[][] copies = {{"copy_coordinates_short", "copy_coordinates_tooltip"}, {"copy_area_short", "copy_area_tooltip"},
+                {"copy_perimeter_short", "copy_perimeter_tooltip"}, {"copy_length_short", "copy_length_tooltip"},
+                {"copy_width_short", "copy_width_tooltip"}};
+        for (int i = 0; i < areaCopies.length; i++) {
+            int kind = i;
+            areaCopies[i] = copyButton(copies[i][0], copies[i][1], () -> {
+                SavedAreaStore.Area area = selectedAreas().size() == 1 ? selectedArea() : null;
+                if (area != null) copyMetric(kind, area.geometry(), area.bounds());
+            });
+        }
         areaSelectAll = button("area_select_all", 0, 0, 110, this::selectAllAreas);
         areaClearSelection = button("area_clear_selection", 0, 0, 110, this::clearAreaSelection);
         groupCreate = button("group_create", 0, 0, 110, () -> openGroupNameDialog(false));
@@ -222,7 +260,6 @@ public final class ExactSelectionController {
         managementClose = button("done", 0, 0, 80, this::cancelDialog);
         managementUndo = arrowButton("↶", this::undo);
         managementRedo = arrowButton("↷", this::redo);
-        areaRename = button("area_rename", 0, 0, 120, this::renameArea);
         groupDelete = button("group_delete", 0, 0, 120, this::askDeleteGroup);
         areaExportButton = button("area_export", 0, 0, 120, this::exportSelectedArea);
         pointVisibility = button("filter_all", 0, 0, 120, this::cycleVisibilityFilter);
@@ -254,10 +291,10 @@ public final class ExactSelectionController {
         areaMapVisibility.setTooltip(Tooltip.create(tr("area_map_tooltip")));
         areaMinimapVisibility.setTooltip(Tooltip.create(tr("area_minimap_tooltip")));
         areaDelete.setTooltip(Tooltip.create(tr("area_delete_tooltip")));
-        areaMerge.setTooltip(Tooltip.create(tr("area_merge_tooltip")));
+        areaSaveChanges.setTooltip(Tooltip.create(tr("area_save_changes_tooltip")));
+        autosaveButton.setTooltip(Tooltip.create(tr("autosave_tooltip")));
         areaSelectAll.setTooltip(Tooltip.create(tr("area_select_all_tooltip")));
         areaClearSelection.setTooltip(Tooltip.create(tr("area_clear_selection_tooltip")));
-        areaRename.setTooltip(Tooltip.create(tr("area_rename_tooltip")));
         groupDelete.setTooltip(Tooltip.create(tr("group_delete_tooltip")));
         areaExportButton.setTooltip(Tooltip.create(tr("area_export_tooltip")));
         layoutMainPanel();
@@ -373,12 +410,13 @@ public final class ExactSelectionController {
         } else if (next == Dialog.CENTER) {
             setDialogValue(6, tr("center_waypoint_default").getString());
         } else if (next == Dialog.AREAS) {
-            if (areaId == null && !areaStore.state().areas().isEmpty()) areaId = areaStore.state().areas().get(0).id();
+            // The window opens with nothing checked; properties apply only to areas the user picks.
             selectedAreaIds.clear();
-            if (areaId != null) selectedAreaIds.add(areaId);
+            areaId = null;
+            areaDraft.clear();
+            autosaveOpen = false;
             areaDeleteConfirmation = groupDeleteConfirmation = false;
-            SavedAreaStore.Area selectedArea = selectedArea();
-            setDialogValue(4, selectedArea == null ? "" : selectedArea.name());
+            setDialogValue(4, "");
             message = "";
         } else if (next == Dialog.WAYPOINTS) {
             setDialogValue(7, "");
@@ -457,6 +495,7 @@ public final class ExactSelectionController {
             return;
         }
         if (dialog == Dialog.WAYPOINTS) pending = null;
+        if (dialog == Dialog.AREAS) flushDraft();
         dialog = switch (dialog) {
             case AREA_NAME -> areaNameReturn;
             case COLOR -> colorReturn;
@@ -550,17 +589,26 @@ public final class ExactSelectionController {
                 place(managementRedo, x + w - 207, y + 7, 22, 18);
                 place(manageGroups, x + w - 180, y + 7, 92, 18);
                 place(managementClose, x + w - 82, y + 7, 70, 18);
-                place(dialogFields[4], right, y + 46, col, 18);
-                place(areaRename, right, y + 66, col, 18);
-                place(groupAssign, right, y + 86, col, 18);
-                place(areaVisibility, right, y + 106, col, 18);
-                place(areaColor, right, y + 126, half, 18);
-                place(areaOpacity, right + half + 3, y + 126, col - half - 3, 18);
-                place(areaLoad, right, y + 146, col, 18);
-                place(areaExportButton, right, y + 166, col, 18);
-                place(openExportButton, right, y + h - 20, col, 16);
-                place(areaDelete, right, y + 186, half, 18);
-                place(areaMerge, right + half + 3, y + 186, col - half - 3, 18);
+                place(autosaveButton, x + w - 132, y + h - 24, 120, 16);
+                if (autosaveOpen) {
+                    place(autosaveToggle, right, y + 46, col, 18);
+                    int row = 0;
+                    for (Button button : autosaveFields.values()) place(button, right, y + 68 + 20 * row++, col, 18);
+                    place(autosaveClose, right, y + 68 + 20 * row, col, 18);
+                } else {
+                    place(dialogFields[4], right, y + 46, col, 18);
+                    place(groupAssign, right, y + 66, col, 18);
+                    place(areaColor, right, y + 86, half, 18);
+                    place(areaOpacity, right + half + 3, y + 86, col - half - 3, 18);
+                    place(areaSaveChanges, right, y + 106, col, 18);
+                    place(areaLoad, right, y + 126, half, 18);
+                    place(areaExportButton, right + half + 3, y + 126, col - half - 3, 18);
+                    // "Selected" section: visibility and deletion of every checked area.
+                    place(areaVisibility, right, y + 160, half, 18);
+                    place(areaDelete, right + half + 3, y + 160, col - half - 3, 18);
+                    mainRow(areaCopies, right, y + 194, col, 16);
+                }
+                place(openExportButton, right, y + h - 44, col, 16);
                 place(areaSelectAll, x + 12, y + h - 72, half, 18);
                 place(areaClearSelection, x + 15 + half, y + h - 72, col - half - 3, 18);
                 place(areaSave, x + 12, y + h - 52, col, 18);
@@ -721,7 +769,51 @@ public final class ExactSelectionController {
         selectedAreaIds.retainAll(existing);
         if (!selectedAreaIds.contains(areaId)) areaId = selectedAreaIds.stream().reduce((first, last) -> last).orElse(null);
         if (selectedGroup() == null) groupId = null;
+        // History replaced the stored areas; a draft based on the old values no longer applies.
+        areaDraft.clear();
         setDialogValue(4, selectedAreaIds.size() == 1 && selectedArea() != null ? selectedArea().name() : "");
+    }
+
+    /** Writes the draft fields chosen by {@code fields} to every checked area as one undo step. */
+    private boolean commitDraft(java.util.function.Predicate<AutosaveSettings.Field> fields) {
+        if (loadFailed || selectedAreaIds.isEmpty()) return false;
+        if (areaDraft.groupSet && areaDraft.groupId != null && findGroup(areaDraft.groupId) == null) {
+            areaDraft.groupSet = false; areaDraft.groupId = null;
+        }
+        boolean any = false;
+        for (AutosaveSettings.Field field : AutosaveSettings.Field.values()) any |= fields.test(field) && areaDraft.pending(field);
+        if (!any) return false;
+        List<SavedAreaStore.Area> areas = areaDraft.apply(areaStore.state().areas(), Set.copyOf(selectedAreaIds), fields);
+        SavedAreaStore.State next = areaState(areas, areaStore.state().groups());
+        AreaDraft kept = new AreaDraft();
+        kept.name = areaDraft.name; kept.groupSet = areaDraft.groupSet; kept.groupId = areaDraft.groupId;
+        kept.color = areaDraft.color; kept.opacity = areaDraft.opacity;
+        if (!next.equals(areaStore.state()) && !changeAreas(next, "area_update")) return false;
+        // changeAreas resynced and cleared the whole draft; keep the fields that were not written.
+        kept.clear(fields);
+        areaDraft.name = kept.name; areaDraft.groupSet = kept.groupSet; areaDraft.groupId = kept.groupId;
+        areaDraft.color = kept.color; areaDraft.opacity = kept.opacity;
+        SavedAreaStore.Area single = selectedAreaIds.size() == 1 ? selectedArea() : null;
+        setDialogValue(4, areaDraft.name != null ? areaDraft.name : single == null ? "" : single.name());
+        message = tr("area_changes_saved").getString();
+        updateVisibility();
+        return true;
+    }
+
+    /** Before the checked areas change or the window closes: autosaved fields are written, the rest dropped. */
+    private void flushDraft() {
+        if (areaDraft.isEmpty()) return;
+        commitDraft(autosave::covers);
+        if (!areaDraft.isEmpty()) {
+            areaDraft.clear();
+            message = tr("area_changes_discarded").getString();
+        }
+    }
+
+    /** Records a changed draft field and writes it at once when autosave covers it. */
+    private void stage(AutosaveSettings.Field field) {
+        if (autosave.covers(field)) commitDraft(f -> f == field);
+        updateVisibility();
     }
 
     private SavedAreaStore.Area selectedArea() {
@@ -763,6 +855,7 @@ public final class ExactSelectionController {
     private void loadArea() {
         SavedAreaStore.Area area = selectedArea();
         if (area == null) return;
+        flushDraft();
         SelectionState.Snapshot before = state.snapshot();
         state.load(area.geometry(), area.id());
         polygonMode = false;
@@ -834,6 +927,7 @@ public final class ExactSelectionController {
     }
 
     private void selectAllAreas() {
+        flushDraft();
         selectedAreaIds.clear();
         for (SavedAreaStore.Area area : areaStore.state().areas()) selectedAreaIds.add(area.id());
         if (!selectedAreaIds.isEmpty()) {
@@ -845,56 +939,11 @@ public final class ExactSelectionController {
     }
 
     private void clearAreaSelection() {
+        flushDraft();
         selectedAreaIds.clear();
         areaId = null;
         setDialogValue(4, "");
         updateVisibility();
-    }
-
-    private void mergeAreas() {
-        if (checkedFrame() == null || !enabled()) return;
-        List<SavedAreaStore.Area> selectedAreas = selectedAreas();
-        if (selectedAreas.size() < 2 || loadFailed) return;
-        int minX = Integer.MAX_VALUE, minZ = Integer.MAX_VALUE;
-        int maxX = Integer.MIN_VALUE, maxZ = Integer.MIN_VALUE;
-        boolean allSameGroup = true, anyVisible = false;
-        String mergedGroup = selectedAreas.get(0).groupId();
-        SavedAreaStore.Area style = selectedArea();
-        if (style == null || !selectedAreaIds.contains(style.id())) style = selectedAreas.get(0);
-        for (SavedAreaStore.Area area : selectedAreas) {
-            minX = Math.min(minX, area.bounds().minX());
-            minZ = Math.min(minZ, area.bounds().minZ());
-            maxX = Math.max(maxX, area.bounds().maxX());
-            maxZ = Math.max(maxZ, area.bounds().maxZ());
-            allSameGroup &= Objects.equals(mergedGroup, area.groupId());
-            anyVisible |= area.visible();
-        }
-        String name = dialogFields[4].getValue().trim();
-        if (name.isEmpty()) name = tr("area_merged_default").getString();
-        SelectionBounds bounds = new SelectionBounds(minX, minZ, maxX, maxZ);
-        String targetGroup = allSameGroup ? mergedGroup : null;
-        SavedAreaStore.Area created = SavedAreaStore.create(name, bounds, style.color(), style.opacity(), targetGroup);
-        SavedAreaStore.Area merged = new SavedAreaStore.Area(created.id(), created.name(), created.x1(), created.z1(),
-                created.x2(), created.z2(), created.color(), created.opacity(), created.groupId(), anyVisible);
-        List<SavedAreaStore.Area> current = areaStore.state().areas();
-        int firstIndex = current.size();
-        for (int i = 0; i < current.size(); i++) {
-            if (selectedAreaIds.contains(current.get(i).id())) { firstIndex = i; break; }
-        }
-        List<SavedAreaStore.Area> next = new ArrayList<>();
-        for (int i = 0; i < current.size(); i++) {
-            SavedAreaStore.Area area = current.get(i);
-            if (i == firstIndex) next.add(merged);
-            if (!selectedAreaIds.contains(area.id())) next.add(area);
-        }
-        if (changeAreas(areaState(next, areaStore.state().groups()), "area_merge")) {
-            selectedAreaIds.clear();
-            selectedAreaIds.add(merged.id());
-            areaId = merged.id();
-            setDialogValue(4, merged.name());
-            message = tr("area_merged").getString();
-            updateVisibility();
-        }
     }
 
     private void toggleArea() {
@@ -915,7 +964,8 @@ public final class ExactSelectionController {
         dialog = Dialog.COLOR;
         SavedAreaStore.Area area = selectedArea();
         if (area == null && !selectedAreas().isEmpty()) area = selectedAreas().get(0);
-        setDialogValue(HEX_FIELD, AreaPalette.format(area == null ? AreaPalette.DEFAULT : area.color()));
+        setDialogValue(HEX_FIELD, AreaPalette.format(areaDraft.color != null ? areaDraft.color
+                : area == null ? AreaPalette.DEFAULT : area.color()));
         message = ""; focus(null); updateVisibility();
     }
 
@@ -931,12 +981,9 @@ public final class ExactSelectionController {
             return;
         }
         if (loadFailed) return;
-        List<SavedAreaStore.Area> areas = areaStore.state().areas().stream().map(a -> selectedAreaIds.contains(a.id())
-                ? new SavedAreaStore.Area(a.id(), a.name(), a.x1(), a.z1(), a.x2(), a.z2(), color,
-                        a.opacity(), a.groupId(), a.visible(), a.vertices()) : a).toList();
-        SavedAreaStore.State next = areaState(areas, areaStore.state().groups());
-        if (!next.equals(areaStore.state()) && !changeAreas(next, "area_color")) return;
-        dialog = Dialog.AREAS; message = ""; focus(null); updateVisibility();
+        areaDraft.color = color;
+        dialog = Dialog.AREAS; message = ""; focus(null);
+        stage(AutosaveSettings.Field.COLOR);
     }
 
     private AreaGeometry overlapGeometry;
@@ -962,7 +1009,6 @@ public final class ExactSelectionController {
         if (ids.isEmpty()) return;
         openDialog(Dialog.AREAS);
         if (dialog != Dialog.AREAS) return;
-        selectedAreaIds.clear();
         selectedAreaIds.addAll(ids);
         areaId = ids.stream().reduce((first, last) -> last).orElse(null);
         setDialogValue(4, selectedAreaIds.size() == 1 && selectedArea() != null ? selectedArea().name() : "");
@@ -1015,11 +1061,8 @@ public final class ExactSelectionController {
         SavedAreaStore.Area a = selectedArea();
         if (a == null && !selectedAreas().isEmpty()) a = selectedAreas().get(0);
         if (a == null || loadFailed) return;
-        int nextOpacity = nextOpacity(a.opacity());
-        List<SavedAreaStore.Area> areas = areaStore.state().areas().stream().map(v -> selectedAreaIds.contains(v.id())
-                ? new SavedAreaStore.Area(v.id(), v.name(), v.x1(), v.z1(), v.x2(), v.z2(), v.color(), nextOpacity,
-                        v.groupId(), v.visible(), v.vertices()) : v).toList();
-        changeAreas(areaState(areas, areaStore.state().groups()), "area_update");
+        areaDraft.opacity = nextOpacity(areaDraft.opacity != null ? areaDraft.opacity : a.opacity());
+        stage(AutosaveSettings.Field.OPACITY);
     }
 
     /** The fill step after the one closest to {@code opacity}: 0 → 25 → 50 → 75 → 100 → 0. */
@@ -1070,18 +1113,14 @@ public final class ExactSelectionController {
         if (dialog != Dialog.ASSIGN_GROUP || assignmentTargets.isEmpty() || loadFailed) return;
         SavedAreaStore.Group group = findGroup(nextGroupId);
         if (nextGroupId != null && group == null) return;
-        Set<String> targets = Set.copyOf(assignmentTargets);
-        List<SavedAreaStore.Area> areas = new ArrayList<>(areaStore.state().areas());
-        int count = (int) areas.stream().filter(a -> targets.contains(a.id())).count();
-        areas.replaceAll(a -> targets.contains(a.id())
-                ? new SavedAreaStore.Area(a.id(), a.name(), a.x1(), a.z1(), a.x2(), a.z2(),
-                        a.color(), a.opacity(), nextGroupId, a.visible(), a.vertices()) : a);
-        SavedAreaStore.State next = areaState(areas, areaStore.state().groups());
-        if (!areaStore.state().equals(next) && !changeAreas(next, "area_update")) return;
+        int count = assignmentTargets.size();
+        areaDraft.groupSet = true; areaDraft.groupId = nextGroupId;
         dialog = Dialog.AREAS;
         assignmentTargets.clear();
-        message = tr("group_assigned", count, group == null ? tr("group_none").getString() : group.name()).getString();
-        focus(null); updateVisibility();
+        message = tr(autosave.covers(AutosaveSettings.Field.GROUP) ? "group_assigned" : "group_staged",
+                count, group == null ? tr("group_none").getString() : group.name()).getString();
+        focus(null);
+        stage(AutosaveSettings.Field.GROUP);
     }
 
     private void toggleGroup() {
@@ -1090,17 +1129,6 @@ public final class ExactSelectionController {
         groups.replaceAll(v -> v.id().equals(g.id()) ? new SavedAreaStore.Group(v.id(), v.name(), !v.visible()) : v);
         if (changeAreas(areaState(areaStore.state().areas(), groups), "group_toggle"))
             message = tr(g.visible() ? "group_hidden" : "group_shown", g.name()).getString();
-    }
-
-    private void renameArea() {
-        SavedAreaStore.Area area = selectedArea();
-        String name = dialogFields[4].getValue().trim();
-        if (area == null || name.isEmpty() || loadFailed) return;
-        SavedAreaStore.Area renamed = new SavedAreaStore.Area(area.id(), name, area.x1(), area.z1(), area.x2(),
-                area.z2(), area.color(), area.opacity(), area.groupId(), area.visible(), area.vertices());
-        updateArea(area, renamed, "area_rename");
-        if (Objects.equals(selectedArea() == null ? null : selectedArea().name(), name))
-            message = tr("area_renamed").getString();
     }
 
     private void exportSelectedArea() {
@@ -1247,35 +1275,32 @@ public final class ExactSelectionController {
         return enabled() && !dirty && pending == null ? state.bounds() : null;
     }
 
-    private void copyCoordinates() {
+    private void copyCoordinates() { copySelection(0); }
+    private void copyArea() { copySelection(1); }
+    private void copyPerimeter() { copySelection(2); }
+    private void copyLength() { copySelection(3); }
+    private void copyWidth() { copySelection(4); }
+
+    private void copySelection(int kind) {
         SelectionBounds b = copyableBounds();
-        if (b != null && state.geometry() instanceof PolygonGeometry polygon) {
-            copyToClipboard(polygon.vertices().stream().map(p -> p.x() + "," + p.z())
-                    .collect(java.util.stream.Collectors.joining("; ")));
-        } else if (b != null) copyToClipboard(b.x1() + ", " + b.z1() + "; " + b.x2() + ", " + b.z2());
+        if (b != null) copyMetric(kind, state.geometry(), b);
     }
 
-    private void copyArea() {
-        SelectionBounds b = copyableBounds();
-        if (b != null) copyToClipboard(formatMetric(state.geometry().area()));
-    }
-
-    private void copyPerimeter() {
-        if (copyableBounds() != null) copyToClipboard(formatLength(state.geometry().perimeter()));
+    /** Copies one value of a shape: 0 coordinates, 1 area, 2 perimeter, 3 length, 4 width. */
+    private void copyMetric(int kind, AreaGeometry geometry, SelectionBounds b) {
+        copyToClipboard(switch (kind) {
+            case 0 -> geometry instanceof PolygonGeometry polygon
+                    ? polygon.vertices().stream().map(p -> p.x() + "," + p.z()).collect(java.util.stream.Collectors.joining("; "))
+                    : b.x1() + ", " + b.z1() + "; " + b.x2() + ", " + b.z2();
+            case 1 -> formatMetric(geometry.area());
+            case 2 -> formatLength(geometry.perimeter());
+            case 3 -> Long.toString(b.length());
+            default -> Long.toString(b.width());
+        });
     }
 
     private static String formatLength(double value) {
         return value == Math.rint(value) ? Long.toString((long) value) : String.format(Locale.ROOT, "%.2f", value);
-    }
-
-    private void copyLength() {
-        SelectionBounds b = copyableBounds();
-        if (b != null) copyToClipboard(Long.toString(b.length()));
-    }
-
-    private void copyWidth() {
-        SelectionBounds b = copyableBounds();
-        if (b != null) copyToClipboard(Long.toString(b.width()));
     }
 
     private void copyToClipboard(String value) {
@@ -1566,8 +1591,39 @@ public final class ExactSelectionController {
     }
 
     private void commitSelection(SelectionState.Snapshot before, SelectionState.Snapshot after, String key) {
-        if (!before.equals(after)) history.recordApplied(selectionAction(before, after, key));
+        if (!before.equals(after)) {
+            SelectionHistory.Action action = selectionAction(before, after, key);
+            SavedAreaStore.Area edited = editedArea();
+            if (autosave.covers(AutosaveSettings.Field.GEOMETRY) && edited != null && !loadFailed
+                    && after.phase() == SelectionState.Phase.SELECTED && after.geometry() != null
+                    && Objects.equals(after.source(), edited.id()) && !edited.geometry().equals(after.geometry()))
+                action = withGeometryAutosave(action, edited, after.geometry());
+            history.recordApplied(action);
+        }
         refreshSelectionState();
+    }
+
+    /**
+     * Writes the edited territory's new shape at once and folds it into the selection step, so one undo restores
+     * both the selection and the saved area.
+     */
+    private SelectionHistory.Action withGeometryAutosave(SelectionHistory.Action selection, SavedAreaStore.Area area,
+                                                         AreaGeometry geometry) {
+        SavedAreaStore.State before = areaStore.state();
+        SavedAreaStore.State next = areaState(before.areas().stream()
+                .map(a -> a.id().equals(area.id()) ? a.withGeometry(geometry) : a).toList(), before.groups());
+        try {
+            areaStore.replace(next);
+        } catch (Exception e) {
+            message = tr("area_save_failed").getString();
+            LoggerFactory.getLogger("xaero-exact-selection").error("Could not autosave the edited territory", e);
+            return selection;
+        }
+        return new SelectionHistory.Action() {
+            @Override public void undo() throws Exception { areaStore.replace(before); syncAreaSelection(); selection.undo(); }
+            @Override public void redo() throws Exception { areaStore.replace(next); syncAreaSelection(); selection.redo(); }
+            @Override public String label() { return selection.label(); }
+        };
     }
 
     private void undo() {
@@ -1765,14 +1821,18 @@ public final class ExactSelectionController {
             if (frame.screenX(geometryBounds.maxX()) <= 0 || frame.screenX(geometryBounds.minX()) >= screen.width
                     || frame.screenY(geometryBounds.maxZ()) <= 0 || frame.screenY(geometryBounds.minZ()) >= screen.height)
                 continue;
+            // The stored shape of the territory being edited fades behind its live bounds, so old and new are told apart.
+            boolean superseded = enabled() && state.phase() == SelectionState.Phase.SELECTED
+                    && Objects.equals(area.id(), state.source());
+            int rgb = area.color() & 0xFFFFFF;
+            int fillAlpha = area.opacity() * 255 / 100 / (superseded ? 3 : 1);
+            int fill = (fillAlpha << 24) | rgb, outline = (superseded ? 0x60000000 : 0xFF000000) | rgb;
+            int labelColor = (superseded ? 0x99000000 : 0xFF000000) | rgb;
             if (area.vertices().size() > 0) {
-                GeometryScreenRenderer.draw(g, frame, geometry, screen.width, screen.height,
-                        ((area.opacity() * 255 / 100) << 24) | (area.color() & 0xFFFFFF),
-                        0xFF000000 | (area.color() & 0xFFFFFF), 1.5);
+                GeometryScreenRenderer.draw(g, frame, geometry, screen.width, screen.height, fill, outline, superseded ? 1.0 : 1.5);
                 ScreenPoint anchor = polygonLabelAnchor(frame, (PolygonGeometry) geometry, geometryBounds);
                 if (anchor != null) mapLabels.add(new MapLabel(Component.literal(area.name()),
-                        clamp(anchor.x(), 0, screen.width - 1), clamp(anchor.y(), 0, screen.height - 1),
-                        0xFF000000 | (area.color() & 0xFFFFFF)));
+                        clamp(anchor.x(), 0, screen.width - 1), clamp(anchor.y(), 0, screen.height - 1), labelColor));
                 continue;
             }
             SelectionBounds b = area.bounds();
@@ -1780,12 +1840,9 @@ public final class ExactSelectionController {
             double right = frame.screenX((long) b.maxX() + 1), bottom = frame.screenY((long) b.maxZ() + 1);
             int x1 = clamp(left, 0, screen.width), y1 = clamp(top, 0, screen.height);
             int x2 = clamp(right, 0, screen.width), y2 = clamp(bottom, 0, screen.height);
-            GeometryScreenRenderer.draw(g, frame, geometry, screen.width, screen.height,
-                    ((area.opacity() * 255 / 100) << 24) | (area.color() & 0xFFFFFF),
-                    0xFF000000 | (area.color() & 0xFFFFFF), 1.0);
+            GeometryScreenRenderer.draw(g, frame, geometry, screen.width, screen.height, fill, outline, 1.0);
             if ((x2 - x1) > 50 && (y2 - y1) > 14)
-                mapLabels.add(new MapLabel(Component.literal(area.name()), (x1 + x2) / 2, y1 + 3,
-                        0xFF000000 | (area.color() & 0xFFFFFF)));
+                mapLabels.add(new MapLabel(Component.literal(area.name()), (x1 + x2) / 2, y1 + 3, labelColor));
         }
     }
 
@@ -2041,8 +2098,10 @@ public final class ExactSelectionController {
         copyLength.setMessage(tr("copy_length" + copySuffix));
         copyWidth.setMessage(tr("copy_width" + copySuffix));
         SavedAreaStore.Area editing = editedArea();
-        quickSave.setMessage(tr(editing == null ? "quick_save" : "quick_apply"));
-        quickSave.setTooltip(Tooltip.create(editing == null ? tr("quick_save_tooltip") : tr("quick_apply_tooltip", editing.name())));
+        boolean autoGeometry = editing != null && autosave.covers(AutosaveSettings.Field.GEOMETRY);
+        quickSave.setMessage(tr(editing == null ? "quick_save" : autoGeometry ? "quick_autosaved" : "quick_apply"));
+        quickSave.setTooltip(Tooltip.create(editing == null ? tr("quick_save_tooltip")
+                : autoGeometry ? tr("quick_autosaved_tooltip", editing.name()) : tr("quick_apply_tooltip", editing.name())));
         quickSave.active = state.phase() == SelectionState.Phase.SELECTED && !dirty && polygonDraft.isEmpty()
                 && !holding() && !loadFailed && (editing == null || !editing.geometry().equals(state.geometry()));
         panelModeButton.setMessage(tr(compact ? "panel_expand" : "panel_compact"));
@@ -2094,10 +2153,20 @@ public final class ExactSelectionController {
         if (dialog == Dialog.ASSIGN_GROUP) show(true, manageGroups, managementClose);
         if (dialog == Dialog.AREAS) {
             if (areaDeleteConfirmation) show(true, confirm, cancel);
-            else show(true, managementClose, manageGroups, managementUndo, managementRedo,
-                    dialogFields[4], areaSave, areaRename, groupAssign, areaLoad, areaExportButton,
-                    areaDelete, areaMerge, areaSelectAll, areaClearSelection, areaVisibility, areaColor, areaOpacity,
-                    areaMapVisibility, areaMinimapVisibility);
+            else {
+                show(true, managementClose, manageGroups, managementUndo, managementRedo, areaSave,
+                        areaSelectAll, areaClearSelection, areaMapVisibility, areaMinimapVisibility, autosaveButton);
+                if (autosaveOpen) {
+                    show(true, autosaveToggle, autosaveClose);
+                    show(true, autosaveFields.values().toArray(AbstractWidget[]::new));
+                } else {
+                    show(true, dialogFields[4], groupAssign, areaLoad, areaExportButton, areaDelete,
+                            areaVisibility, areaColor, areaOpacity);
+                    // Save disappears under autosave unless a change outside its fields still waits.
+                    show(!autosave.enabled() || areaDraft.needsSave(autosave), areaSaveChanges);
+                    show(areaCopiesFit(dialogRect()[3]), areaCopies);
+                }
+            }
             if (!areaDeleteConfirmation && hasExportNotice()) show(true, openExportButton);
         }
         if (dialog == Dialog.GROUPS) {
@@ -2149,28 +2218,41 @@ public final class ExactSelectionController {
         boolean singleArea = selectedCount == 1;
         SavedAreaStore.Area area = selectedArea();
         SavedAreaStore.Group group = selectedGroup();
-        areaLoad.active = singleArea;
+        boolean editingThis = area != null && Objects.equals(area.id(), state.source());
+        areaLoad.active = singleArea && !editingThis;
+        areaLoad.setMessage(tr(editingThis ? "area_editing_now" : "area_edit"));
+        areaSaveChanges.active = !areaDraft.isEmpty() && selectedCount > 0 && !loadFailed;
+        for (Button copy : areaCopies) copy.active = singleArea;
+        autosaveToggle.setMessage(tr(autosave.enabled() ? "autosave_on" : "autosave_off"));
+        autosaveFields.forEach((field, button) -> {
+            button.setMessage(tr("autosave_field", tr("autosave_field_" + field.name().toLowerCase(Locale.ROOT)),
+                    tr(autosave.includes(field) ? "state_on" : "state_off")));
+            button.active = autosave.enabled();
+        });
         areaExportButton.active = singleArea && !loadFailed && !exportRunning;
         areaDelete.active = selectedCount > 0 && !loadFailed;
         areaColor.active = areaOpacity.active = selectedCount > 0 && !loadFailed;
         areaVisibility.active = selectedCount > 0 && !loadFailed;
         groupAssign.active = selectedCount > 0 && !loadFailed;
         areaSave.active = state.phase() == SelectionState.Phase.SELECTED && !dirty && !loadFailed;
-        areaRename.active = singleArea && !dialogFields[4].getValue().trim().isEmpty() && !loadFailed;
         dialogFields[4].active = singleArea && !loadFailed;
         groupCreate.active = !loadFailed;
         groupRename.active = groupVisibility.active = groupDelete.active = group != null && !loadFailed;
         groupVisibility.setMessage(tr(group != null && group.visible() ? "group_hide" : "group_show"));
         boolean hideAreas = selectedAreas().stream().anyMatch(SavedAreaStore.Area::visible);
         areaVisibility.setMessage(tr(hideAreas ? "area_hide_selected" : "area_show_selected", selectedCount));
-        areaOpacity.setMessage(area == null ? tr("area_fill") : Component.literal(area.opacity() + "%"));
-        groupAssign.setMessage(tr("area_group_button", selectedGroupName()));
+        // Unsaved values show with a trailing asterisk until Save or autosave writes them.
+        SavedAreaStore.Area primary = area != null ? area : selectedAreas().isEmpty() ? null : selectedAreas().get(0);
+        areaOpacity.setMessage(primary == null ? tr("area_fill") : Component.literal(
+                (areaDraft.opacity != null ? areaDraft.opacity : primary.opacity()) + "%" + (areaDraft.opacity != null ? " *" : "")));
+        String draftGroup = !areaDraft.groupSet ? selectedGroupName() : findGroup(areaDraft.groupId) == null
+                ? tr("group_none").getString() : findGroup(areaDraft.groupId).name();
+        groupAssign.setMessage(Component.literal(tr("area_group_button", draftGroup).getString() + (areaDraft.groupSet ? " *" : "")));
+        areaColor.setMessage(Component.literal(tr("area_color").getString() + (areaDraft.color != null ? " *" : "")));
         areaMapVisibility.setMessage(tr(areaStore.state().showOnMap() ? "area_map_on" : "area_map_off"));
         areaMinimapVisibility.setMessage(tr(areaStore.state().showOnMinimap() ? "area_minimap_on" : "area_minimap_off"));
         areaMapVisibility.active = areaMinimapVisibility.active = !loadFailed;
         areaDelete.setMessage(tr("area_delete_count", selectedCount));
-        areaMerge.active = selectedCount > 1 && !loadFailed;
-        areaMerge.setMessage(tr("area_merge_count", selectedCount));
         areaSelectAll.active = !loadFailed && selectedCount < areaStore.state().areas().size();
         areaClearSelection.active = selectedCount > 0;
         areaSave.setTooltip(Tooltip.create(tr(loadFailed ? "area_load_failed" : "area_save_tooltip")));
@@ -2279,15 +2361,50 @@ public final class ExactSelectionController {
             g.drawString(mc.font, mc.font.plainSubstrByWidth(area.name(), col - 30), x + 39, rowY + 1, -1);
             g.drawString(mc.font, mc.font.plainSubstrByWidth(areaVisibilityDescription(area), col - 30), x + 39, rowY + 11, 0xFF9BAAB7);
         }
+        if (autosave.enabled()) {
+            String indicator = "● " + tr("autosave_indicator").getString();
+            g.drawString(mc.font, indicator, x + w - 138 - mc.font.width(indicator), y + h - 20, ACCENT);
+        }
+        if (autosaveOpen) {
+            g.drawString(mc.font, tr("autosave_title"), right, y + 34, ACCENT);
+            g.drawString(mc.font, mc.font.plainSubstrByWidth(tr("autosave_hint").getString(), col),
+                    right, y + 68 + 20 * (autosaveFields.size() + 1) + 4, 0xFF9BAAB7);
+            renderManagementStatus(g, x, y, w, h, "areas_selection_hint");
+            return;
+        }
         g.drawString(mc.font, tr("area_name"), right, y + 34, 0xFF9BAAB7);
-        if (h >= 270 && selectedAreaIds.size() == 1 && selectedArea() != null) {
+        dialogSection(g, tr("selected_header"), right, y + 148, col);
+        boolean copies = areaCopiesFit(h);
+        if (copies) dialogSection(g, tr("copy_header"), right, y + 182, col);
+        if (selectedAreaIds.size() == 1 && selectedArea() != null) {
             SavedAreaStore.Area area = selectedArea();
-            g.drawString(mc.font, mc.font.plainSubstrByWidth(areaVisibilityDescription(area), col), right, y + 218, 0xFF9BAAB7);
-            GeometryBounds bounds = area.geometry().bounds();
-            String dimensions = tr("area_geometry_metrics", bounds.width(), bounds.length(), formatMetric(area.geometry().area()), formatLength(area.geometry().perimeter())).getString();
-            g.drawString(mc.font, mc.font.plainSubstrByWidth(dimensions, col), right, y + 232, 0xFF9BAAB7);
+            List<Component> info = new ArrayList<>();
+            info.add(Component.literal(areaVisibilityDescription(area)));
+            if (area.geometry() instanceof RectangleGeometry) {
+                SelectionBounds b = area.bounds();
+                info.add(tr("dimensions", b.width(), b.length()));
+            }
+            info.add(tr("area", formatMetric(area.geometry().area())));
+            info.add(tr("perimeter", formatLength(area.geometry().perimeter())));
+            int lineY = y + (copies ? 218 : 184);
+            for (Component line : info) {
+                // Stop above the export button and the autosave row at the bottom.
+                if (lineY + 9 > y + h - 46) break;
+                g.drawString(mc.font, mc.font.plainSubstrByWidth(line.getString(), col), right, lineY, 0xFF9BAAB7);
+                lineY += 12;
+            }
         }
         renderManagementStatus(g, x, y, w, h, "areas_selection_hint");
+    }
+
+    /** Room for the copy row below the property buttons; small windows leave it out. */
+    private static boolean areaCopiesFit(int height) { return height >= 300; }
+
+    /** A titled divider inside a window column, matching the panel's Copy header. */
+    private void dialogSection(GuiGraphics g, Component text, int x, int y, int width) {
+        g.drawString(mc.font, text, x, y, 0xFF9BAAB7);
+        int start = x + 4 + mc.font.width(text);
+        g.fill(start, y + 4, x + width, y + 5, 0xFF42636D);
     }
 
     private String areaVisibilityDescription(SavedAreaStore.Area area) {
@@ -2341,7 +2458,8 @@ public final class ExactSelectionController {
             SavedAreaStore.Group group = index == 0 ? null : areaStore.state().groups().get(index - 1);
             String id = group == null ? null : group.id();
             int rowY = y + 48 + i * 20;
-            if (!targets.isEmpty() && targets.stream().allMatch(a -> Objects.equals(a.groupId(), id)))
+            if (areaDraft.groupSet ? Objects.equals(areaDraft.groupId, id)
+                    : !targets.isEmpty() && targets.stream().allMatch(a -> Objects.equals(a.groupId(), id)))
                 g.fill(x + 10, rowY, x + w - 10, rowY + 20, 0x8842636D);
             String name = group == null ? tr("group_none").getString() : group.name();
             if (group != null && !group.visible()) name += " · " + tr("group_state_hidden").getString();
@@ -2352,7 +2470,8 @@ public final class ExactSelectionController {
 
     private void renderManagementStatus(GuiGraphics g, int x, int y, int w, int h, String hint) {
         String text = message.isEmpty() ? tr(loadFailed ? "area_load_failed" : hint).getString() : message;
-        int textWidth = dialog == Dialog.AREAS && hasExportNotice() ? (w - 36) / 2 : w - 24;
+        // In Areas the right half of the bottom row holds the autosave button.
+        int textWidth = dialog == Dialog.AREAS ? (w - 36) / 2 : w - 24;
         g.drawString(mc.font, mc.font.plainSubstrByWidth(text, textWidth), x + 12, y + h - 12,
                 message.isEmpty() && !loadFailed ? 0xFF9BAAB7 : 0xFFFFCF62);
     }
@@ -2434,6 +2553,7 @@ public final class ExactSelectionController {
                         List<SavedAreaStore.Area> areas = areaStore.state().areas();
                         if (index < areas.size()) {
                             SavedAreaStore.Area area = areas.get(index);
+                            flushDraft();
                             boolean multiple = event.x() < x + 27
                                     || (event.modifiers() & (GLFW.GLFW_MOD_CONTROL | GLFW.GLFW_MOD_SUPER)) != 0;
                             if (!multiple) { selectedAreaIds.clear(); selectedAreaIds.add(area.id()); }
@@ -2694,7 +2814,8 @@ public final class ExactSelectionController {
             if (event.key() == GLFW.GLFW_KEY_ENTER || event.key() == GLFW.GLFW_KEY_KP_ENTER) {
                 if ((dialog == Dialog.SIZE || dialog == Dialog.MOVE || dialog == Dialog.AREA_NAME || dialog == Dialog.GROUP_NAME)
                         && modalApply.active) applyDialog();
-                else if (dialog == Dialog.AREAS && field == dialogFields[4] && areaRename.active) renameArea();
+                else if (dialog == Dialog.AREAS && field == dialogFields[4])
+                    commitDraft(autosave.covers(AutosaveSettings.Field.NAME) ? f -> f == AutosaveSettings.Field.NAME : f -> true);
                 else if (dialog == Dialog.CENTER) createCenterWaypoint();
                 else if (dialog == Dialog.COLOR && field == dialogFields[HEX_FIELD]) applyHexColor();
                 else if (dialog == Dialog.WAYPOINTS && field == dialogFields[RENAME_FIELD] && pointRename.active) renamePoints();

@@ -7,6 +7,8 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
+import java.util.Deque;
 import java.util.Set;
 import net.minecraft.SharedConstants;
 import com.mojang.blaze3d.platform.Window;
@@ -139,6 +141,20 @@ public final class ManagementUiCheck {
         controller.mouseClicked(new MouseButtonEvent(rect[0] + (checkbox ? 17 : 54), rect[1] + 54 + index * 20,
                 new MouseButtonInfo(GLFW.GLFW_MOUSE_BUTTON_LEFT, 0)), false);
         call(controller, "layoutDialog");
+    }
+
+    /** Checks only {@code id} in the open Areas window, as a click on its row name would. */
+    private static void pick(ExactSelectionController controller, SavedAreaStore store, String id) throws Exception {
+        List<SavedAreaStore.Area> areas = store.state().areas();
+        for (int i = 0; i < areas.size(); i++) if (areas.get(i).id().equals(id)) { row(controller, i, false); return; }
+        throw new AssertionError("No area " + id);
+    }
+
+    /** Legacy flows expect immediate writes: autosave every property except the territory shape. */
+    private static void autosaveProperties(ExactSelectionController controller) throws Exception {
+        AutosaveSettings autosave = (AutosaveSettings) get(controller, "autosave");
+        if (!autosave.enabled()) autosave.setEnabled(true);
+        if (autosave.includes(AutosaveSettings.Field.GEOMETRY)) autosave.toggle(AutosaveSettings.Field.GEOMETRY);
     }
 
     private static void checkLayout(ExactSelectionController controller) throws Exception {
@@ -465,8 +481,7 @@ public final class ManagementUiCheck {
                 new GridPoint(240, 80), new GridPoint(80, 80)));
         SavedAreaStore.Area area = SavedAreaStore.create("Editable polygon", polygon, 0xAABBCC, 35, "polygon-group");
         store.replace(new SavedAreaStore.State(List.of(area), List.of(new SavedAreaStore.Group("polygon-group", "Group", false)), true, true));
-        set(controller, "areaId", area.id());
-        press(controller, "areasButton"); press(controller, "areaLoad");
+        press(controller, "areasButton"); pick(controller, store, area.id()); press(controller, "areaLoad");
         require(selection.geometry().equals(polygon) && !(Boolean) get(controller, "polygonMode"),
                 "Loading a polygon did not enter safe editing mode");
         clickMap(controller, 400, 60, 0); clickMap(controller, 402, 61, 0);
@@ -500,14 +515,17 @@ public final class ManagementUiCheck {
         require(reload.state().equals(store.state()), "Updated vertices with unchanged bounds were not persisted");
         press(controller, "areasButton"); press(controller, "managementUndo");
         require(store.state().areas().get(0).equals(area), "Geometry update undo did not restore the saved polygon");
-        press(controller, "managementRedo"); press(controller, "areaLoad");
+        press(controller, "managementRedo"); pick(controller, store, area.id());
+        Button edit = (Button) get(controller, "areaLoad");
+        require(!edit.active && edit.getMessage().getString().equals(Component.translatable("exactselection.area_editing_now").getString()),
+                "The territory being edited can be loaded again instead of showing that it is being edited");
+        press(controller, "managementClose");
         controller.mouseClicked(left(480, 60, GLFW.GLFW_MOD_SUPER), false);
         controller.mouseReleased(left(480, 40, GLFW.GLFW_MOD_SUPER));
         PolygonGeometry moved = (PolygonGeometry) selection.geometry();
         require(moved.vertices().get(1).equals(new GridPoint(160, -140)), "Inserted vertex cannot be moved with Cmd");
         press(controller, "quickSave");
         require(store.state().areas().get(0).equals(area.withGeometry(moved)), "Moved inserted vertex did not update saved geometry");
-        press(controller, "areasButton"); press(controller, "areaLoad");
         doubleClickMap(controller, 400, 160, 0);
         PolygonGeometry closing = (PolygonGeometry) selection.geometry();
         require(closing.vertices().size() == 6 && closing.vertices().getLast().equals(new GridPoint(80, -20)),
@@ -923,6 +941,7 @@ public final class ManagementUiCheck {
                                                 SavedAreaStore store, MapBridge.Context context) throws Exception {
         FakeWaypoints access = new FakeWaypoints();
         ExactSelectionController controller = new ExactSelectionController(map, bridge, minecraft, store, access);
+        autosaveProperties(controller);
         controller.init();
         SelectionState selection = (SelectionState) get(controller, "state");
         selection.enable(); set(controller, "context", context); set(controller, "historyContext", context);
@@ -1049,6 +1068,118 @@ public final class ManagementUiCheck {
         System.out.println("PASS: Areas stays in the expanded panel, areas in selection by overlap, perimeter beside area when it fits");
     }
 
+    @SuppressWarnings("unchecked")
+    private static void checkAreaDraftAndAutosave(ExactSelectionController controller, GuiMap map, SavedAreaStore store,
+                                                   Unsafe unsafe) throws Exception {
+        SelectionState selection = (SelectionState) get(controller, "state");
+        SelectionState.Snapshot initial = selection.snapshot();
+        SavedAreaStore.State saved = store.state();
+        AutosaveSettings autosave = (AutosaveSettings) get(controller, "autosave");
+        Map<AutosaveSettings.Field, Button> fieldButtons = (Map<AutosaveSettings.Field, Button>) get(controller, "autosaveFields");
+        var group = new SavedAreaStore.Group("draft-group", "Draft group", true);
+        var a = SavedAreaStore.create("Alpha", new SelectionBounds(0, 0, 9, 9), 0x123456, 25, null);
+        var b = SavedAreaStore.create("Beta", new SelectionBounds(40, 40, 49, 49), 0x654321, 25, null);
+        try {
+            store.replace(new SavedAreaStore.State(List.of(a, b), List.of(group), true, true));
+            autosave.setEnabled(false);
+            press(controller, "areasButton");
+            require(((Set<?>) get(controller, "selectedAreaIds")).isEmpty(), "Areas window opened with an area checked");
+            pick(controller, store, a.id());
+            text(controller, 4).setValue("Draft name");
+            press(controller, "areaOpacity");
+            press(controller, "groupAssign"); row(controller, 1, false);
+            press(controller, "areaColor");
+            int[] rect = (int[]) call(controller, "dialogRect");
+            controller.mouseClicked(left(rect[0] + 14, rect[1] + 36, 0), false);
+            require(window(controller).equals("AREAS") && store.state().areas().get(0).equals(a),
+                    "Changes were written before Save while autosave is off");
+            Button save = (Button) get(controller, "areaSaveChanges");
+            require(save.visible && save.active, "Save is unavailable for pending changes");
+            int depth = ((Deque<?>) get(get(controller, "history"), "undo")).size();
+            press(controller, "areaSaveChanges");
+            SavedAreaStore.Area written = store.state().areas().get(0);
+            require(written.name().equals("Draft name") && written.opacity() == 50 && "draft-group".equals(written.groupId())
+                    && written.color() == AreaPalette.COLORS[0] && store.state().areas().get(1).equals(b),
+                    "Save did not write every pending property of the checked area only");
+            require(((Deque<?>) get(get(controller, "history"), "undo")).size() == depth + 1, "Save took more than one undo step");
+            press(controller, "managementUndo");
+            require(store.state().areas().get(0).equals(a), "One undo did not restore all saved properties");
+            press(controller, "managementRedo");
+            text(controller, 4).setValue("Lost name");
+            row(controller, 1, false);
+            require(store.state().areas().get(0).name().equals("Draft name")
+                    && get(controller, "message").toString().contains("area_changes_discarded"),
+                    "Switching areas wrote or silently dropped unsaved changes");
+
+            press(controller, "autosaveButton");
+            require((Boolean) get(controller, "autosaveOpen") && ((Button) get(controller, "autosaveToggle")).visible
+                    && !((Button) get(controller, "groupAssign")).visible, "Autosave settings did not replace the properties");
+            checkLayout(controller);
+            press(controller, "autosaveToggle");
+            require(autosave.enabled() && fieldButtons.values().stream().allMatch(button -> button.active),
+                    "Autosave did not switch on with its field toggles");
+            fieldButtons.get(AutosaveSettings.Field.NAME).onPress(new KeyEvent(GLFW.GLFW_KEY_ENTER, 0, 0));
+            if (!autosave.includes(AutosaveSettings.Field.GEOMETRY)) fieldButtons.get(AutosaveSettings.Field.GEOMETRY).onPress(new KeyEvent(GLFW.GLFW_KEY_ENTER, 0, 0));
+            press(controller, "autosaveClose");
+            require(!save.visible, "Save stays visible under autosave with nothing pending");
+            press(controller, "areaOpacity");
+            require(store.state().areas().get(1).opacity() == 50, "Autosaved fill was not written immediately");
+            text(controller, 4).setValue("Manual name");
+            call(controller, "updateVisibility");
+            require(save.visible && store.state().areas().get(1).name().equals("Beta"),
+                    "A change outside autosave must keep Save visible and wait for it");
+            press(controller, "areaSaveChanges");
+            require(store.state().areas().get(1).name().equals("Manual name"), "Save did not write the non-autosaved name");
+            for (Button copy : (Button[]) get(controller, "areaCopies")) require(copy.visible && copy.active, "Area copy buttons are missing");
+
+            pick(controller, store, a.id());
+            press(controller, "areaLoad");
+            Button quick = (Button) get(controller, "quickSave");
+            require(quick.getMessage().getString().equals(Component.translatable("exactselection.quick_autosaved").getString()),
+                    "Panel does not show that the territory shape autosaves");
+            EditBox[] coordinates = (EditBox[]) get(controller, "fields");
+            coordinates[2].setValue("19"); coordinates[3].setValue("19");
+            call(controller, "applyFields");
+            SavedAreaStore.Area reshaped = store.state().areas().get(0);
+            require(reshaped.bounds().equals(new SelectionBounds(0, 0, 19, 19)), "Edited territory shape was not autosaved");
+            key(controller, GLFW.GLFW_KEY_Z, GLFW.GLFW_MOD_CONTROL);
+            require(store.state().areas().get(0).bounds().equals(new SelectionBounds(0, 0, 9, 9))
+                    && selection.bounds().equals(new SelectionBounds(0, 0, 9, 9)),
+                    "One undo did not restore both the selection and the autosaved territory");
+            // While Alpha is edited its stored shape is drawn faded; Beta keeps its full outline.
+            RecordingGraphics graphics = (RecordingGraphics) unsafe.allocateInstance(RecordingGraphics.class);
+            graphics.events = new ArrayList<>();
+            graphics.transform = new Matrix3x2fStack(16);
+            graphics.state = new GuiRenderState();
+            controller.renderMapOverlays(graphics, 600, 330);
+            List<Integer> colors = new ArrayList<>();
+            graphics.state.forEachElement(element -> {
+                try {
+                    Method color = element.getClass().getDeclaredMethod("color");
+                    color.setAccessible(true);
+                    colors.add((Integer) color.invoke(element));
+                } catch (ReflectiveOperationException e) { throw new AssertionError(e); }
+            }, GuiRenderState.TraverseRange.ALL);
+            int alpha = store.state().areas().get(0).color();
+            require(colors.stream().filter(c -> (c & 0xFFFFFF) == alpha).allMatch(c -> c >>> 24 <= 0x60)
+                    && colors.stream().anyMatch(c -> (c & 0xFFFFFF) == alpha),
+                    "The stored shape of the edited territory is not faded behind its live bounds");
+            int beta = store.state().areas().get(1).color();
+            require(colors.stream().anyMatch(c -> c == (0xFF000000 | beta)), "Areas not being edited lost their full outline");
+        } finally {
+            if (!autosave.enabled()) autosave.setEnabled(true);
+            if (!autosave.includes(AutosaveSettings.Field.NAME)) autosave.toggle(AutosaveSettings.Field.NAME);
+            if (autosave.includes(AutosaveSettings.Field.GEOMETRY)) autosave.toggle(AutosaveSettings.Field.GEOMETRY);
+            set(controller, "autosaveOpen", false);
+            store.replace(saved); selection.restore(initial);
+            set(controller, "dialog", dialog(controller, "NONE"));
+            ((Set<?>) get(controller, "selectedAreaIds")).clear(); set(controller, "areaId", null);
+            ((SelectionHistory) get(controller, "history")).clear();
+            call(controller, "syncFields"); call(controller, "updateVisibility");
+        }
+        System.out.println("PASS: area properties wait for Save as one undo step, autosave settings, Save hiding, area copy, territory shape autosave");
+    }
+
     public static void main(String[] args) throws Exception {
         SharedConstants.tryDetectVersion();
         Field unsafeField = Unsafe.class.getDeclaredField("theUnsafe");
@@ -1082,6 +1213,7 @@ public final class ManagementUiCheck {
             SavedAreaStore minimapStore = new SavedAreaStore(directory);
             minimapStore.useContext(context);
             ExactSelectionController controller = new ExactSelectionController(map, bridge, minecraft, store, null);
+            autosaveProperties(controller);
             controller.init();
             SelectionState selection = (SelectionState) get(controller, "state");
             selection.enable(); selection.set(new SelectionBounds(40, 40, 50, 50));
@@ -1090,6 +1222,7 @@ public final class ManagementUiCheck {
             checkSelectionPanel(controller, map);
             checkHintFitting(controller);
             checkFramedAreasAndMetrics(controller, store);
+            checkAreaDraftAndAutosave(controller, map, store, unsafe);
             checkExportNotice(controller, map, directory);
             checkPolygonEditing(controller, map, store, directory, context);
             checkSavedLabelLayering(controller, store, unsafe);
@@ -1119,7 +1252,9 @@ public final class ManagementUiCheck {
             require(store.state().groups().get(1).name().equals("Stores") && store.state().groups().get(1).id().equals(secondGroup), "Group rename changed identity");
             press(controller, "managementClose");
             press(controller, "areasButton");
+            require(((Set<?>) get(controller, "selectedAreaIds")).isEmpty(), "Areas window opened with an area already checked");
             checkLayout(controller);
+            row(controller, 0, false);
             enter(controller, map, 4, "Renamed first");
             require(store.state().areas().size() == 2 && store.state().areas().get(0).name().equals("Renamed first"), "Enter in area name created an area instead of renaming it");
             press(controller, "groupAssign");

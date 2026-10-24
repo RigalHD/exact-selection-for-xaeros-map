@@ -50,14 +50,16 @@ Invalid intersecting or duplicate-vertex edits are rejected. Polygon geometry an
 
 **Save** appears next to the coordinates in the compact panel and in the expanded panel’s action row. Enter a name, use the Group button to cycle through existing groups (the default is no group), set the fill with the Fill button (0, 25, 50, 75 or 100%) and pick one of 24 colors right below. Color and fill are remembered for the next area. After saving, the selection is cleared so the next area can be drawn; the first undo brings the selection back, the second removes the saved area. Saving a new area does not enter editing mode.
 
-To change an existing area, select it in **Areas** and choose **Edit**. Change its shape and choose **Apply** on the selection panel. This association survives moves, coordinate edits, redraws and undo/redo. Clear the selection or turn the tool off to end editing. **Save selection…** in the Areas window can save a separate copy while editing.
+To change an existing area's shape, select it in **Areas** and choose **Edit territory** (it then reads **Territory being edited**). Change the shape and choose **Apply** on the selection panel. While editing, the stored shape is drawn faded behind the live bounds. This association survives moves, coordinate edits, redraws and undo/redo. Clear the selection or turn the tool off to end editing. **Save selection…** in the Areas window can save a separate copy while editing.
 
-Areas and Groups have separate windows. Check area rows for bulk actions. **Areas in selection: N** in the expanded panel opens the list with the saved areas that overlap the current selection checked (areas that only touch its edge are not included). **Areas** is available in both panel modes.
+Areas and Groups have separate windows. The Areas window opens with nothing checked; check area rows for bulk actions. **Areas in selection: N** in the expanded panel opens the list with the saved areas that overlap the current selection checked (areas that only touch its edge are not included). **Areas** is available in both panel modes.
 
-- **Color…** offers 24 colors and custom `#RRGGBB` / `#RGB` input. Color and opacity apply to all checked areas in one undoable action.
-- **Group** assigns checked areas to a group; No group removes the assignment. Create, rename, hide or delete groups in the Groups window.
+- Name, **Group**, **Color…** (24 colors or custom `#RRGGBB` / `#RGB`) and fill are edited in the form and marked with `*` until **Save** writes them to every checked area in one undoable step. Checking other areas or closing the window discards unsaved changes.
+- **Autosave…** at the bottom opens its settings in the same window: a main switch and separate switches for name, group, color, fill and territory shape. Enabled changes are written immediately and Save disappears unless a change outside autosave is waiting; a "● Autosave" indicator shows that it is on. With territory-shape autosave, each edit of a loaded area is written together with the selection change and undone in one step. The settings are shared by all worlds.
+- The **Selected** section shows or hides and deletes the checked areas; the **Copy** section copies coordinates, area, perimeter, length or width of a single checked area. Its width, length (rectangles), area and perimeter are listed below.
+- Create, rename, hide or delete groups in the Groups window.
 - Individual visibility and group visibility are independent. A hidden group suppresses its areas without changing their individual settings.
-- Delete checked areas after confirmation. Merge replaces them with one enclosing rectangle, including any gaps between them. Both actions support undo.
+- Delete checked areas after confirmation; deletion supports undo.
 - World map and Minimap switches independently control persistent overlays when the selection tool is off.
 
 Settings and areas are stored per world/server, dimension and subworld in `config/xaero-exact-selection/`. The existing schema 3 format is unchanged. Writes use a temporary file and atomic replacement where supported. An unreadable existing file is kept and is not overwritten with empty data.

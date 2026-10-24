@@ -113,6 +113,8 @@ public final class SavedAreaStore {
     private long loadedGeneration = -1;
 
     public SavedAreaStore(Path root) { this.root = root; }
+    /** The config directory the per-world area files live under. */
+    public Path root() { return root; }
     public State state() { return state; }
     public boolean loadFailed() { return loadFailed; }
 

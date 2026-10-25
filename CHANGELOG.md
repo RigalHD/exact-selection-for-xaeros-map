@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.3.0+1.21.11
+## 1.3.1+1.21.11
 
 - Internal: the PNG export window moved to its own class, one atomic file writer replaces four copies, the Areas window sort is cached instead of recomputed every frame, and unused code was removed.
 - Fixes: an undo or redo step that fails is dropped instead of blocking every older step; showing, hiding or switching layers no longer silently discards an unsaved name, group, color or fill; a large export lowers only that window's scale, not the remembered one; nothing is checked after deleting areas; import refuses files over 16 MB.
@@ -17,13 +17,17 @@
 - Areas window: name, group, color and fill are edited as a draft and written with Save in one undo step; Autosave settings (main switch plus name, group, color, fill and territory shape) with an indicator. Edit becomes Edit territory and shows when that territory is being edited; its stored shape is drawn faded. Added a Selected section and labelled metrics with inline copy icons; the window opens with nothing checked. Removed Rename and Merge.
 - Fix waypoints in the selection not being found (0 or "no set") when the World Map shows the minimap's current waypoint world rather than the auto-detected one, e.g. on servers with custom subworlds. Selections, highlights, editing and center waypoints now use the waypoint world the map displays, including Xaero's coordinate division between dimensions.
 - Choose the color (24-color palette) and fill opacity directly in the New area window; both are remembered for the next area. The selection is cleared after saving, as its own undo step.
-- Add quick Save with group selection and Apply for editing an existing saved area. The editing source is retained through geometry edits and selection history.
-- Add a 24-color palette and custom RGB input. Apply colors and opacity to multiple checked areas.
 - Add Areas in selection (saved areas overlapping the current selection) next to Areas, and management of the entire current waypoint set, with no waypoints checked by default outside a selection. The waypoint list has a draggable scrollbar.
 - Show the perimeter on the area line when both fit; the panel gets one line shorter.
+
+## 1.3.0+1.21.11
+
+- Add quick Save with group selection and Apply for editing an existing saved area. The editing source is retained through geometry edits and selection history.
+- Add a 24-color palette and custom RGB input. Apply colors and opacity to multiple checked areas.
+- Add All areas and management of the entire current waypoint set, with no points selected by default outside a selection.
 - Rename, recolor and delete checked waypoints with snapshot validation, rollback and undo/redo.
 - Delete draft or completed polygon vertices with Ctrl/Cmd + double click. Convert rectangles through corner drags or edge insertion while editing a saved area.
-- Display and copy perimeter with inline copy actions, and replace history buttons with tooltip-equipped arrows.
+- Display and copy perimeter. Group copy actions, use full expanded labels, and replace history buttons with tooltip-equipped arrows.
 - Add English/Russian documentation, localization validation, waypoint edit tests and additional responsive UI/geometry checks.
 - Preserve the existing saved-area schema and paths. Verify the default Xaero Maven dependencies with Gradle and add a Java 21 GitHub Actions build.
 

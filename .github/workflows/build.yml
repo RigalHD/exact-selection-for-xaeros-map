@@ -24,6 +24,6 @@ jobs:
         run: ./gradlew build
       - uses: actions/upload-artifact@v4
         with:
-          name: xaero-exact-selection
+          name: exact-selection-for-xaeros-map
           path: build/libs/*.jar
           if-no-files-found: error

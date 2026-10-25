@@ -22,7 +22,28 @@ public final class ExportFinishCheck {
         ImageIO.write(raw, "png", jobDirectory.resolve("xaero.png").toFile());
         return new AreaExportService.RawJob(jobDirectory, root, id, 16, 16, 0, 0, 16, 16,
                 new RectangleGeometry(new SelectionBounds(0, 0, 15, 15)), List.of(), List.of(),
-                new AreaExportService.Options(root, "ExactSelection-" + id + ".png", false, 1, true, null));
+                new AreaExportService.Options(root, "ExactSelection-" + id + ".png", false, 1, true, true, null));
+    }
+
+    private static void checkHiddenAreas(Path root) throws IOException {
+        var area = SavedAreaStore.create("Zone", new SelectionBounds(1, 1, 14, 14), 0xFF0000, 100, null);
+        for (boolean showAreas : List.of(true, false)) {
+            AreaExportService.RawJob base = job(root, "areas-" + showAreas, 16);
+            AreaGeometry territory = new PolygonGeometry(List.of(new GridPoint(0, 0), new GridPoint(16, 0), new GridPoint(0, 16)));
+            var options = new AreaExportService.Options(root, "areas-" + showAreas + ".png", false, 1, true, showAreas, null);
+            var export = new AreaExportService.RawJob(base.jobDirectory(), root, base.id(), 16, 16, 0, 0, 16, 16,
+                    territory, List.of(area), List.of(), options);
+            BufferedImage image = ImageIO.read(AreaExportService.finish(export).file().toFile());
+            require(image.getRGB(4, 4) == (showAreas ? 0xFFFF0000 : 0xFF336699),
+                    "Area export switch did not control the overlay pixels");
+            require(image.getRGB(14, 14) == 0, "Hiding areas changed the polygon export boundary");
+            if (!showAreas) for (int x = 0; x < 16; x++) for (int z = 0; z < 16; z++) {
+                int pixel = image.getRGB(x, z);
+                require(pixel >>> 24 == 0 || (pixel & 0xFFFFFF) == 0x336699,
+                        "An area outline or label remains when areas are hidden");
+            }
+        }
+        System.out.println("PASS: PNG area visibility controls fills, outlines and names without changing the export territory");
     }
 
     private static boolean leftovers(Path root, String id) throws IOException {
@@ -35,6 +56,7 @@ public final class ExportFinishCheck {
         System.setProperty("java.awt.headless", "true");
         Path root = Files.createTempDirectory("exact-selection-export-");
         try {
+            checkHiddenAreas(root);
             AreaExportService.Result result = AreaExportService.finish(job(root, "ok", 16));
             BufferedImage written = ImageIO.read(result.file().toFile());
             require(written.getWidth() == 16 && written.getRGB(4, 4) == 0xFF336699, "Composed PNG has wrong content");

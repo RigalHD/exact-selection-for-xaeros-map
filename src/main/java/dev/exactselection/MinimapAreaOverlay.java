@@ -54,7 +54,7 @@ public final class MinimapAreaOverlay {
             loadErrorLogged = false;
         } catch (IOException e) {
             if (!loadErrorLogged) {
-                LoggerFactory.getLogger("xaero-exact-selection").error("Could not load saved areas for the minimap", e);
+                LoggerFactory.getLogger("Exact Selection for Xaero's map").error("Could not load saved areas for the minimap", e);
                 loadErrorLogged = true;
             }
             return;

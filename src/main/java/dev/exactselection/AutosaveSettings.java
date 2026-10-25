@@ -40,7 +40,7 @@ public final class AutosaveSettings {
         } catch (Exception e) {
             settings.enabled = false;
             settings.fields.addAll(EnumSet.allOf(Field.class));
-            LoggerFactory.getLogger("xaero-exact-selection").warn("Could not read autosave settings; using defaults", e);
+            LoggerFactory.getLogger("Exact Selection for Xaero's map").warn("Could not read autosave settings; using defaults", e);
         }
         return settings;
     }
@@ -76,7 +76,7 @@ public final class AutosaveSettings {
             } finally { Files.deleteIfExists(temp); }
         } catch (IOException e) {
             // A preference that fails to persist still applies for this session.
-            LoggerFactory.getLogger("xaero-exact-selection").warn("Could not save autosave settings", e);
+            LoggerFactory.getLogger("Exact Selection for Xaero's map").warn("Could not save autosave settings", e);
         }
     }
 }

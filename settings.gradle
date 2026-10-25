@@ -5,4 +5,4 @@ pluginManagement {
         mavenCentral()
     }
 }
-rootProject.name = 'xaero-exact-selection'
+rootProject.name = 'exact-selection-for-xaeros-map'

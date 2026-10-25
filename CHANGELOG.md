@@ -2,6 +2,9 @@
 
 ## 1.3.0+1.21.11
 
+- Rename the addon to Exact Selection for Xaero's map across metadata, documentation, release artifacts and logs. Keep existing mod IDs, storage paths and exchange files compatible.
+- Add a remembered Areas on/off switch to PNG export. Hide saved fills, outlines and names while preserving the selected territory and in-game area visibility.
+- Copy rectangle corners A and B with separate buttons in both panel modes and the Areas window. Coordinate pairs use a space between X and Z.
 - Replace the Copy button rows with small copy icons directly after coordinate and metric values in both panel modes and the Areas window, including the name. Shorten both panels by 30 pixels and fit text and icons inside narrow layouts.
 - Keep the default PNG export folder field empty and display its resolved path as a grey placeholder. Choosing Default folder clears a custom path while retaining a valid export destination.
 - Save moved to the panel header beside Expand / Compact. The New area palette lines up with the window and takes a custom `#RRGGBB` color with a preview. Areas window: Save sits under Edit territory and Export map and leaves no gap when hidden, the Selected section moved to the bottom of the column, and autosave settings open from a gear button.

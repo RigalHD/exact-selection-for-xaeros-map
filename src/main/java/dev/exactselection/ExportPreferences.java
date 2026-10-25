@@ -10,7 +10,7 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import org.slf4j.LoggerFactory;
 
-/** The PNG export window's last choices, shared by all worlds: folder, day or night, scale and labels. */
+/** The PNG export window's last choices, shared by all worlds: folder, day or night, scale, areas and labels. */
 final class ExportPreferences {
     static final int[] SCALES = {1, 2, 4, 8};
     private final Path file;
@@ -19,6 +19,7 @@ final class ExportPreferences {
     boolean night;
     int scale = 4;
     boolean labels = true;
+    boolean areas = true;
 
     private ExportPreferences(Path file) { this.file = file; }
 
@@ -32,8 +33,9 @@ final class ExportPreferences {
             int scale = json.has("scale") ? json.get("scale").getAsInt() : 4;
             preferences.scale = java.util.Arrays.stream(SCALES).anyMatch(s -> s == scale) ? scale : 4;
             preferences.labels = !json.has("labels") || json.get("labels").getAsBoolean();
+            preferences.areas = !json.has("areas") || json.get("areas").getAsBoolean();
         } catch (Exception e) {
-            LoggerFactory.getLogger("xaero-exact-selection").warn("Could not read export preferences; using defaults", e);
+            LoggerFactory.getLogger("Exact Selection for Xaero's map").warn("Could not read export preferences; using defaults", e);
         }
         return preferences;
     }
@@ -44,6 +46,7 @@ final class ExportPreferences {
         json.addProperty("night", night);
         json.addProperty("scale", scale);
         json.addProperty("labels", labels);
+        json.addProperty("areas", areas);
         Path temp = file.resolveSibling(file.getFileName() + ".tmp");
         try {
             Files.createDirectories(file.getParent());
@@ -53,7 +56,7 @@ final class ExportPreferences {
                 catch (AtomicMoveNotSupportedException e) { Files.move(temp, file, StandardCopyOption.REPLACE_EXISTING); }
             } finally { Files.deleteIfExists(temp); }
         } catch (IOException e) {
-            LoggerFactory.getLogger("xaero-exact-selection").warn("Could not save export preferences", e);
+            LoggerFactory.getLogger("Exact Selection for Xaero's map").warn("Could not save export preferences", e);
         }
     }
 }

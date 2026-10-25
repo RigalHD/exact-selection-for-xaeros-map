@@ -43,14 +43,14 @@ public final class AreaExportService {
     }
     /**
      * What the export window chose: target folder and file name, Xaero's night lighting, image pixels per block,
-     * area labels, and the game's pixel font (null draws labels with a plain system font).
+     * saved-area overlays and labels, and the game's pixel font (null draws labels with a plain system font).
      */
-    public record Options(Path folder, String fileName, boolean night, int scale, boolean labels, PixelFont font) {}
+    public record Options(Path folder, String fileName, boolean night, int scale, boolean labels, boolean areas, PixelFont font) {}
     private record VisibleOverlay(SavedAreaStore.Area area, java.awt.geom.Area visibleShape) {}
     public static final long MAX_PIXELS = 8_000_000L;
     /** Upper bound for the scaled output image, which is held in memory as 4 bytes per pixel. */
     public static final long MAX_OUTPUT_PIXELS = 16_000_000L;
-    private static final Logger LOGGER = LoggerFactory.getLogger("xaero-exact-selection");
+    private static final Logger LOGGER = LoggerFactory.getLogger("Exact Selection for Xaero's map");
 
     private AreaExportService() {}
 
@@ -178,7 +178,7 @@ public final class AreaExportService {
             if (raw == null || raw.getWidth() != job.rawWidth() || raw.getHeight() != job.rawHeight())
                 throw new IOException("Xaero returned an unexpected image size");
             BufferedImage output = compose(raw, job.cropX(), job.cropZ(), job.width(), job.height(),
-                    job.territory(), job.overlays(), job.groups(), job.options().scale(), job.options().labels(),
+                    job.territory(), job.options().areas() ? job.overlays() : List.of(), job.groups(), job.options().scale(), job.options().labels(),
                     job.options().font());
             if (!ImageIO.write(output, "png", tempFinal.toFile())) throw new IOException("PNG writer is unavailable");
             try {

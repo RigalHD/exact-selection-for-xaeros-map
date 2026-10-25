@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "xaero_exact_selection",
   "version": "${version}",
-  "name": "Xaero Exact Selection",
+  "name": "Exact Selection for Xaero's map",
   "description": "Precise rectangular and polygon selections, saved map areas, groups, and area export for Xaero's World Map.",
   "environment": "client",
   "license": "MIT",

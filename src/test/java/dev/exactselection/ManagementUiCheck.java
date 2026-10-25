@@ -13,6 +13,7 @@ import java.util.Set;
 import net.minecraft.SharedConstants;
 import com.mojang.blaze3d.platform.Window;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.KeyboardHandler;
 import net.minecraft.client.MouseHandler;
 import net.minecraft.client.StringSplitter;
 import net.minecraft.client.gui.Font;
@@ -47,6 +48,12 @@ public final class ManagementUiCheck {
             return backwards ? text.substring(text.length() - length) : text.substring(0, length);
         }
         @Override public StringSplitter getSplitter() { return widths; }
+    }
+
+    private static final class ClipboardKeyboard extends KeyboardHandler {
+        String copied;
+        private ClipboardKeyboard() { super(null); }
+        @Override public void setClipboard(String text) { copied = text; }
     }
 
     private record DrawEvent(String text, int stratum) {}
@@ -1265,7 +1272,7 @@ public final class ManagementUiCheck {
                     .equals(List.of("alpha", "Delta", "Bravo", "Charlie")), "Group order must list grouped areas by group, then the rest");
             press(controller, "areaSortButton"); press(controller, "areaSortButton");
             require(get(controller, "areaSort").toString().equals("DATE"), "Sort did not cycle back to date order");
-            require(((Button[]) get(controller, "areaCopies")).length == 6, "Copy section lacks the name button");
+            require(((Button[]) get(controller, "areaCopies")).length == 7, "Area copy buttons lack a name or corner action");
 
             press(controller, "areaClearSelection");
             press(controller, "areaExportFile");
@@ -1327,6 +1334,20 @@ public final class ManagementUiCheck {
                     "Default export folder must remain an empty field resolving to the default path: " + folder.getValue());
             Button run = (Button) get(controller, "exportRun");
             require(run.visible && run.active, "Export is unavailable for a small selection");
+            ExportPreferences preferences = (ExportPreferences) get(controller, "exportPreferences");
+            Button areas = (Button) get(controller, "exportAreas"), labels = (Button) get(controller, "exportLabels");
+            require(preferences.areas && areas.visible && areas.active && labels.active,
+                    "Export must include areas by default");
+            boolean previousLabels = preferences.labels;
+            press(controller, "exportAreas");
+            require(!preferences.areas && !labels.active && preferences.labels == previousLabels,
+                    "Hiding exported areas must disable labels without losing their preference");
+            preferences.save();
+            require(!ExportPreferences.load(directory).areas, "Area export visibility was not remembered");
+            press(controller, "exportAreas");
+            require(preferences.areas && labels.active && preferences.labels == previousLabels,
+                    "Enabling exported areas did not restore the label control");
+            preferences.save();
             int scale = (Integer) get(get(controller, "exportPreferences"), "scale");
             press(controller, "exportScale");
             require((Integer) get(get(controller, "exportPreferences"), "scale") != scale, "Scale button did not change the scale");
@@ -1360,6 +1381,54 @@ public final class ManagementUiCheck {
             call(controller, "layoutMainPanel"); call(controller, "syncFields"); call(controller, "updateVisibility");
         }
         System.out.println("PASS: export window with default folder, path validation, scale, day/night, size limit and responsive layout");
+    }
+
+    private static void checkSeparateCorners(ExactSelectionController controller, GuiMap map, Minecraft minecraft,
+                                             SavedAreaStore store, Unsafe unsafe) throws Exception {
+        SelectionState selection = (SelectionState) get(controller, "state");
+        SelectionState.Snapshot before = selection.snapshot();
+        SavedAreaStore.State saved = store.state();
+        Object previousKeyboard = get(minecraft, "keyboardHandler");
+        ClipboardKeyboard keyboard = (ClipboardKeyboard) unsafe.allocateInstance(ClipboardKeyboard.class);
+        set(minecraft, "keyboardHandler", keyboard);
+        try {
+            SelectionBounds bounds = new SelectionBounds(-120, 340, 56, -78);
+            selection.set(bounds); call(controller, "syncFields"); call(controller, "updateVisibility");
+            for (boolean compact : List.of(true, false)) {
+                set(controller, "compact", compact); call(controller, "layoutMainPanel"); call(controller, "updateVisibility");
+                Button a = (Button) get(controller, "copyCoordinates"), b = (Button) get(controller, "copyCornerB");
+                require(a.visible && a.active && b.visible && b.active && a.getY() < b.getY(),
+                        "Corner buttons are missing or are not beside separate coordinate rows");
+                checkMainLayout(controller, map);
+                press(controller, "copyCoordinates"); require("-120 340".equals(keyboard.copied), "Corner A clipboard format is wrong");
+                press(controller, "copyCornerB"); require("56 -78".equals(keyboard.copied), "Corner B clipboard format is wrong");
+            }
+            set(controller, "compact", true); call(controller, "layoutMainPanel"); call(controller, "updateVisibility");
+            var area = SavedAreaStore.create("Corners", bounds, AreaPalette.DEFAULT, 25, null);
+            store.replace(new SavedAreaStore.State(List.of(area), List.of(), true, true));
+            press(controller, "areasButton"); pick(controller, store, area.id()); call(controller, "layoutDialog");
+            Button[] copies = (Button[]) get(controller, "areaCopies");
+            require(copies[1].visible && copies[6].visible && copies[1].getY() == copies[6].getY()
+                    && copies[1].getX() < copies[6].getX(), "Saved rectangle lacks separate corner buttons");
+            checkLayout(controller);
+            copies[1].onPress(new KeyEvent(GLFW.GLFW_KEY_ENTER, 0, 0));
+            require("-120 340".equals(keyboard.copied), "Saved corner A clipboard format is wrong");
+            copies[6].onPress(new KeyEvent(GLFW.GLFW_KEY_ENTER, 0, 0));
+            require("56 -78".equals(keyboard.copied), "Saved corner B clipboard format is wrong");
+            var polygon = SavedAreaStore.create("Polygon", new PolygonGeometry(List.of(new GridPoint(0, 0),
+                    new GridPoint(3, 0), new GridPoint(0, 4))), AreaPalette.DEFAULT, 25, null);
+            store.replace(new SavedAreaStore.State(List.of(polygon), List.of(), true, true));
+            pick(controller, store, polygon.id()); call(controller, "layoutDialog");
+            require(copies[1].visible && !copies[6].visible, "Polygon vertex copy exposed an unrelated second corner");
+            copies[1].onPress(new KeyEvent(GLFW.GLFW_KEY_ENTER, 0, 0));
+            require("0 0; 3 0; 0 4".equals(keyboard.copied), "Polygon vertex coordinate pairs must use spaces");
+            System.out.println("PASS: separate A/B corner copying in both panels and saved areas, space-separated coordinates, polygon vertices preserved");
+        } finally {
+            set(minecraft, "keyboardHandler", previousKeyboard); store.replace(saved); selection.restore(before);
+            ((Set<?>) get(controller, "selectedAreaIds")).clear(); set(controller, "areaId", null);
+            set(controller, "dialog", dialog(controller, "NONE")); set(controller, "compact", true); set(controller, "message", "");
+            call(controller, "layoutMainPanel"); call(controller, "syncFields"); call(controller, "updateVisibility");
+        }
     }
 
     public static void main(String[] args) throws Exception {
@@ -1401,6 +1470,7 @@ public final class ManagementUiCheck {
             selection.enable(); selection.set(new SelectionBounds(40, 40, 50, 50));
             set(controller, "context", context); set(controller, "historyContext", context);
             call(controller, "updateVisibility");
+            checkSeparateCorners(controller, map, minecraft, store, unsafe);
             checkSelectionPanel(controller, map);
             checkHintFitting(controller);
             checkFramedAreasAndMetrics(controller, store);

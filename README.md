@@ -1,4 +1,4 @@
-# Xaero Exact Selection
+# Exact Selection for Xaero's map
 
 **English** | [Русский](README.ru.md)
 
@@ -11,7 +11,7 @@ A client-side Fabric addon for Minecraft **1.21.11**. Create precise rectangles 
 - Minecraft **1.21.11**, Java **21**, Fabric Loader **0.17.3+**, and Fabric API **0.139.4+** for this Minecraft version.
 - Xaero’s World Map **1.41.0** and XaeroLib **1.1.15+** are required.
 - Xaero’s Minimap **26.1.0** is optional. It enables minimap overlays and waypoint creation/editing/deletion. Other Minimap versions are rejected by the addon metadata.
-- Put `xaero-exact-selection-1.3.0+1.21.11.jar` in your instance’s `mods` folder and enable the selection tool on the fullscreen map. Install it on the client only.
+- Put `exact-selection-for-xaeros-map-1.3.0+1.21.11.jar` in your instance’s `mods` folder and enable the selection tool on the fullscreen map. Install it on the client only.
 
 The addon uses Xaero internals. Other World Map or Minecraft versions need separate compatibility work.
 
@@ -32,7 +32,7 @@ The compact panel is enabled by default. Expand it for coordinate input, dimensi
 
 Blocks are the default unit. Both endpoint blocks are included: `(0, 0)` to `(15, 15)` is **16 × 16 = 256 blocks²**. Chunk mode snaps rectangle edges to the 16-block grid, including negative coordinates. Coordinate input stays exact. Width is the X extent and length is the Z extent. Polygon dimensions describe its bounding box; area and perimeter follow its actual shape.
 
-Small copy-icon buttons sit immediately after the coordinates, width, length, area and perimeter values in both panel modes. The expanded panel keeps coordinate copying beside Apply coordinates. The Center dialog copies the bounding-box center or creates a waypoint there at the player’s current Y level. A 3×6 rectangle has a perimeter of 18 blocks. Non-integer lengths are displayed to two decimal places.
+Small copy-icon buttons sit immediately after the coordinates, width, length, area and perimeter values in both panel modes. Each coordinate row has its own button: A and B are copied separately as `X Z`, with a space between the numbers. Saved rectangles also have separate corner buttons; polygon vertex copying keeps every vertex, with space-separated coordinate pairs. The Center dialog copies the bounding-box center or creates a waypoint there at the player’s current Y level. A 3×6 rectangle has a perimeter of 18 blocks. Non-integer lengths are displayed to two decimal places.
 
 ### Polygons
 
@@ -64,7 +64,7 @@ Areas and Groups have separate windows. The Areas window opens with nothing chec
 - Delete checked areas after confirmation; deletion supports undo.
 - World map and Minimap switches independently control persistent overlays when the selection tool is off.
 
-Settings and areas are stored per world/server, dimension and subworld in `config/xaero-exact-selection/`. The existing schema 3 format is unchanged. Writes use a temporary file and atomic replacement where supported. An unreadable existing file is kept and is not overwritten with empty data.
+Settings and areas are stored per world/server, dimension and subworld in `config/xaero-exact-selection/`. The technical mod ID `xaero_exact_selection` and the legacy storage directory are retained for compatibility with existing installations. The existing schema 3 format is unchanged. Writes use a temporary file and atomic replacement where supported. An unreadable existing file is kept and is not overwritten with empty data.
 
 ## Xaero waypoints
 
@@ -79,6 +79,7 @@ Before each write, the addon checks that the points and set still match the disp
 Expand the selection panel and choose **Export selection as PNG…**, or **Export map…** for one saved area in the Areas window. Saving the working selection first is unnecessary. The export window shows:
 
 - **Folder**: Xaero's own export folder (normally `map exports/` in the game directory) or any absolute path; **Choose…** opens the system folder picker. **Default folder** clears the field. An empty, unfocused field shows the default path in grey as a placeholder and still exports there. The full path of the file to be written is shown below.
+- **Areas: on/off** includes or hides saved areas in the exported image. When off, fills, outlines and area names are omitted; the selected export territory and visibility on the in-game maps stay unchanged. The choice is remembered, and area labels become available again when areas are enabled.
 - **Time: day / night**: night uses Xaero's own night export, with the dark sky and block light.
 - **Scale**: 1, 2, 4 or 8 image pixels per block; the map is enlarged without blurring and the resulting image size is shown.
 - **Labels: on / off**.

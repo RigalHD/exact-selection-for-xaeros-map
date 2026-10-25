@@ -53,7 +53,7 @@ public final class ExactSelectionController {
     // 0–3 dimensions/offsets, 4–8 area/group/waypoint names and search, 9 waypoint rename, 10 RGB color.
     private final EditBox[] dialogFields = new EditBox[12];
     private Button toggle, apply, clear, pointsButton, confirm, cancel;
-    private Button copyCoordinates, copyArea, copyPerimeter, copyLength, copyWidth;
+    private Button copyCoordinates, copyCornerB, copyArea, copyPerimeter, copyLength, copyWidth;
     private Button undo, redo, chunkMode, sizeButton, moveButton, centerButton, areasButton, groupsButton;
     private Button polygonModeButton, panelModeButton, selectionExportButton;
     private boolean compact = true;
@@ -61,8 +61,8 @@ public final class ExactSelectionController {
     private Button modalApply, modalCancel, anchorButton, moveUnitsButton;
     private Button centerCopy, centerCreate, areaSave, areaLoad, areaDelete;
     private Button areaSelectAll, areaClearSelection, areaSaveChanges, autosaveButton, autosaveToggle, autosaveClose;
-    /** Copy buttons of the Areas window, in the panel's order: coordinates, area, perimeter, length, width. */
-    private final Button[] areaCopies = new Button[6];
+    /** Name, corner A or polygon vertices, area, perimeter, length, width, corner B. */
+    private final Button[] areaCopies = new Button[7];
     /** List order of the Areas window; DATE is the order areas were added, oldest first. */
     private enum AreaSort { DATE, NAME, GROUP, VISIBILITY }
     private AreaSort areaSort = AreaSort.DATE;
@@ -79,7 +79,7 @@ public final class ExactSelectionController {
     /** The last row clicked without Shift; Shift+click checks the range from it. */
     private String areaAnchorId;
     private final ExportPreferences exportPreferences;
-    private Button exportPick, exportDefaultFolder, exportOpenFolder, exportTime, exportScale, exportLabels, exportRun;
+    private Button exportPick, exportDefaultFolder, exportOpenFolder, exportTime, exportScale, exportLabels, exportAreas, exportRun;
     /** What the export window will render, its description, and the window to return to. */
     private AreaGeometry exportTarget;
     private Component exportTitle = Component.empty();
@@ -188,7 +188,8 @@ public final class ExactSelectionController {
         selectionExportButton.setTooltip(Tooltip.create(tr("selection_export_tooltip")));
         openExportButton = button("export_show_file", 0, 0, 120, this::openLastExport);
         apply = button("apply", 0, 0, 100, this::applyFields);
-        copyCoordinates = copyButton("copy_coordinates_tooltip", this::copyCoordinates);
+        copyCoordinates = copyButton("copy_corner_a_tooltip", this::copyCoordinates);
+        copyCornerB = copyButton("copy_corner_b_tooltip", () -> copySelection(5));
         copyArea = copyButton("copy_area_tooltip", this::copyArea);
         copyPerimeter = copyButton("copy_perimeter_tooltip", this::copyPerimeter);
         copyLength = copyButton("copy_length_tooltip", this::copyLength);
@@ -287,6 +288,9 @@ public final class ExactSelectionController {
             updateVisibility();
         });
         exportLabels = button("export_labels_on", 0, 0, 120, () -> { exportPreferences.labels = !exportPreferences.labels; updateVisibility(); });
+        exportAreas = button("export_areas_on", 0, 0, 120, () -> { exportPreferences.areas = !exportPreferences.areas; updateVisibility(); });
+        exportAreas.setTooltip(Tooltip.create(tr("export_areas_tooltip")));
+        exportLabels.setTooltip(Tooltip.create(tr("export_labels_tooltip")));
         exportRun = button("export_run", 0, 0, 110, this::runExport);
         exportPick.setTooltip(Tooltip.create(tr("export_pick_tooltip")));
         exportTime.setTooltip(Tooltip.create(tr("export_time_tooltip")));
@@ -302,8 +306,8 @@ public final class ExactSelectionController {
         areaImport.setTooltip(Tooltip.create(tr("areas_import_tooltip")));
         groupExport.setTooltip(Tooltip.create(tr("group_export_tooltip")));
         autosaveClose = button("autosave_close", 0, 0, 120, () -> { autosaveOpen = false; focus(null); updateVisibility(); });
-        String[] copies = {"copy_name_tooltip", "copy_coordinates_tooltip", "copy_area_tooltip", "copy_perimeter_tooltip",
-                "copy_length_tooltip", "copy_width_tooltip"};
+        String[] copies = {"copy_name_tooltip", "copy_corner_a_tooltip", "copy_area_tooltip", "copy_perimeter_tooltip",
+                "copy_length_tooltip", "copy_width_tooltip", "copy_corner_b_tooltip"};
         for (int i = 0; i < areaCopies.length; i++) {
             int kind = i - 1;
             areaCopies[i] = copyButton(copies[i], () -> {
@@ -396,13 +400,14 @@ public final class ExactSelectionController {
             arrowRow(new Button[]{clear, polygonModeButton}, x, y + 98, w);
             mainRow(new Button[]{areasButton, groupsButton}, x, y + 119, w, 18);
         } else {
-            fieldWidth = (panelWidth - 16 - coordinateLabelWidth - zLabelWidth - fieldGap * 3) / 2;
+            fieldWidth = (panelWidth - 16 - coordinateLabelWidth - zLabelWidth - fieldGap * 3 - COPY_SIZE - 6) / 2;
             int xField = x + coordinateLabelWidth + fieldGap;
             int zField = xField + fieldWidth + fieldGap * 2 + zLabelWidth;
             for (int i = 0; i < fields.length; i++)
                 place(fields[i], i % 2 == 0 ? xField : zField, top + 34 + i / 2 * 24, fieldWidth, 18);
-            place(apply, x, top + 82, w - 21, 18);
-            place(copyCoordinates, x + w - 18, top + 82, 18, 18);
+            place(copyCoordinates, x + w - COPY_SIZE, top + 38, COPY_SIZE, COPY_SIZE);
+            place(copyCornerB, x + w - COPY_SIZE, top + 62, COPY_SIZE, COPY_SIZE);
+            place(apply, x, top + 82, w, 18);
             arrowRow(new Button[]{chunkMode, sizeButton, moveButton, centerButton}, x, y + 150, w);
             mainRow(new Button[]{polygonModeButton, groupsButton, clear}, x, y + 172, w, 18);
             mainRow(new Button[]{areasButton, zonesButton, pointsButton}, x, y + 194, w, 18);
@@ -515,8 +520,12 @@ public final class ExactSelectionController {
 
     private void placePanelCopies() {
         int scroll = compact ? 0 : panelScroll;
-        if (compact) place(copyCoordinates, PANEL_X + 11 + mc.font.width(coordinateLine(state.bounds(), true)),
-                PANEL_Y + 32, COPY_SIZE, COPY_SIZE);
+        if (compact) {
+            placeMetricLine(new MetricLine(List.of(coordinateLine(state.bounds(), true)), List.of(copyCoordinates)),
+                    PANEL_X + 8, PANEL_Y + 33, panelWidth - 16);
+            placeMetricLine(new MetricLine(List.of(coordinateLine(state.bounds(), false)), List.of(copyCornerB)),
+                    PANEL_X + 8, PANEL_Y + 45, panelWidth - 16);
+        }
         for (Map.Entry<Integer, MetricLine> line : panelMetricLines())
             placeMetricLine(line.getValue(), PANEL_X + 8, PANEL_Y + line.getKey() - scroll, panelWidth - 16);
     }
@@ -804,14 +813,15 @@ public final class ExactSelectionController {
                 place(openExportButton, right, y + h - 44, col, 16);
             }
             case EXPORT -> {
-                int third = (w - 30) / 3, half = (w - 27) / 2;
+                int half = (w - 27) / 2;
                 place(dialogFields[FOLDER_FIELD], x + 12, y + 56, w - 24 - 94, 18);
                 place(exportPick, x + w - 102, y + 56, 90, 18);
                 place(exportDefaultFolder, x + 12, y + 78, half, 18);
                 place(exportOpenFolder, x + 15 + half, y + 78, w - 27 - half, 18);
-                place(exportTime, x + 12, y + 122, third, 18);
-                place(exportScale, x + 15 + third, y + 122, third, 18);
-                place(exportLabels, x + 18 + 2 * third, y + 122, w - 30 - 2 * third, 18);
+                place(exportTime, x + 12, y + 122, half, 18);
+                place(exportScale, x + 15 + half, y + 122, w - 27 - half, 18);
+                place(exportAreas, x + 12, y + 144, half, 18);
+                place(exportLabels, x + 15 + half, y + 144, w - 27 - half, 18);
                 place(exportRun, x + w / 2 - 116, buttonY, 110, 18);
                 place(modalCancel, x + w / 2 + 6, buttonY, 110, 18);
             }
@@ -905,7 +915,7 @@ public final class ExactSelectionController {
     private void copyCenter() {
         SelectionBounds b = state.bounds();
         if (b == null) return;
-        copyToClipboard(formatCenter(b.centerX()) + ", " + formatCenter(b.centerZ()));
+        copyToClipboard(formatCenter(b.centerX()) + " " + formatCenter(b.centerZ()));
     }
 
     private static String formatCenter(double value) {
@@ -948,7 +958,7 @@ public final class ExactSelectionController {
             return true;
         } catch (Exception e) {
             message = tr("area_save_failed").getString();
-            LoggerFactory.getLogger("xaero-exact-selection").error("Could not save saved areas", e);
+            LoggerFactory.getLogger("Exact Selection for Xaero's map").error("Could not save saved areas", e);
             return false;
         }
     }
@@ -1416,13 +1426,13 @@ public final class ExactSelectionController {
                 pixelFont = PixelFont.load(path -> mc.getResourceManager()
                         .getResource(net.minecraft.resources.Identifier.withDefaultNamespace(path)).orElseThrow().open());
             } catch (Exception e) {
-                LoggerFactory.getLogger("xaero-exact-selection").warn("Minecraft font unavailable; labels use a system font", e);
+                LoggerFactory.getLogger("Exact Selection for Xaero's map").warn("Minecraft font unavailable; labels use a system font", e);
             }
         }
         AreaGeometry target = exportTarget;
         dialog = exportReturn;
         exportGeometry(frame, target, new AreaExportService.Options(folder, exportFileName(), exportPreferences.night,
-                exportPreferences.scale, exportPreferences.labels, pixelFont));
+                exportPreferences.scale, exportPreferences.labels, exportPreferences.areas, pixelFont));
     }
 
     private void renderExportDialog(GuiGraphics g, int x, int y, int w, int h) {
@@ -1442,9 +1452,9 @@ public final class ExactSelectionController {
             int scale = exportPreferences.scale;
             boolean fits = AreaExportService.fits(b, scale);
             g.drawString(mc.font, fits ? tr("export_size", b.width() * scale, b.length() * scale)
-                    : tr("export_size_too_large", AreaExportService.MAX_OUTPUT_PIXELS), x + 12, y + 146, fits ? 0xFF9BAAB7 : 0xFFFFCF62);
+                    : tr("export_size_too_large", AreaExportService.MAX_OUTPUT_PIXELS), x + 12, y + 168, fits ? 0xFF9BAAB7 : 0xFFFFCF62);
         }
-        if (!message.isEmpty()) g.drawString(mc.font, mc.font.plainSubstrByWidth(message, w - 24), x + 12, y + 160, 0xFFFFCF62);
+        if (!message.isEmpty()) g.drawString(mc.font, mc.font.plainSubstrByWidth(message, w - 24), x + 12, y + 182, 0xFFFFCF62);
     }
 
     private void exportGeometry(MapBridge.Frame frame, AreaGeometry geometry, AreaExportService.Options options) {
@@ -1474,7 +1484,7 @@ public final class ExactSelectionController {
 
     private void exportFailed(Throwable failure) {
         message = tr("area_export_failed").getString();
-        LoggerFactory.getLogger("xaero-exact-selection").error("Could not export selected area", failure);
+        LoggerFactory.getLogger("Exact Selection for Xaero's map").error("Could not export selected area", failure);
         updateVisibility();
     }
 
@@ -1562,7 +1572,7 @@ public final class ExactSelectionController {
             openExportButton.setTooltip(Tooltip.create(Component.literal(lastExport.toString())));
         } catch (Exception e) {
             message = tr("areas_export_failed").getString();
-            LoggerFactory.getLogger("xaero-exact-selection").error("Could not export areas", e);
+            LoggerFactory.getLogger("Exact Selection for Xaero's map").error("Could not export areas", e);
         }
         layoutDialog(); updateVisibility();
     }
@@ -1591,7 +1601,7 @@ public final class ExactSelectionController {
             message = tr("areas_imported", merge.added(), merge.skipped()).getString();
         } catch (Exception e) {
             message = tr("areas_import_failed", file.getFileName().toString()).getString();
-            LoggerFactory.getLogger("xaero-exact-selection").warn("Could not import " + file, e);
+            LoggerFactory.getLogger("Exact Selection for Xaero's map").warn("Could not import " + file, e);
         }
         focus(null); updateVisibility();
     }
@@ -1675,7 +1685,10 @@ public final class ExactSelectionController {
         return enabled() && !dirty && pending == null ? state.bounds() : null;
     }
 
-    private void copyCoordinates() { copySelection(0); }
+    private void copyCoordinates() {
+        SelectionBounds bounds = copyableBounds();
+        if (bounds != null) copyToClipboard(cornerCoordinates(bounds, true));
+    }
     private void copyArea() { copySelection(1); }
     private void copyPerimeter() { copySelection(2); }
     private void copyLength() { copySelection(3); }
@@ -1686,15 +1699,20 @@ public final class ExactSelectionController {
         if (b != null) copyMetric(kind, state.geometry(), b);
     }
 
-    /** Copies one value of a shape: 0 coordinates, 1 area, 2 perimeter, 3 length, 4 width. */
+    private static String cornerCoordinates(SelectionBounds bounds, boolean first) {
+        return first ? bounds.x1() + " " + bounds.z1() : bounds.x2() + " " + bounds.z2();
+    }
+
+    /** Copies one value: 0 corner A or polygon vertices, 1 area, 2 perimeter, 3 length, 4 width, 5 corner B. */
     private void copyMetric(int kind, AreaGeometry geometry, SelectionBounds b) {
         copyToClipboard(switch (kind) {
             case 0 -> geometry instanceof PolygonGeometry polygon
-                    ? polygon.vertices().stream().map(p -> p.x() + "," + p.z()).collect(java.util.stream.Collectors.joining("; "))
-                    : b.x1() + ", " + b.z1() + "; " + b.x2() + ", " + b.z2();
+                    ? polygon.vertices().stream().map(p -> p.x() + " " + p.z()).collect(java.util.stream.Collectors.joining("; "))
+                    : cornerCoordinates(b, true);
             case 1 -> formatMetric(geometry.area());
             case 2 -> formatLength(geometry.perimeter());
             case 3 -> Long.toString(b.length());
+            case 5 -> cornerCoordinates(b, false);
             default -> Long.toString(b.width());
         });
     }
@@ -1966,7 +1984,7 @@ public final class ExactSelectionController {
             catch (Exception e) {
                 loadFailed = true;
                 message = tr("area_load_failed").getString();
-                LoggerFactory.getLogger("xaero-exact-selection").error("Could not load saved areas", e);
+                LoggerFactory.getLogger("Exact Selection for Xaero's map").error("Could not load saved areas", e);
             }
         }
         return frame;
@@ -2016,7 +2034,7 @@ public final class ExactSelectionController {
             areaStore.replace(next);
         } catch (Exception e) {
             message = tr("area_save_failed").getString();
-            LoggerFactory.getLogger("xaero-exact-selection").error("Could not autosave the edited territory", e);
+            LoggerFactory.getLogger("Exact Selection for Xaero's map").error("Could not autosave the edited territory", e);
             return selection;
         }
         return new SelectionHistory.Action() {
@@ -2208,7 +2226,7 @@ public final class ExactSelectionController {
         }
         g.nextStratum();
         if (autosaveButton.visible) renderIcon(g, GEAR, autosaveButton, autosaveOpen ? ACCENT : 0xFFE0E0E0);
-        for (Button copy : List.of(copyCoordinates, copyArea, copyPerimeter, copyLength, copyWidth))
+        for (Button copy : List.of(copyCoordinates, copyCornerB, copyArea, copyPerimeter, copyLength, copyWidth))
             if (copy.visible) renderIcon(g, COPY, copy, copy.active ? 0xFFE0E0E0 : 0xFF8A8A8A);
         for (Button copy : areaCopies) if (copy.visible) renderIcon(g, COPY, copy, copy.active ? 0xFFE0E0E0 : 0xFF8A8A8A);
         EditBox folder = dialogFields[FOLDER_FIELD];
@@ -2455,11 +2473,10 @@ public final class ExactSelectionController {
                 PANEL_Y + panelHeight - (maxPanelScroll() > 0 ? 16 : 3));
         SelectionBounds b = state.bounds();
         if (compact) {
-            int available = panelWidth - 16;
-            g.drawString(mc.font, mc.font.plainSubstrByWidth(coordinateLine(b, true), available),
-                    PANEL_X + 8, PANEL_Y + 33, -1);
-            g.drawString(mc.font, mc.font.plainSubstrByWidth(coordinateLine(b, false), available),
-                    PANEL_X + 8, PANEL_Y + 45, -1);
+            drawMetricLine(g, new MetricLine(List.of(coordinateLine(b, true)), List.of(copyCoordinates)),
+                    PANEL_X + 8, PANEL_Y + 33, panelWidth - 16, -1);
+            drawMetricLine(g, new MetricLine(List.of(coordinateLine(b, false)), List.of(copyCornerB)),
+                    PANEL_X + 8, PANEL_Y + 45, panelWidth - 16, -1);
         } else {
             int labelX = fields[0].getX() - fieldGap - coordinateLabelWidth;
             int zX = fields[1].getX() - fieldGap - zLabelWidth;
@@ -2520,7 +2537,7 @@ public final class ExactSelectionController {
         if ((perimeterInline() ? -12 : 0) != metricsShift) layoutMainPanel();
         for (AbstractWidget widget : widgets) widget.visible = false;
         boolean main = enabled() && dialog == Dialog.NONE;
-        show(main, panelModeButton, copyCoordinates, copyArea, copyPerimeter, copyLength, copyWidth,
+        show(main, panelModeButton, copyCoordinates, copyCornerB, copyArea, copyPerimeter, copyLength, copyWidth,
                 undo, redo, polygonModeButton, groupsButton, clear);
         show(main, areasButton);
         show(main && (!compact || state.phase() == SelectionState.Phase.SELECTED), quickSave);
@@ -2635,7 +2652,7 @@ public final class ExactSelectionController {
         newAreaGroup.setMessage(tr("area_group_button", newGroup == null ? tr("group_none").getString() : newGroup.name()));
         newAreaOpacityButton.setMessage(tr("area_new_opacity", newAreaOpacity + "%"));
         boolean canCopy = enabled() && !dirty && !contourDraft && !holding() && dialog == Dialog.NONE && state.bounds() != null;
-        copyCoordinates.active = copyArea.active = copyPerimeter.active = copyLength.active = copyWidth.active = canCopy;
+        copyCoordinates.active = copyCornerB.active = copyArea.active = copyPerimeter.active = copyLength.active = copyWidth.active = canCopy;
         if (dialog == Dialog.WAYPOINTS && pending != null) confirm.active = !filteredChosenPoints().isEmpty();
         if (areaDeleteConfirmation && dialog == Dialog.AREAS || groupDeleteConfirmation && dialog == Dialog.GROUPS) {
             confirm.setMessage(tr(groupDeleteConfirmation ? "group_delete_confirm_button" : "area_delete_confirm_button"));
@@ -2665,6 +2682,8 @@ public final class ExactSelectionController {
         areaLoad.setMessage(tr(editingThis ? "area_editing_now" : "area_edit"));
         areaSaveChanges.active = !areaDraft.isEmpty() && selectedCount > 0 && !loadFailed;
         for (Button copy : areaCopies) copy.active = singleArea;
+        areaCopies[1].setTooltip(Tooltip.create(tr(area != null && area.geometry() instanceof PolygonGeometry
+                ? "copy_coordinates_tooltip" : "copy_corner_a_tooltip")));
         autosaveToggle.setMessage(tr(autosave.enabled() ? "autosave_on" : "autosave_off"));
         autosaveFields.forEach((field, button) -> {
             button.setMessage(tr("autosave_field", tr("autosave_field_" + field.name().toLowerCase(Locale.ROOT)),
@@ -2689,10 +2708,12 @@ public final class ExactSelectionController {
         if (dialog == Dialog.IMPORT) show(true, managementClose, importOpenFolder);
         if (dialog == Dialog.EXPORT) {
             show(true, dialogFields[FOLDER_FIELD], exportPick, exportDefaultFolder, exportOpenFolder, exportTime,
-                    exportScale, exportLabels, exportRun, modalCancel);
+                    exportScale, exportLabels, exportAreas, exportRun, modalCancel);
             exportTime.setMessage(tr(exportPreferences.night ? "export_night" : "export_day"));
             exportScale.setMessage(tr("export_scale", exportPreferences.scale));
             exportLabels.setMessage(tr(exportPreferences.labels ? "export_labels_on" : "export_labels_off"));
+            exportAreas.setMessage(tr(exportPreferences.areas ? "export_areas_on" : "export_areas_off"));
+            exportLabels.active = exportPreferences.areas;
             Path folder = exportFolder();
             exportOpenFolder.active = folder != null && Files.isDirectory(folder);
             exportRun.active = folder != null && exportTarget != null && !exportRunning
@@ -2867,9 +2888,10 @@ public final class ExactSelectionController {
         List<MetricLine> info = new ArrayList<>();
         info.add(new MetricLine(List.of(areaVisibilityDescription(area)), List.of()));
         SelectionBounds b = area.bounds();
-        info.add(new MetricLine(List.of(area.geometry() instanceof PolygonGeometry polygon
-                ? tr("vertices_count", polygon.vertices().size()).getString()
-                : coordinateLine(b, true) + METRIC_SEPARATOR + coordinateLine(b, false)), List.of(areaCopies[1])));
+        if (area.geometry() instanceof PolygonGeometry polygon)
+            info.add(new MetricLine(List.of(tr("vertices_count", polygon.vertices().size()).getString()), List.of(areaCopies[1])));
+        else info.add(new MetricLine(List.of(coordinateLine(b, true), coordinateLine(b, false)),
+                List.of(areaCopies[1], areaCopies[6])));
         if (area.geometry() instanceof RectangleGeometry)
             info.add(new MetricLine(dimensionParts(b, false), List.of(areaCopies[5], areaCopies[4])));
         info.add(new MetricLine(List.of(tr("area", formatMetric(area.geometry().area())).getString()), List.of(areaCopies[2])));
@@ -3467,7 +3489,7 @@ public final class ExactSelectionController {
             dialog = Dialog.WAYPOINTS; refreshPending(false);
         } catch (Exception e) {
             message = tr("save_failed").getString();
-            LoggerFactory.getLogger("xaero-exact-selection").error("Could not edit waypoints", e);
+            LoggerFactory.getLogger("Exact Selection for Xaero's map").error("Could not edit waypoints", e);
         }
         focus(null); updateSelection(); updateVisibility();
     }
@@ -3490,7 +3512,7 @@ public final class ExactSelectionController {
             message = tr("deleted", count).getString();
             refreshPending(false);
         } catch (Exception e) {
-            LoggerFactory.getLogger("xaero-exact-selection").error("Could not save waypoint deletion; restored in-memory set", e);
+            LoggerFactory.getLogger("Exact Selection for Xaero's map").error("Could not save waypoint deletion; restored in-memory set", e);
             message = tr("save_failed").getString();
         }
         focus(null); updateSelection(); updateVisibility();

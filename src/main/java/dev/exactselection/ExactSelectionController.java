@@ -146,7 +146,7 @@ public final class ExactSelectionController {
 
     public ExactSelectionController(GuiMap screen, MapBridge bridge) {
         this(screen, bridge, Minecraft.getInstance(), new SavedAreaStore(FabricLoader.getInstance().getConfigDir()),
-                FabricLoader.getInstance().isModLoaded("xaerominimap") ? new XaeroWaypointBridge() : null);
+                FabricLoader.getInstance().isModLoaded("xaerominimap") ? SafeWaypointAccess.create(XaeroWaypointBridge::new) : null);
     }
 
     ExactSelectionController(GuiMap screen, MapBridge bridge, Minecraft mc, SavedAreaStore areaStore, WaypointAccess waypoints) {

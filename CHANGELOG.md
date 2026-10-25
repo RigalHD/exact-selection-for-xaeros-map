@@ -2,6 +2,7 @@
 
 ## 1.3.0+1.21.11
 
+- Support Xaero’s World Map 1.40.4–1.47.x and Xaero’s Minimap 25.3.5 and newer instead of only 1.41.0 / 26.1.0. Every current release for 1.21.11 was checked for the classes, methods and fields the addon uses and loaded through Fabric. If a future Minimap changes them, the minimap overlay and waypoint features turn off instead of crashing the game.
 - Rename the addon to Exact Selection for Xaero's map across metadata, documentation, release artifacts and logs. Keep existing mod IDs, storage paths and exchange files compatible.
 - Add a remembered Areas on/off switch to PNG export. Hide saved fills, outlines and names while preserving the selected territory and in-game area visibility.
 - Copy rectangle corners A and B with separate buttons in both panel modes and the Areas window. Coordinate pairs use a space between X and Z.

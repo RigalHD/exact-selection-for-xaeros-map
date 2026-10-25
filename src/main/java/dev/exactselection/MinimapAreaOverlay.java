@@ -35,8 +35,23 @@ public final class MinimapAreaOverlay {
 
     private MinimapAreaOverlay() {}
 
+    private static boolean unsupported;
+
+    /** Draws saved areas on the minimap; an unsupported Minimap version turns the overlay off instead of crashing. */
     public static void render(Object handler, Object centerObject, Object dimensionObject, double zoom,
                               double ps, double pc, int halfViewW, int halfViewH, boolean circle) {
+        if (unsupported) return;
+        try {
+            renderAreas(handler, centerObject, dimensionObject, zoom, ps, pc, halfViewW, halfViewH, circle);
+        } catch (LinkageError error) {
+            unsupported = true;
+            LoggerFactory.getLogger("Exact Selection for Xaero's map")
+                    .warn("This Xaero's Minimap version is not supported; areas are not drawn on the minimap", error);
+        }
+    }
+
+    private static void renderAreas(Object handler, Object centerObject, Object dimensionObject, double zoom,
+                                    double ps, double pc, int halfViewW, int halfViewH, boolean circle) {
         if (!(centerObject instanceof Vec3 center) || !(dimensionObject instanceof ResourceKey<?> rawDimension)) return;
         WorldMapSession mapSession = WorldMapSession.getCurrentSession();
         if (mapSession == null) return;

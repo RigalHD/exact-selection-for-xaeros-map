@@ -7,24 +7,19 @@
   "environment": "client",
   "license": "MIT",
   "mixins": [
-    "xaero-exact-selection.mixins.json"
+    "xaero-exact-selection.mixins.json",
+    "xaero-exact-selection-minimap.mixins.json"
   ],
   "depends": {
     "fabricloader": ">=0.17.3",
     "minecraft": "1.21.11",
     "java": ">=21",
     "fabric-api": ">=0.139.4",
-    "xaeroworldmap": "1.41.0",
+    "xaeroworldmap": ">=1.40.4 <1.48.0",
     "xaerolib": ">=1.1.15"
   },
   "suggests": {
-    "xaerominimap": "26.1.0"
-  },
-  "breaks": {
-    "xaerominimap": [
-      "<26.1.0",
-      ">26.1.0"
-    ]
+    "xaerominimap": ">=25.3.5"
   },
   "authors": [
     "rigalshd"

@@ -9,8 +9,8 @@ A client-side Fabric addon for Minecraft **1.21.11**. Create precise rectangles 
 ## Installation and compatibility
 
 - Minecraft **1.21.11**, Java **21**, Fabric Loader **0.17.3+**, and Fabric API **0.139.4+** for this Minecraft version.
-- Xaero’s World Map **1.41.0** and XaeroLib **1.1.15+** are required.
-- Xaero’s Minimap **26.1.0** is optional. It enables minimap overlays and waypoint creation/editing/deletion. Other Minimap versions are rejected by the addon metadata.
+- Xaero’s World Map **1.40.4 – 1.47.x** and XaeroLib **1.1.15+** are required.
+- Xaero’s Minimap **25.3.5 or newer** is optional. It enables minimap overlays and waypoint creation/editing/deletion. Every Minimap release for 1.21.11 up to 26.6.0 has been checked. If a future Minimap changes the parts the addon uses, only the minimap overlay and waypoint features turn off; the game still starts.
 - Put `exact-selection-for-xaeros-map-1.3.0+1.21.11.jar` in your instance’s `mods` folder and enable the selection tool on the fullscreen map. Install it on the client only.
 
 The addon uses Xaero internals. Other World Map or Minecraft versions need separate compatibility work.
@@ -108,6 +108,8 @@ python3 tools/check_localization.py
 ```
 
 `tools/IntegrationSmokeCheck.java` initializes Fabric against the real Minecraft/Xaero dependencies in a separate temporary game directory. It verifies mixin application and the remapped GUI bridge without launching a game window. It requires the Fabric runtime classpath, the intermediary Minecraft JAR, Fabric API and the addon/Xaero JARs in the temporary `mods` directory.
+
+`tools/XaeroApiCheck.java` lists every Xaero class, method and field the built JAR uses, including Mixin targets, shadows and accessors, that a given set of Xaero JARs lacks: `java -cp <asm, asm-tree>:<classes> XaeroApiCheck <addon.jar> <xaero jars…>`. It prints `OK` when nothing is missing.
 
 Tests cover geometry, saved-area persistence, waypoint write rollback, editing/undo, localization, and UI widget layouts at 320×240, 480×270 and 960×540. They do not establish visual correctness in a running Minecraft client.
 

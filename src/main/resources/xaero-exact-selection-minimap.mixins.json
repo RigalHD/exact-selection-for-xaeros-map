@@ -1,0 +1,11 @@
+{
+  "required": false,
+  "package": "dev.exactselection.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "client": [
+    "MinimapOverlayMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 0
+  }
+}

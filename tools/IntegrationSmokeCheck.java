@@ -79,7 +79,11 @@ public final class IntegrationSmokeCheck {
     public static void main(String[] args) throws Exception {
         ClassLoader loader = new Knot(EnvType.CLIENT).init(new String[]{"--gameDir", args[0], "--version", "1.21.11"});
         Class<?> gui = Class.forName("xaero.map.gui.GuiMap", false, loader);
-        Class.forName("xaero.hud.minimap.element.render.over.MinimapElementOverMapRendererHandler", false, loader);
+        Class<?> minimapHandler = Class.forName("xaero.hud.minimap.element.render.over.MinimapElementOverMapRendererHandler", false, loader);
+        // The minimap mixin config is optional, so a failed injection would otherwise go unnoticed.
+        if (java.util.Arrays.stream(minimapHandler.getDeclaredMethods()).noneMatch(m -> m.getName().contains("exactselection$renderAreas")))
+            throw new AssertionError("Minimap area overlay was not injected");
+        System.out.println("PASS: minimap area overlay injected into the installed Xaero's Minimap");
         boolean bridge = java.util.Arrays.stream(gui.getInterfaces()).anyMatch(c -> c.getName().equals("dev.exactselection.MapBridge"));
         if (!bridge) throw new AssertionError("Selection mixin was not applied");
         Class<?> controller = Class.forName("dev.exactselection.ExactSelectionController", false, loader);

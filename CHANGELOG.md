@@ -2,6 +2,7 @@
 
 ## 1.3.1+1.21.11
 
+- Drop the separate XaeroLib requirement: World Map already requires its own XaeroLib, and every XaeroLib for 1.21.11 (1.0.44 and newer) has what the addon uses.
 - Internal: the PNG export window moved to its own class, one atomic file writer replaces four copies, the Areas window sort is cached instead of recomputed every frame, and unused code was removed.
 - Fixes: an undo or redo step that fails is dropped instead of blocking every older step; showing, hiding or switching layers no longer silently discards an unsaved name, group, color or fill; a large export lowers only that window's scale, not the remembered one; nothing is checked after deleting areas; import refuses files over 16 MB.
 - A folder button beside Import in the Areas window and beside Export group in the Groups window opens the folder with exported areas.

@@ -9,7 +9,7 @@ A client-side Fabric addon for Minecraft **1.21.11**. Create precise rectangles 
 ## Installation and compatibility
 
 - Minecraft **1.21.11**, Java **21**, Fabric Loader **0.17.3+**, and Fabric API **0.139.4+** for this Minecraft version.
-- Xaero’s World Map **1.40.4 – 1.47.x** and XaeroLib **1.1.15+** are required.
+- Xaero’s World Map **1.40.4 – 1.47.x** is required, together with the XaeroLib version that World Map asks for.
 - Xaero’s Minimap **25.3.5 or newer** is optional. It enables minimap overlays and waypoint creation/editing/deletion. Every Minimap release for 1.21.11 up to 26.6.0 has been checked. If a future Minimap changes the parts the addon uses, only the minimap overlay and waypoint features turn off; the game still starts.
 - Put `exact-selection-for-xaeros-map-1.3.1+1.21.11.jar` in your instance’s `mods` folder and enable the selection tool on the fullscreen map. Install it on the client only.
 

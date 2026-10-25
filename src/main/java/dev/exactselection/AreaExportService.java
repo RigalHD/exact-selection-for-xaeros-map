@@ -213,12 +213,6 @@ public final class AreaExportService {
         return file;
     }
 
-    private static BufferedImage compose(BufferedImage raw, int cropX, int cropZ, int width, int height,
-                                         AreaGeometry territory, List<SavedAreaStore.Area> areas,
-                                         List<SavedAreaStore.Group> groups) {
-        return compose(raw, cropX, cropZ, width, height, territory, areas, groups, 1, true, null);
-    }
-
     /**
      * Draws the map like the in-game World Map: Xaero's pixels enlarged without smoothing, then each visible area
      * as a translucent fill with a thin outline, then names in the area's color on a dark backing, above all fills.

@@ -6,10 +6,8 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.util.EnumSet;
 import java.util.Locale;
 import org.slf4j.LoggerFactory;
@@ -66,14 +64,8 @@ public final class AutosaveSettings {
         autosave.add("fields", list);
         JsonObject root = new JsonObject();
         root.add("autosave", autosave);
-        Path temp = file.resolveSibling(file.getFileName() + ".tmp");
         try {
-            Files.createDirectories(file.getParent());
-            try {
-                Files.writeString(temp, root.toString(), StandardCharsets.UTF_8);
-                try { Files.move(temp, file, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING); }
-                catch (AtomicMoveNotSupportedException e) { Files.move(temp, file, StandardCopyOption.REPLACE_EXISTING); }
-            } finally { Files.deleteIfExists(temp); }
+            SavedAreaStore.writeAtomically(file, root.toString());
         } catch (IOException e) {
             // A preference that fails to persist still applies for this session.
             LoggerFactory.getLogger("Exact Selection for Xaero's map").warn("Could not save autosave settings", e);

@@ -4,10 +4,8 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import org.slf4j.LoggerFactory;
 
 /** The PNG export window's last choices, shared by all worlds: folder, day or night, scale, areas and labels. */
@@ -47,14 +45,8 @@ final class ExportPreferences {
         json.addProperty("scale", scale);
         json.addProperty("labels", labels);
         json.addProperty("areas", areas);
-        Path temp = file.resolveSibling(file.getFileName() + ".tmp");
         try {
-            Files.createDirectories(file.getParent());
-            try {
-                Files.writeString(temp, json.toString(), StandardCharsets.UTF_8);
-                try { Files.move(temp, file, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING); }
-                catch (AtomicMoveNotSupportedException e) { Files.move(temp, file, StandardCopyOption.REPLACE_EXISTING); }
-            } finally { Files.deleteIfExists(temp); }
+            SavedAreaStore.writeAtomically(file, json.toString());
         } catch (IOException e) {
             LoggerFactory.getLogger("Exact Selection for Xaero's map").warn("Could not save export preferences", e);
         }

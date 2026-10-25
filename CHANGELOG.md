@@ -2,6 +2,7 @@
 
 ## 1.3.0+1.21.11
 
+- Internal: the PNG export window moved to its own class, one atomic file writer replaces four copies, the Areas window sort is cached instead of recomputed every frame, and unused code was removed.
 - Fixes: an undo or redo step that fails is dropped instead of blocking every older step; showing, hiding or switching layers no longer silently discards an unsaved name, group, color or fill; a large export lowers only that window's scale, not the remembered one; nothing is checked after deleting areas; import refuses files over 16 MB.
 - A folder button beside Import in the Areas window and beside Export group in the Groups window opens the folder with exported areas.
 - Support Xaero’s World Map 1.40.4–1.47.x and Xaero’s Minimap 25.3.5 and newer instead of only 1.41.0 / 26.1.0. Every current release for 1.21.11 was checked for the classes, methods and fields the addon uses and loaded through Fabric. If a future Minimap changes them, the minimap overlay and waypoint features turn off instead of crashing the game.

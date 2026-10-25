@@ -8,10 +8,10 @@ public final class AreaExportCheck {
     private static BufferedImage compose(BufferedImage raw, int x, int z, AreaGeometry geometry,
                                          List<SavedAreaStore.Area> areas, List<SavedAreaStore.Group> groups) throws Exception {
         Method method = AreaExportService.class.getDeclaredMethod("compose", BufferedImage.class, int.class, int.class,
-                int.class, int.class, AreaGeometry.class, List.class, List.class);
+                int.class, int.class, AreaGeometry.class, List.class, List.class, int.class, boolean.class, PixelFont.class);
         method.setAccessible(true);
         return (BufferedImage) method.invoke(null, raw, x, z, (int) geometry.bounds().width(),
-                (int) geometry.bounds().length(), geometry, areas, groups);
+                (int) geometry.bounds().length(), geometry, areas, groups, 1, true, null);
     }
 
     private static BufferedImage scaled(BufferedImage raw, AreaGeometry geometry, List<SavedAreaStore.Area> areas,

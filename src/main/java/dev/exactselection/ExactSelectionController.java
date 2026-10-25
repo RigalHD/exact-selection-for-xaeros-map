@@ -36,7 +36,7 @@ public final class ExactSelectionController {
     private static final int COMPACT_HEIGHT = 156, EXPANDED_HEIGHT = 284, COPY_SIZE = 10;
     /** -12 while the perimeter shares the area line: everything below moves up one line and the panel gets shorter. */
     private int metricsShift;
-    private static final int RENAME_FIELD = 9, HEX_FIELD = 10, FOLDER_FIELD = 11;
+    private static final int RENAME_FIELD = 9, HEX_FIELD = 10;
     private static final int ACCENT = 0xFF59E3CE;
     private record MapLabel(Component text, int x, int y, int color) {}
     private record ScreenPoint(double x, double y) {}
@@ -51,7 +51,7 @@ public final class ExactSelectionController {
     private final List<AbstractWidget> widgets = new ArrayList<>();
     private final EditBox[] fields = new EditBox[4];
     // 0–3 dimensions/offsets, 4–8 area/group/waypoint names and search, 9 waypoint rename, 10 RGB color.
-    private final EditBox[] dialogFields = new EditBox[12];
+    private final EditBox[] dialogFields = new EditBox[11];
     private Button toggle, apply, clear, pointsButton, confirm, cancel;
     private Button copyCoordinates, copyCornerB, copyArea, copyPerimeter, copyLength, copyWidth;
     private Button undo, redo, chunkMode, sizeButton, moveButton, centerButton, areasButton, groupsButton;
@@ -78,17 +78,9 @@ public final class ExactSelectionController {
     private int importScroll;
     /** The last row clicked without Shift; Shift+click checks the range from it. */
     private String areaAnchorId;
-    private final ExportPreferences exportPreferences;
-    private Button exportPick, exportDefaultFolder, exportOpenFolder, exportTime, exportScale, exportLabels, exportAreas, exportRun;
-    /** What the export window will render, its description, and the window to return to. */
-    private AreaGeometry exportTarget;
-    /** This window's scale: the remembered one, lowered until the target fits; only the Scale button changes the preference. */
-    private int exportWindowScale;
-    private Component exportTitle = Component.empty();
+    private final ExportWindow exportWindow;
+    /** The window the export window returns to. */
     private Dialog exportReturn = Dialog.NONE;
-    /** Minecraft's pixel font, read once from the game's resources; null when they are unavailable. */
-    private PixelFont pixelFont;
-    private boolean pixelFontLoaded;
     private Button groupCreate, groupRename, groupAssign, groupVisibility, areaVisibility, areaColor, areaOpacity;
     private Button groupDelete, manageGroups, managementClose, managementUndo, managementRedo;
     private Button areaExportButton, openExportButton;
@@ -158,7 +150,7 @@ public final class ExactSelectionController {
         this.areaStore = areaStore;
         this.waypoints = waypoints;
         this.autosave = AutosaveSettings.load(areaStore.root());
-        this.exportPreferences = ExportPreferences.load(areaStore.root());
+        this.exportWindow = new ExportWindow(mc, ExportPreferences.load(areaStore.root()), this::defaultExportFolder);
     }
 
     private Component tr(String key, Object... args) {
@@ -214,7 +206,7 @@ public final class ExactSelectionController {
         cancel = button("cancel", 0, 0, 110, this::cancelDialog);
         for (int i = 0; i < dialogFields.length; i++) {
             EditBox field = new EditBox(mc.font, 0, 0, 100, 18, Component.empty());
-            field.setMaxLength(i < 4 ? 10 : i == HEX_FIELD ? 7 : i == FOLDER_FIELD ? 1024 : 128);
+            field.setMaxLength(i < 4 ? 10 : i == HEX_FIELD ? 7 : 128);
             if (i == HEX_FIELD) field.setHint(Component.literal("#RRGGBB"));
             field.setResponder(value -> { if (!syncing) updateVisibility(); });
             dialogFields[i] = field;
@@ -272,31 +264,7 @@ public final class ExactSelectionController {
             updateVisibility();
         });
         areaSortButton.setTooltip(Tooltip.create(tr("area_sort_tooltip")));
-        exportPick = button("export_pick_folder", 0, 0, 90, this::pickExportFolder);
-        exportDefaultFolder = button("export_default_folder", 0, 0, 150, () -> {
-            setDialogValue(FOLDER_FIELD, "");
-            updateVisibility();
-        });
-        exportOpenFolder = button("import_open_folder", 0, 0, 150, () -> {
-            Path folder = exportFolder();
-            if (folder != null && Files.isDirectory(folder)) net.minecraft.util.Util.getPlatform().openPath(folder);
-        });
-        exportTime = button("export_day", 0, 0, 120, () -> { exportPreferences.night = !exportPreferences.night; updateVisibility(); });
-        exportScale = button("export_scale", 0, 0, 120, () -> {
-            int[] scales = ExportPreferences.SCALES;
-            int index = 0;
-            for (int i = 0; i < scales.length; i++) if (scales[i] == exportWindowScale) index = i;
-            exportWindowScale = exportPreferences.scale = scales[(index + 1) % scales.length];
-            updateVisibility();
-        });
-        exportLabels = button("export_labels_on", 0, 0, 120, () -> { exportPreferences.labels = !exportPreferences.labels; updateVisibility(); });
-        exportAreas = button("export_areas_on", 0, 0, 120, () -> { exportPreferences.areas = !exportPreferences.areas; updateVisibility(); });
-        exportAreas.setTooltip(Tooltip.create(tr("export_areas_tooltip")));
-        exportLabels.setTooltip(Tooltip.create(tr("export_labels_tooltip")));
-        exportRun = button("export_run", 0, 0, 110, this::runExport);
-        exportPick.setTooltip(Tooltip.create(tr("export_pick_tooltip")));
-        exportTime.setTooltip(Tooltip.create(tr("export_time_tooltip")));
-        exportScale.setTooltip(Tooltip.create(tr("export_scale_tooltip")));
+        widgets.addAll(exportWindow.createWidgets(this::updateVisibility, this::runExport, text -> message = text));
         areaExportFile = button("areas_export", 0, 0, 110, this::exportAreaFile);
         areaImport = button("areas_import", 0, 0, 110, this::openImport);
         groupExport = button("group_export", 0, 0, 120, this::exportGroupFile);
@@ -728,7 +696,7 @@ public final class ExactSelectionController {
         return Math.max(1, (height - 110) / 20);
     }
 
-    private void place(AbstractWidget widget, int x, int y, int width, int height) {
+    static void place(AbstractWidget widget, int x, int y, int width, int height) {
         widget.setX(x); widget.setY(y); widget.setWidth(Math.max(1, width)); widget.setHeight(height);
     }
 
@@ -818,16 +786,7 @@ public final class ExactSelectionController {
                 place(openExportButton, right, y + h - 44, col, 16);
             }
             case EXPORT -> {
-                int half = (w - 27) / 2;
-                place(dialogFields[FOLDER_FIELD], x + 12, y + 56, w - 24 - 94, 18);
-                place(exportPick, x + w - 102, y + 56, 90, 18);
-                place(exportDefaultFolder, x + 12, y + 78, half, 18);
-                place(exportOpenFolder, x + 15 + half, y + 78, w - 27 - half, 18);
-                place(exportTime, x + 12, y + 122, half, 18);
-                place(exportScale, x + 15 + half, y + 122, w - 27 - half, 18);
-                place(exportAreas, x + 12, y + 144, half, 18);
-                place(exportLabels, x + 15 + half, y + 144, w - 27 - half, 18);
-                place(exportRun, x + w / 2 - 116, buttonY, 110, 18);
+                exportWindow.layout(x, y, w, buttonY);
                 place(modalCancel, x + w / 2 + 6, buttonY, 110, 18);
             }
             case IMPORT -> {
@@ -1296,12 +1255,6 @@ public final class ExactSelectionController {
         return values[(index + 1) % values.length];
     }
 
-    private void updateArea(SavedAreaStore.Area old, SavedAreaStore.Area next, String label) {
-        List<SavedAreaStore.Area> areas = new ArrayList<>(areaStore.state().areas());
-        areas.replaceAll(v -> v.id().equals(old.id()) ? next : v);
-        changeAreas(areaState(areas, areaStore.state().groups()), label);
-    }
-
     private void createGroup() {
         String name = dialogFields[5].getValue().trim();
         if (name.isEmpty() || loadFailed) return;
@@ -1373,13 +1326,8 @@ public final class ExactSelectionController {
     }
 
     private void openExportDialog(AreaGeometry geometry, Component title, Dialog returnTo) {
-        exportTarget = geometry;
-        exportTitle = title;
+        exportWindow.open(geometry, title);
         exportReturn = returnTo;
-        // Start from the largest scale up to the remembered one that the area fits at.
-        exportWindowScale = exportPreferences.scale;
-        while (exportWindowScale > 1 && !AreaExportService.fits(geometry.bounds(), exportWindowScale)) exportWindowScale /= 2;
-        setDialogValue(FOLDER_FIELD, exportPreferences.folder);
         dialog = Dialog.EXPORT;
         message = "";
         focus(null); updateVisibility();
@@ -1391,78 +1339,13 @@ public final class ExactSelectionController {
         return folder != null ? folder : areaStore.root().resolve("xaero-exact-selection").resolve("map-exports").toAbsolutePath();
     }
 
-    /** The folder typed in the export window (empty: the default one), or null when it is not an absolute path. */
-    private Path exportFolder() {
-        String typed = dialogFields[FOLDER_FIELD].getValue().trim();
-        if (typed.isEmpty()) return defaultExportFolder();
-        try {
-            Path folder = Path.of(typed);
-            return folder.isAbsolute() ? folder.normalize() : null;
-        } catch (RuntimeException invalid) {
-            return null;
-        }
-    }
-
-    private String exportFileName() {
-        return "ExactSelection-" + java.time.LocalDateTime.now().format(
-                java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd_HH-mm-ss", Locale.ROOT)) + ".png";
-    }
-
-    /** The system folder picker; it blocks the game until it closes, like other mods' file dialogs. */
-    private void pickExportFolder() {
-        try {
-            Path current = exportFolder();
-            String chosen = org.lwjgl.util.tinyfd.TinyFileDialogs.tinyfd_selectFolderDialog(
-                    tr("export_pick_title").getString(), current == null ? "" : current.toString());
-            if (chosen != null && !chosen.isBlank()) setDialogValue(FOLDER_FIELD, chosen);
-        } catch (Throwable unavailable) {
-            message = tr("export_pick_unavailable").getString();
-        }
-        updateVisibility();
-    }
-
     private void runExport() {
         MapBridge.Frame frame = checkedFrame();
-        Path folder = exportFolder();
-        if (frame == null || folder == null || exportTarget == null || exportRunning) return;
-        Path standard = defaultExportFolder();
-        exportPreferences.folder = dialogFields[FOLDER_FIELD].getValue().isBlank() || folder.equals(standard) ? "" : folder.toString();
-        exportPreferences.save();
-        if (!pixelFontLoaded) {
-            pixelFontLoaded = true;
-            try {
-                pixelFont = PixelFont.load(path -> mc.getResourceManager()
-                        .getResource(net.minecraft.resources.Identifier.withDefaultNamespace(path)).orElseThrow().open());
-            } catch (Exception e) {
-                LoggerFactory.getLogger("Exact Selection for Xaero's map").warn("Minecraft font unavailable; labels use a system font", e);
-            }
-        }
-        AreaGeometry target = exportTarget;
+        if (frame == null || exportRunning) return;
+        AreaExportService.Options options = exportWindow.options();
+        if (options == null) return;
         dialog = exportReturn;
-        exportGeometry(frame, target, new AreaExportService.Options(folder, exportFileName(), exportPreferences.night,
-                exportWindowScale, exportPreferences.labels, exportPreferences.areas, pixelFont));
-    }
-
-    private void renderExportDialog(GuiGraphics g, int x, int y, int w, int h) {
-        GeometryBounds b = exportTarget == null ? null : exportTarget.bounds();
-        if (b != null) g.drawString(mc.font, mc.font.plainSubstrByWidth(Component.literal(exportTitle.getString() + " · ")
-                .append(tr("export_blocks", b.width(), b.length())).getString(), w - 24), x + 12, y + 30, -1);
-        g.drawString(mc.font, tr("export_folder"), x + 12, y + 46, 0xFF9BAAB7);
-        Path folder = exportFolder();
-        String file = folder == null ? tr("export_folder_invalid").getString()
-                : folder.resolve(exportFileName()).toString();
-        // Keep the end of a long path, where the file name is.
-        String shown = file;
-        while (mc.font.width(shown) > w - 24 - mc.font.width(tr("export_file", "").getString()) && shown.length() > 4)
-            shown = "…" + shown.substring(2);
-        g.drawString(mc.font, tr("export_file", shown), x + 12, y + 104, folder == null ? 0xFFFFCF62 : 0xFF9BAAB7);
-        if (b != null) {
-            int scale = exportWindowScale;
-            boolean fits = AreaExportService.fits(b, scale);
-            g.drawString(mc.font, fits ? tr("export_size", b.width() * scale, b.length() * scale)
-                    : tr("export_size_too_large", AreaExportService.MAX_OUTPUT_PIXELS), x + 12, y + 168, fits ? 0xFF9BAAB7 : 0xFFFFCF62);
-        }
-        if (!message.isEmpty()) g.drawString(mc.font, mc.font.plainSubstrByWidth(message, w - 24), x + 12, y + 182, 0xFFFFCF62);
+        exportGeometry(frame, exportWindow.target(), options);
     }
 
     private void exportGeometry(MapBridge.Frame frame, AreaGeometry geometry, AreaExportService.Options options) {
@@ -1530,9 +1413,21 @@ public final class ExactSelectionController {
         net.minecraft.util.Util.getPlatform().openPath(lastExport.getParent());
     }
 
-    /** Areas in the Areas window's display order; rows, Shift ranges and scrolling all use it. */
+    private SavedAreaStore.State sortedState;
+    private AreaSort sortedBy;
+    private List<SavedAreaStore.Area> sortedAreas = List.of();
+
+    /** Areas in the Areas window's display order; rows, Shift ranges and scrolling all use it. Cached per store state and sort. */
     private List<SavedAreaStore.Area> displayedAreas() {
-        List<SavedAreaStore.Area> stored = areaStore.state().areas();
+        if (areaStore.state() != sortedState || areaSort != sortedBy) {
+            sortedState = areaStore.state();
+            sortedBy = areaSort;
+            sortedAreas = sortAreas(sortedState.areas());
+        }
+        return sortedAreas;
+    }
+
+    private List<SavedAreaStore.Area> sortAreas(List<SavedAreaStore.Area> stored) {
         java.text.Collator collator = java.text.Collator.getInstance();
         collator.setStrength(java.text.Collator.SECONDARY);
         Comparator<SavedAreaStore.Area> byName = (a, b) -> collator.compare(a.name(), b.name());
@@ -2243,13 +2138,7 @@ public final class ExactSelectionController {
         for (Button copy : List.of(copyCoordinates, copyCornerB, copyArea, copyPerimeter, copyLength, copyWidth))
             if (copy.visible) renderIcon(g, COPY, copy, copy.active ? 0xFFE0E0E0 : 0xFF8A8A8A);
         for (Button copy : areaCopies) if (copy.visible) renderIcon(g, COPY, copy, copy.active ? 0xFFE0E0E0 : 0xFF8A8A8A);
-        EditBox folder = dialogFields[FOLDER_FIELD];
-        if (folder.visible && folder.getValue().isEmpty() && screen.getFocused() != folder) {
-            // The default folder stays greyed until another one is typed or chosen; the end of the path is kept.
-            String path = defaultExportFolder().toString();
-            while (mc.font.width(path) > folder.getWidth() - 8 && path.length() > 4) path = "…" + path.substring(2);
-            g.drawString(mc.font, path, folder.getX() + 4, folder.getY() + (folder.getHeight() - 8) / 2, 0xFF707A84);
-        }
+        exportWindow.renderPlaceholder(g, screen.getFocused() == exportWindow.folder);
     }
 
     private static final String[] COPY = {
@@ -2732,17 +2621,8 @@ public final class ExactSelectionController {
         areaSortButton.setMessage(tr("area_sort_" + areaSort.name().toLowerCase(Locale.ROOT)));
         if (dialog == Dialog.IMPORT) show(true, managementClose, importOpenFolder);
         if (dialog == Dialog.EXPORT) {
-            show(true, dialogFields[FOLDER_FIELD], exportPick, exportDefaultFolder, exportOpenFolder, exportTime,
-                    exportScale, exportLabels, exportAreas, exportRun, modalCancel);
-            exportTime.setMessage(tr(exportPreferences.night ? "export_night" : "export_day"));
-            exportScale.setMessage(tr("export_scale", exportWindowScale));
-            exportLabels.setMessage(tr(exportPreferences.labels ? "export_labels_on" : "export_labels_off"));
-            exportAreas.setMessage(tr(exportPreferences.areas ? "export_areas_on" : "export_areas_off"));
-            exportLabels.active = exportPreferences.areas;
-            Path folder = exportFolder();
-            exportOpenFolder.active = folder != null && Files.isDirectory(folder);
-            exportRun.active = folder != null && exportTarget != null && !exportRunning
-                    && AreaExportService.fits(exportTarget.bounds(), exportWindowScale);
+            exportWindow.show(exportRunning);
+            show(true, modalCancel);
         }
         groupVisibility.setMessage(tr(group != null && group.visible() ? "group_hide" : "group_show"));
         boolean hideAreas = selectedAreas().stream().anyMatch(SavedAreaStore.Area::visible);
@@ -2834,7 +2714,7 @@ public final class ExactSelectionController {
             case GROUPS -> renderGroupsDialog(g, x, y, w, h);
             case ASSIGN_GROUP -> renderGroupChooser(g, x, y, w, h);
             case IMPORT -> renderImportDialog(g, x, y, w, h);
-            case EXPORT -> renderExportDialog(g, x, y, w, h);
+            case EXPORT -> exportWindow.render(g, x, y, w, message);
             case AREA_NAME, GROUP_NAME -> {
                 g.drawString(mc.font, tr(dialog == Dialog.AREA_NAME ? "area_name" : "group_name"), x + 16, y + 32, -1);
                 if (dialog == Dialog.AREA_NAME) {

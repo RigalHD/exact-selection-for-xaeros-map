@@ -123,7 +123,10 @@ public final class ManagementUiCheck {
     }
 
     private static void press(ExactSelectionController controller, String name) throws Exception {
-        Button button = (Button) get(controller, name);
+        press(controller, (Button) get(controller, name), name);
+    }
+
+    private static void press(ExactSelectionController controller, Button button, String name) throws Exception {
         require(button.visible && button.active, "Button is unavailable: " + name + ", window=" + get(controller, "dialog"));
         button.onPress(new KeyEvent(GLFW.GLFW_KEY_ENTER, 0, 0));
         call(controller, "layoutDialog");
@@ -1346,36 +1349,37 @@ public final class ManagementUiCheck {
             press(controller, "panelModeButton");
             press(controller, "selectionExportButton");
             require(window(controller).equals("EXPORT"), "Selection export did not open the export window");
-            EditBox folder = text(controller, 11);
+            ExportWindow window = (ExportWindow) get(controller, "exportWindow");
+            EditBox folder = window.folder;
             Path defaultFolder = directory.resolve("xaero-exact-selection").resolve("map-exports").toAbsolutePath();
-            require(folder.getValue().isEmpty() && call(controller, "exportFolder").equals(defaultFolder),
+            require(folder.getValue().isEmpty() && window.folder().equals(defaultFolder),
                     "Default export folder must remain an empty field resolving to the default path: " + folder.getValue());
-            Button run = (Button) get(controller, "exportRun");
+            Button run = window.run;
             require(run.visible && run.active, "Export is unavailable for a small selection");
-            ExportPreferences preferences = (ExportPreferences) get(controller, "exportPreferences");
-            Button areas = (Button) get(controller, "exportAreas"), labels = (Button) get(controller, "exportLabels");
+            ExportPreferences preferences = window.preferences;
+            Button areas = window.areas, labels = window.labels;
             require(preferences.areas && areas.visible && areas.active && labels.active,
                     "Export must include areas by default");
             boolean previousLabels = preferences.labels;
-            press(controller, "exportAreas");
+            press(controller, window.areas, "areas");
             require(!preferences.areas && !labels.active && preferences.labels == previousLabels,
                     "Hiding exported areas must disable labels without losing their preference");
             preferences.save();
             require(!ExportPreferences.load(directory).areas, "Area export visibility was not remembered");
-            press(controller, "exportAreas");
+            press(controller, window.areas, "areas");
             require(preferences.areas && labels.active && preferences.labels == previousLabels,
                     "Enabling exported areas did not restore the label control");
             preferences.save();
-            int scale = (Integer) get(get(controller, "exportPreferences"), "scale");
-            press(controller, "exportScale");
-            require((Integer) get(get(controller, "exportPreferences"), "scale") != scale, "Scale button did not change the scale");
-            boolean night = (Boolean) get(get(controller, "exportPreferences"), "night");
-            press(controller, "exportTime");
-            require((Boolean) get(get(controller, "exportPreferences"), "night") != night, "Day/night button did not toggle");
+            int scale = preferences.scale;
+            press(controller, window.scale, "scale");
+            require(preferences.scale != scale && window.windowScale == preferences.scale, "Scale button did not change the scale");
+            boolean night = preferences.night;
+            press(controller, window.time, "time");
+            require(preferences.night != night, "Day/night button did not toggle");
             folder.setValue("relative/path"); call(controller, "updateVisibility");
             require(!run.active, "A relative folder can be exported to");
-            press(controller, "exportDefaultFolder");
-            require(run.active && folder.getValue().isEmpty() && call(controller, "exportFolder").equals(defaultFolder),
+            press(controller, window.standardFolder, "standardFolder");
+            require(run.active && folder.getValue().isEmpty() && window.folder().equals(defaultFolder),
                     "Default folder button did not clear the field and restore a usable folder");
             for (int[] size : List.of(new int[]{320, 240}, new int[]{480, 270}, new int[]{960, 540}, new int[]{640, 360})) {
                 map.width = size[0]; map.height = size[1];
@@ -1391,8 +1395,8 @@ public final class ManagementUiCheck {
             press(controller, "selectionExportButton");
             require(window(controller).equals("EXPORT"), "Export window did not reopen; message=" + get(controller, "message"));
             // init() above rebuilt the widgets, so read the current button.
-            require(!((Button) get(controller, "exportRun")).active, "An image above the pixel limit can be exported");
-            require((Integer) get(controller, "exportWindowScale") == 1 && preferences.scale == 4,
+            require(!window.run.active, "An image above the pixel limit can be exported");
+            require(window.windowScale == 1 && preferences.scale == 4,
                     "A large area lowered the remembered export scale instead of only this window's");
             key(controller, GLFW.GLFW_KEY_ESCAPE, 0);
         } finally {

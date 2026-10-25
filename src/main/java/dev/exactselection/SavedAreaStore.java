@@ -142,11 +142,17 @@ public final class SavedAreaStore {
         if (file == null) throw new IOException("No active map context");
         if (loadFailed) throw new IOException("Saved areas were not loaded; refusing to overwrite them");
         validate(next);
-        JsonObject json = encode(next);
+        writeAtomically(file, encode(next).toString());
+        state = next;
+        loadedGeneration = GENERATIONS.merge(file, 1L, Long::sum);
+    }
+
+    /** Writes through a temporary file and a rename, so a failed write never leaves a half-written file. */
+    static void writeAtomically(Path file, String text) throws IOException {
         Files.createDirectories(file.getParent());
         Path temp = file.resolveSibling(file.getFileName() + ".tmp");
         try {
-            Files.writeString(temp, json.toString(), StandardCharsets.UTF_8);
+            Files.writeString(temp, text, StandardCharsets.UTF_8);
             try {
                 Files.move(temp, file, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
             } catch (AtomicMoveNotSupportedException e) {
@@ -155,8 +161,6 @@ public final class SavedAreaStore {
         } finally {
             Files.deleteIfExists(temp);
         }
-        state = next;
-        loadedGeneration = GENERATIONS.merge(file, 1L, Long::sum);
     }
 
     public static Area create(String name, SelectionBounds bounds, int color, int opacity, String groupId) {

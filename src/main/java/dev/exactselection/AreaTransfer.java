@@ -4,10 +4,8 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -43,15 +41,9 @@ final class AreaTransfer {
         JsonObject json = SavedAreaStore.encode(state);
         json.addProperty("format", FORMAT);
         json.remove("showOnMap"); json.remove("showOnMinimap");
-        Files.createDirectories(folder);
         String stamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss", Locale.ROOT));
         Path file = unique(folder, safe(label) + "-" + stamp);
-        Path temp = folder.resolve("." + file.getFileName() + ".tmp");
-        try {
-            Files.writeString(temp, json.toString(), StandardCharsets.UTF_8);
-            try { Files.move(temp, file, StandardCopyOption.ATOMIC_MOVE); }
-            catch (AtomicMoveNotSupportedException e) { Files.move(temp, file); }
-        } finally { Files.deleteIfExists(temp); }
+        SavedAreaStore.writeAtomically(file, json.toString());
         return file;
     }
 

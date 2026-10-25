@@ -41,7 +41,12 @@ public final class SavedAreaStoreCheck {
             SavedAreaStore reloaded = new SavedAreaStore(directory);
             reloaded.useContext(context);
             require(reloaded.state().equals(saved), "Saved areas did not survive the failed write");
-            System.out.println("PASS: failed area writes keep the saved file and leave no temporary file");
+            // An oversized exchange file is refused before it is read into memory (a sparse file, so nothing is written).
+            Path huge = directory.resolve("huge.json");
+            try (var sparse = new java.io.RandomAccessFile(huge.toFile(), "rw")) { sparse.setLength(AreaTransfer.MAX_FILE_BYTES + 1); }
+            try { AreaTransfer.read(huge); throw new AssertionError("An oversized area file was read"); }
+            catch (IOException expected) { require(expected.getMessage().contains("too large"), "Oversized file failed for another reason: " + expected); }
+            System.out.println("PASS: failed area writes keep the saved file and leave no temporary file; oversized imports are refused");
         } finally {
             try (var paths = Files.walk(directory)) {
                 for (Path path : paths.sorted(Comparator.reverseOrder()).toList()) Files.delete(path);

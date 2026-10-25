@@ -24,6 +24,7 @@ import java.util.UUID;
 /** Area exchange files: the saved-area schema with a format marker, written to and read from one folder. */
 final class AreaTransfer {
     static final String FORMAT = "xaero-exact-selection-areas";
+    static final long MAX_FILE_BYTES = 16L * 1024 * 1024;
 
     record Merge(SavedAreaStore.State state, int added, int skipped, int groupsAdded) {}
 
@@ -70,6 +71,8 @@ final class AreaTransfer {
 
     /** Reads and validates an exchange file with the same rules as saved-area files. */
     static SavedAreaStore.State read(Path file) throws IOException {
+        // Files come from other people; the largest valid one (1000 areas of 256 vertices) is about 8 MB.
+        if (Files.size(file) > MAX_FILE_BYTES) throw new IOException("Area file is too large");
         try {
             JsonObject json = JsonParser.parseString(Files.readString(file, StandardCharsets.UTF_8)).getAsJsonObject();
             if (!json.has("format") || !FORMAT.equals(json.get("format").getAsString()))

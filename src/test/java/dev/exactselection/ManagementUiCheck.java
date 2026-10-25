@@ -1212,6 +1212,19 @@ public final class ManagementUiCheck {
                     "The stored shape of the edited territory is not faded behind its live bounds");
             int beta = store.state().areas().get(1).color();
             require(colors.stream().anyMatch(c -> c == (0xFF000000 | beta)), "Areas not being edited lost their full outline");
+
+            // Writing another change keeps an unsaved name; a deletion leaves nothing checked.
+            press(controller, "areasButton");
+            pick(controller, store, b.id());
+            text(controller, 4).setValue("Unsaved name");
+            press(controller, "areaMapVisibility");
+            AreaDraft draft = (AreaDraft) get(controller, "areaDraft");
+            require(text(controller, 4).getValue().equals("Unsaved name") && "Unsaved name".equals(draft.name),
+                    "Switching the map layer silently dropped the unsaved name");
+            press(controller, "areaDelete"); press(controller, "confirm");
+            require(store.state().areas().size() == 1 && ((Set<?>) get(controller, "selectedAreaIds")).isEmpty()
+                    && get(controller, "areaId") == null && draft.isEmpty() && text(controller, 4).getValue().isEmpty(),
+                    "Deleting an area checked another one or kept its draft");
         } finally {
             if (!autosave.enabled()) autosave.setEnabled(true);
             if (!autosave.includes(AutosaveSettings.Field.NAME)) autosave.toggle(AutosaveSettings.Field.NAME);
@@ -1372,12 +1385,15 @@ public final class ManagementUiCheck {
             }
             key(controller, GLFW.GLFW_KEY_ESCAPE, 0);
             require(window(controller).equals("NONE"), "Esc did not close the export window back to the map");
+            preferences.scale = 4;
             selection.set(new SelectionBounds(0, 0, 3999, 3999));
             call(controller, "updateVisibility");
             press(controller, "selectionExportButton");
             require(window(controller).equals("EXPORT"), "Export window did not reopen; message=" + get(controller, "message"));
             // init() above rebuilt the widgets, so read the current button.
             require(!((Button) get(controller, "exportRun")).active, "An image above the pixel limit can be exported");
+            require((Integer) get(controller, "exportWindowScale") == 1 && preferences.scale == 4,
+                    "A large area lowered the remembered export scale instead of only this window's");
             key(controller, GLFW.GLFW_KEY_ESCAPE, 0);
         } finally {
             set(controller, "dialog", dialog(controller, "NONE"));

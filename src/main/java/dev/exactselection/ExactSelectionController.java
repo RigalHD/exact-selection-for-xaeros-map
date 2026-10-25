@@ -82,6 +82,8 @@ public final class ExactSelectionController {
     private Button exportPick, exportDefaultFolder, exportOpenFolder, exportTime, exportScale, exportLabels, exportAreas, exportRun;
     /** What the export window will render, its description, and the window to return to. */
     private AreaGeometry exportTarget;
+    /** This window's scale: the remembered one, lowered until the target fits; only the Scale button changes the preference. */
+    private int exportWindowScale;
     private Component exportTitle = Component.empty();
     private Dialog exportReturn = Dialog.NONE;
     /** Minecraft's pixel font, read once from the game's resources; null when they are unavailable. */
@@ -283,8 +285,8 @@ public final class ExactSelectionController {
         exportScale = button("export_scale", 0, 0, 120, () -> {
             int[] scales = ExportPreferences.SCALES;
             int index = 0;
-            for (int i = 0; i < scales.length; i++) if (scales[i] == exportPreferences.scale) index = i;
-            exportPreferences.scale = scales[(index + 1) % scales.length];
+            for (int i = 0; i < scales.length; i++) if (scales[i] == exportWindowScale) index = i;
+            exportWindowScale = exportPreferences.scale = scales[(index + 1) % scales.length];
             updateVisibility();
         });
         exportLabels = button("export_labels_on", 0, 0, 120, () -> { exportPreferences.labels = !exportPreferences.labels; updateVisibility(); });
@@ -953,7 +955,9 @@ public final class ExactSelectionController {
         SavedAreaStore.State before = areaStore.state();
         if (before.equals(next)) return false;
         try {
-            history.execute(new SelectionHistory.Action() {
+            // Unsaved name, group, color and fill edits survive this write; undo and redo drop them in syncAreaSelection.
+            areaStore.replace(next);
+            history.recordApplied(new SelectionHistory.Action() {
                 @Override public void undo() throws Exception { areaStore.replace(before); syncAreaSelection(); }
                 @Override public void redo() throws Exception { areaStore.replace(next); syncAreaSelection(); }
                 @Override public String label() { return tr("history_" + label).getString(); }
@@ -993,7 +997,7 @@ public final class ExactSelectionController {
         kept.name = areaDraft.name; kept.groupSet = areaDraft.groupSet; kept.groupId = areaDraft.groupId;
         kept.color = areaDraft.color; kept.opacity = areaDraft.opacity;
         if (!next.equals(areaStore.state()) && !changeAreas(next, "area_update")) return false;
-        // changeAreas resynced and cleared the whole draft; keep the fields that were not written.
+        // Keep only the fields that were not written.
         kept.clear(fields);
         areaDraft.name = kept.name; areaDraft.groupSet = kept.groupSet; areaDraft.groupId = kept.groupId;
         areaDraft.color = kept.color; areaDraft.opacity = kept.opacity;
@@ -1039,6 +1043,7 @@ public final class ExactSelectionController {
     private void saveArea() {
         SelectionBounds b = state.bounds();
         if (b == null || dirty || state.phase() != SelectionState.Phase.SELECTED) return;
+        flushDraft();
         String name = dialogFields[8].getValue().trim();
         if (name.isEmpty()) name = tr("area_default_name", areaStore.state().areas().size() + 1).getString();
         AreaGeometry geometry = state.geometry() == null ? new RectangleGeometry(b) : state.geometry();
@@ -1120,10 +1125,10 @@ public final class ExactSelectionController {
         areas.removeIf(area -> ids.contains(area.id()));
         int count = targets.size();
         if (!changeAreas(areaState(areas, areaStore.state().groups()), "area_delete")) return;
-        areaId = areas.isEmpty() ? null : areas.get(0).id();
+        areaId = null;
         selectedAreaIds.clear();
-        if (areaId != null) selectedAreaIds.add(areaId);
-        setDialogValue(4, selectedArea() == null ? "" : selectedArea().name());
+        areaDraft.clear();
+        setDialogValue(4, "");
         message = tr("area_deleted", count).getString();
         areaDeleteConfirmation = false;
         focus(null);
@@ -1372,8 +1377,8 @@ public final class ExactSelectionController {
         exportTitle = title;
         exportReturn = returnTo;
         // Start from the largest scale up to the remembered one that the area fits at.
-        while (exportPreferences.scale > 1 && !AreaExportService.fits(geometry.bounds(), exportPreferences.scale))
-            exportPreferences.scale /= 2;
+        exportWindowScale = exportPreferences.scale;
+        while (exportWindowScale > 1 && !AreaExportService.fits(geometry.bounds(), exportWindowScale)) exportWindowScale /= 2;
         setDialogValue(FOLDER_FIELD, exportPreferences.folder);
         dialog = Dialog.EXPORT;
         message = "";
@@ -1435,7 +1440,7 @@ public final class ExactSelectionController {
         AreaGeometry target = exportTarget;
         dialog = exportReturn;
         exportGeometry(frame, target, new AreaExportService.Options(folder, exportFileName(), exportPreferences.night,
-                exportPreferences.scale, exportPreferences.labels, exportPreferences.areas, pixelFont));
+                exportWindowScale, exportPreferences.labels, exportPreferences.areas, pixelFont));
     }
 
     private void renderExportDialog(GuiGraphics g, int x, int y, int w, int h) {
@@ -1452,7 +1457,7 @@ public final class ExactSelectionController {
             shown = "…" + shown.substring(2);
         g.drawString(mc.font, tr("export_file", shown), x + 12, y + 104, folder == null ? 0xFFFFCF62 : 0xFF9BAAB7);
         if (b != null) {
-            int scale = exportPreferences.scale;
+            int scale = exportWindowScale;
             boolean fits = AreaExportService.fits(b, scale);
             g.drawString(mc.font, fits ? tr("export_size", b.width() * scale, b.length() * scale)
                     : tr("export_size_too_large", AreaExportService.MAX_OUTPUT_PIXELS), x + 12, y + 168, fits ? 0xFF9BAAB7 : 0xFFFFCF62);
@@ -2730,14 +2735,14 @@ public final class ExactSelectionController {
             show(true, dialogFields[FOLDER_FIELD], exportPick, exportDefaultFolder, exportOpenFolder, exportTime,
                     exportScale, exportLabels, exportAreas, exportRun, modalCancel);
             exportTime.setMessage(tr(exportPreferences.night ? "export_night" : "export_day"));
-            exportScale.setMessage(tr("export_scale", exportPreferences.scale));
+            exportScale.setMessage(tr("export_scale", exportWindowScale));
             exportLabels.setMessage(tr(exportPreferences.labels ? "export_labels_on" : "export_labels_off"));
             exportAreas.setMessage(tr(exportPreferences.areas ? "export_areas_on" : "export_areas_off"));
             exportLabels.active = exportPreferences.areas;
             Path folder = exportFolder();
             exportOpenFolder.active = folder != null && Files.isDirectory(folder);
             exportRun.active = folder != null && exportTarget != null && !exportRunning
-                    && AreaExportService.fits(exportTarget.bounds(), exportPreferences.scale);
+                    && AreaExportService.fits(exportTarget.bounds(), exportWindowScale);
         }
         groupVisibility.setMessage(tr(group != null && group.visible() ? "group_hide" : "group_show"));
         boolean hideAreas = selectedAreas().stream().anyMatch(SavedAreaStore.Area::visible);

@@ -19,30 +19,24 @@ public final class SelectionHistory {
     public String undoLabel() { return canUndo() ? undo.peek().label() : ""; }
     public String redoLabel() { return canRedo() ? redo.peek().label() : ""; }
 
-    public void execute(Action action) throws Exception {
-        action.redo();
-        recordApplied(action);
-    }
-
     public void recordApplied(Action action) {
         undo.push(action);
         redo.clear();
         while (undo.size() > LIMIT) undo.removeLast();
     }
 
+    // A step that fails is dropped so it cannot block older ones; each action rolls back its own partial writes.
     public void undo() throws Exception {
         if (!canUndo()) return;
-        Action action = undo.peek();
+        Action action = undo.pop();
         action.undo();
-        undo.pop();
         redo.push(action);
     }
 
     public void redo() throws Exception {
         if (!canRedo()) return;
-        Action action = redo.peek();
+        Action action = redo.pop();
         action.redo();
-        redo.pop();
         undo.push(action);
     }
 

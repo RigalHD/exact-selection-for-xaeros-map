@@ -292,6 +292,7 @@
   "exactselection.areas_export": "Экспорт: все",
   "exactselection.areas_export_count": "Экспорт: %s",
   "exactselection.areas_export_tooltip": "Сохранить отмеченные зоны (или все зоны мира, если ничего не отмечено) в файл для обмена",
+  "exactselection.transfer_folder_tooltip": "Открыть папку с экспортированными зонами",
   "exactselection.areas_import": "Импорт…",
   "exactselection.areas_import_tooltip": "Добавить зоны из файла обмена в этот мир",
   "exactselection.group_export": "Экспорт группы",

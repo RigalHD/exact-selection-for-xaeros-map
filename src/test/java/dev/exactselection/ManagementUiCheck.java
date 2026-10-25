@@ -1275,6 +1275,11 @@ public final class ManagementUiCheck {
             require(((Button[]) get(controller, "areaCopies")).length == 7, "Area copy buttons lack a name or corner action");
 
             press(controller, "areaClearSelection");
+            call(controller, "layoutDialog");
+            Button folderIcon = (Button) get(controller, "transferFolderButton"), importButton = (Button) get(controller, "areaImport");
+            require(folderIcon.visible && folderIcon.getMessage().getString().isEmpty() && folderIcon.getY() == importButton.getY()
+                    && folderIcon.getX() >= importButton.getX() + importButton.getWidth(),
+                    "Areas window has no folder button beside Import");
             press(controller, "areaExportFile");
             Path folder = AreaTransfer.folder(directory);
             List<Path> files = AreaTransfer.list(folder);

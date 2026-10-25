@@ -292,6 +292,7 @@
   "exactselection.areas_export": "Export: all",
   "exactselection.areas_export_count": "Export: %s",
   "exactselection.areas_export_tooltip": "Save the checked areas (or every area of this world when none is checked) to an exchange file",
+  "exactselection.transfer_folder_tooltip": "Open the folder with exported areas",
   "exactselection.areas_import": "Import…",
   "exactselection.areas_import_tooltip": "Add areas from an exchange file to this world",
   "exactselection.group_export": "Export group",

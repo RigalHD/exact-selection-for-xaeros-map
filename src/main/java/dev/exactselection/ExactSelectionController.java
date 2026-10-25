@@ -72,7 +72,7 @@ public final class ExactSelectionController {
     private final AutosaveSettings autosave;
     /** The Areas window shows the autosave settings instead of the area properties. */
     private boolean autosaveOpen;
-    private Button areaExportFile, areaImport, groupExport, importOpenFolder;
+    private Button areaExportFile, areaImport, groupExport, importOpenFolder, transferFolderButton;
     /** Exchange files listed by the import window, newest first; refreshed each time it opens. */
     private List<Path> importFiles = List.of();
     private int importScroll;
@@ -298,10 +298,11 @@ public final class ExactSelectionController {
         areaExportFile = button("areas_export", 0, 0, 110, this::exportAreaFile);
         areaImport = button("areas_import", 0, 0, 110, this::openImport);
         groupExport = button("group_export", 0, 0, 120, this::exportGroupFile);
-        importOpenFolder = button("import_open_folder", 0, 0, 150, () -> {
-            try { Files.createDirectories(transferFolder()); } catch (java.io.IOException ignored) { }
-            net.minecraft.util.Util.getPlatform().openPath(transferFolder());
-        });
+        importOpenFolder = button("import_open_folder", 0, 0, 150, this::openTransferFolder);
+        // Folder icon beside the area and group export buttons: the exchange files, like Open folder in map export.
+        transferFolderButton = Button.builder(Component.empty(), button -> openTransferFolder()).bounds(0, 0, 18, 18).build();
+        transferFolderButton.setTooltip(Tooltip.create(tr("transfer_folder_tooltip")));
+        widgets.add(transferFolderButton);
         areaExportFile.setTooltip(Tooltip.create(tr("areas_export_tooltip")));
         areaImport.setTooltip(Tooltip.create(tr("areas_import_tooltip")));
         groupExport.setTooltip(Tooltip.create(tr("group_export_tooltip")));
@@ -788,7 +789,8 @@ public final class ExactSelectionController {
                 place(openExportButton, right, y + h - 44, col, 16);
                 place(areaSortButton, x + 14 + col - 130, y + 27, 130, 16);
                 place(areaExportFile, x + 12, y + h - 92, half, 18);
-                place(areaImport, x + 15 + half, y + h - 92, col - half - 3, 18);
+                place(areaImport, x + 15 + half, y + h - 92, col - half - 24, 18);
+                place(transferFolderButton, x + 12 + col - 18, y + h - 92, 18, 18);
                 place(areaSelectAll, x + 12, y + h - 72, half, 18);
                 place(areaClearSelection, x + 15 + half, y + h - 72, col - half - 3, 18);
                 place(areaSave, x + 12, y + h - 52, col, 18);
@@ -809,7 +811,8 @@ public final class ExactSelectionController {
                 place(groupRename, right, y + 100, col, 18);
                 place(groupVisibility, right, y + 122, col, 18);
                 place(groupDelete, right, y + 144, col, 18);
-                place(groupExport, right, y + 166, col, 18);
+                place(groupExport, right, y + 166, col - 21, 18);
+                place(transferFolderButton, right + col - 18, y + 166, 18, 18);
                 place(openExportButton, right, y + h - 44, col, 16);
             }
             case EXPORT -> {
@@ -1549,6 +1552,11 @@ public final class ExactSelectionController {
 
     private Path transferFolder() { return AreaTransfer.folder(areaStore.root()); }
 
+    private void openTransferFolder() {
+        try { Files.createDirectories(transferFolder()); } catch (java.io.IOException ignored) { }
+        net.minecraft.util.Util.getPlatform().openPath(transferFolder());
+    }
+
     /** Exports the checked areas, or every area of this world when none is checked. */
     private void exportAreaFile() {
         if (loadFailed) return;
@@ -2226,6 +2234,7 @@ public final class ExactSelectionController {
         }
         g.nextStratum();
         if (autosaveButton.visible) renderIcon(g, GEAR, autosaveButton, autosaveOpen ? ACCENT : 0xFFE0E0E0);
+        if (transferFolderButton.visible) renderIcon(g, FOLDER, transferFolderButton, 0xFFE0E0E0);
         for (Button copy : List.of(copyCoordinates, copyCornerB, copyArea, copyPerimeter, copyLength, copyWidth))
             if (copy.visible) renderIcon(g, COPY, copy, copy.active ? 0xFFE0E0E0 : 0xFF8A8A8A);
         for (Button copy : areaCopies) if (copy.visible) renderIcon(g, COPY, copy, copy.active ? 0xFFE0E0E0 : 0xFF8A8A8A);
@@ -2246,6 +2255,16 @@ public final class ExactSelectionController {
             "###...#",
             "..#...#",
             "..#####",
+    };
+
+    private static final String[] FOLDER = {
+            "###......",
+            "#########",
+            "#.......#",
+            "#.......#",
+            "#.......#",
+            "#.......#",
+            "#########",
     };
 
     private static final String[] GEAR = {
@@ -2609,7 +2628,8 @@ public final class ExactSelectionController {
         if (dialog == Dialog.AREAS) {
             if (areaDeleteConfirmation) show(true, confirm, cancel);
             else {
-                show(true, managementClose, manageGroups, managementUndo, managementRedo, areaSave, areaExportFile, areaImport, areaSortButton,
+                show(true, managementClose, manageGroups, managementUndo, managementRedo, areaSave, areaExportFile, areaImport,
+                        transferFolderButton, areaSortButton,
                         areaSelectAll, areaClearSelection, areaMapVisibility, areaMinimapVisibility, autosaveButton);
                 if (autosaveOpen) {
                     show(true, autosaveToggle, autosaveClose);
@@ -2628,7 +2648,7 @@ public final class ExactSelectionController {
             if (groupDeleteConfirmation) show(true, confirm, cancel);
             else {
                 show(true, managementClose, managementUndo, managementRedo, groupCreate, groupRename, groupVisibility,
-                        groupDelete, groupExport);
+                        groupDelete, groupExport, transferFolderButton);
                 show(hasExportNotice(), openExportButton);
             }
         }

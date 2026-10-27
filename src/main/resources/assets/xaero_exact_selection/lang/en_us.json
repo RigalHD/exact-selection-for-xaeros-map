@@ -3,7 +3,7 @@
   "exactselection.title": "Exact selection",
   "exactselection.first_corner": "Left click: first corner block",
   "exactselection.second_corner": "Left click: second corner block",
-  "exactselection.new_selection": "Left click: start a new selection",
+  "exactselection.new_selection": "LMB inside: move · outside: new selection · RMB inside: actions",
   "exactselection.coordinate": "Corner %s, coordinate %s",
   "exactselection.apply": "Apply coordinates",
   "exactselection.clear": "Clear",
@@ -232,7 +232,7 @@
   "exactselection.polygon_vertex_moved": "Vertex moved. Ctrl/Cmd+Z: undo.",
   "exactselection.history_vertex": "Edit vertices",
   "exactselection.polygon_controls_short": "Click: vertex · Shift: align · Ctrl/Cmd: move",
-  "exactselection.polygon_edit_controls": "Ctrl/Cmd: move vertices · Double click an edge: add · Ctrl/Cmd+double click: delete",
+  "exactselection.polygon_edit_controls": "LMB inside: move · RMB inside: actions · Ctrl/Cmd: move vertices · Double click an edge: add · Ctrl/Cmd+double click: delete",
   "exactselection.polygon_vertex_inserted": "Vertex inserted. Ctrl/Cmd + drag to move it, then update the saved area geometry.",
   "exactselection.area_geometry_unchanged": "Geometry is unchanged. Edit the map selection first.",
   "exactselection.polygon_loaded": "Area loaded. Ctrl/Cmd moves vertices; double click an edge to insert one. Then choose Apply on the panel.",
@@ -266,7 +266,7 @@
   "exactselection.history_area_color": "Area color",
   "exactselection.polygon_vertex_deleted": "Vertex deleted",
   "exactselection.history_vertex_delete": "Delete vertex",
-  "exactselection.rectangle_edit_controls": "Double click an edge to add a vertex · Ctrl/Cmd: move corners",
+  "exactselection.rectangle_edit_controls": "LMB inside: move · RMB inside: actions · Double click an edge to add a vertex · Ctrl/Cmd: move corners",
   "exactselection.undo_tooltip_plain": "Undo (Ctrl/Cmd+Z)",
   "exactselection.redo_tooltip_plain": "Redo (Ctrl/Cmd+Y)",
   "exactselection.area_save_changes": "Save",
@@ -341,5 +341,9 @@
   "exactselection.export_labels_tooltip": "Include area names in the PNG; available when areas are enabled",
   "exactselection.export_run": "Export",
   "exactselection.export_size": "Image size: %s × %s px",
-  "exactselection.export_size_too_large": "Image too large (over %s px) — lower the scale"
+  "exactselection.export_size_too_large": "Image too large (over %s px) — lower the scale",
+  "exactselection.quick_menu_save": "Save…",
+  "exactselection.quick_menu_delete": "Delete zone",
+  "exactselection.quick_menu_clear": "Clear selection",
+  "exactselection.quick_menu_deleted": "Zone “%s” deleted; Ctrl+Z brings it back"
 }

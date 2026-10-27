@@ -3,7 +3,7 @@
   "exactselection.title": "Точное выделение",
   "exactselection.first_corner": "ЛКМ: выбрать первый угловой блок",
   "exactselection.second_corner": "ЛКМ: выбрать второй угловой блок",
-  "exactselection.new_selection": "ЛКМ: начать новое выделение",
+  "exactselection.new_selection": "ЛКМ внутри: двигать · снаружи: новое выделение · ПКМ внутри: действия",
   "exactselection.coordinate": "Угол %s, координата %s",
   "exactselection.apply": "Применить координаты",
   "exactselection.clear": "Сбросить",
@@ -232,7 +232,7 @@
   "exactselection.polygon_vertex_moved": "Вершина перемещена. Ctrl/Cmd+Z: отменить.",
   "exactselection.history_vertex": "Изменение вершин",
   "exactselection.polygon_controls_short": "ЛКМ: вершина · Shift: прямо · Ctrl/Cmd: двигать",
-  "exactselection.polygon_edit_controls": "Ctrl/Cmd: двигать вершины · Двойной ЛКМ по стороне: добавить · Ctrl/Cmd+двойной ЛКМ: удалить",
+  "exactselection.polygon_edit_controls": "ЛКМ внутри: двигать · ПКМ внутри: действия · Ctrl/Cmd: двигать вершины · Двойной ЛКМ по стороне: добавить · Ctrl/Cmd+двойной ЛКМ: удалить",
   "exactselection.polygon_vertex_inserted": "Вершина добавлена. Ctrl/Cmd + перетаскивание — переместить; затем обновите геометрию сохранённой области.",
   "exactselection.area_geometry_unchanged": "Геометрия не изменилась. Сначала измените выделение на карте.",
   "exactselection.polygon_loaded": "Область загружена. Ctrl/Cmd: двигать вершины; двойной ЛКМ по стороне: добавить вершину. Затем нажмите «Применить» на панели.",
@@ -266,7 +266,7 @@
   "exactselection.history_area_color": "Цвет областей",
   "exactselection.polygon_vertex_deleted": "Вершина удалена",
   "exactselection.history_vertex_delete": "Удаление вершины",
-  "exactselection.rectangle_edit_controls": "Двойной ЛКМ по стороне: добавить вершину · Ctrl/Cmd: двигать углы",
+  "exactselection.rectangle_edit_controls": "ЛКМ внутри: двигать · ПКМ внутри: действия · Двойной ЛКМ по стороне: добавить вершину · Ctrl/Cmd: двигать углы",
   "exactselection.undo_tooltip_plain": "Назад (Ctrl/Cmd+Z)",
   "exactselection.redo_tooltip_plain": "Повторить (Ctrl/Cmd+Y)",
   "exactselection.area_save_changes": "Сохранить",
@@ -341,5 +341,9 @@
   "exactselection.export_labels_tooltip": "Показывать названия зон на PNG; доступно, когда зоны включены",
   "exactselection.export_run": "Экспортировать",
   "exactselection.export_size": "Размер картинки: %s × %s пикс.",
-  "exactselection.export_size_too_large": "Слишком большая картинка (больше %s пикс.) — уменьшите масштаб"
+  "exactselection.export_size_too_large": "Слишком большая картинка (больше %s пикс.) — уменьшите масштаб",
+  "exactselection.quick_menu_save": "Сохранить…",
+  "exactselection.quick_menu_delete": "Удалить зону",
+  "exactselection.quick_menu_clear": "Снять выделение",
+  "exactselection.quick_menu_deleted": "Зона «%s» удалена — Ctrl+Z вернёт её"
 }

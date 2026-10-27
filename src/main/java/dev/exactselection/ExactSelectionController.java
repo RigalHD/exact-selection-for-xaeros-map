@@ -88,6 +88,11 @@ public final class ExactSelectionController {
     private boolean exportRunning;
     private String exportNotice = "";
     private Button areaMapVisibility, areaMinimapVisibility, areaNames;
+    /** Right-click menu on the selection; it stays where it opened until an action or a click elsewhere. */
+    private Button quickMenuSave, quickMenuColor, quickMenuOpacity, quickMenuDelete, quickMenuClear;
+    private boolean quickMenu;
+    private int quickMenuX, quickMenuY;
+    private double rightPressX, rightPressY;
     private Button pointVisibility, pointColor, pointScope, pointRename, pointRecolor;
     private Button quickSave, zonesButton, newAreaGroup, newAreaOpacityButton, colorHexApply;
     private Dialog areaNameReturn = Dialog.AREAS, colorReturn = Dialog.AREAS;
@@ -299,6 +304,25 @@ public final class ExactSelectionController {
         areaOpacity = button("area_fill", 0, 0, 100, this::cycleAreaOpacity);
         areaMapVisibility = button("area_map_on", 0, 0, 120, this::toggleAreaMapVisibility);
         areaNames = button("area_names_on", 0, 0, 120, this::toggleAreaNames);
+        quickMenuSave = button("quick_menu_save", 0, 0, 120, () -> { quickMenu = false; quickSave(); });
+        quickMenuColor = button("area_color", 0, 0, 120, this::openQuickColor);
+        quickMenuOpacity = button("area_new_opacity", 0, 0, 120, () -> {
+            SavedAreaStore.Area area = editedArea();
+            if (area != null) changeAreas(areaState(areaStore.state().areas().stream().map(a -> a != area ? a
+                    : new SavedAreaStore.Area(a.id(), a.name(), a.x1(), a.z1(), a.x2(), a.z2(), a.color(), nextOpacity(a.opacity()),
+                            a.groupId(), a.visible(), a.vertices())).toList(), areaStore.state().groups()), "area_update");
+            updateVisibility();
+        });
+        quickMenuDelete = button("quick_menu_delete", 0, 0, 120, () -> {
+            SavedAreaStore.Area area = editedArea();
+            quickMenu = false;
+            if (area != null && !changeAreas(areaState(areaStore.state().areas().stream().filter(a -> a != area).toList(),
+                    areaStore.state().groups()), "area_delete")) return;
+            reset();
+            if (area != null) message = tr("quick_menu_deleted", area.name()).getString();
+            updateVisibility();
+        });
+        quickMenuClear = button("quick_menu_clear", 0, 0, 120, () -> { quickMenu = false; reset(); });
         areaNames.setTooltip(Tooltip.create(tr("area_names_tooltip")));
         areaMinimapVisibility = button("area_minimap_on", 0, 0, 120, this::toggleAreaMinimapVisibility);
         manageGroups = button("groups_manage", 0, 0, 120,
@@ -1059,6 +1083,32 @@ public final class ExactSelectionController {
         updateVisibility();
     }
 
+    /** Opens the quick menu at the pointer when a right click (not a drag) lands inside the finished selection. */
+    private boolean openQuickMenu(MapBridge.Frame frame, double x, double y) {
+        if (frame == null || dialog != Dialog.NONE || gesture != null || dirty || !polygonDraft.isEmpty()
+                || !insideBounds(frame, x, y)) return false;
+        quickMenu = true;
+        quickMenuX = (int) x; quickMenuY = (int) y;
+        updateVisibility();
+        return true;
+    }
+
+    private List<Button> quickMenuButtons() {
+        return editedArea() == null ? List.of(quickMenuSave, quickMenuClear)
+                : List.of(quickMenuColor, quickMenuOpacity, quickMenuDelete, quickMenuClear);
+    }
+
+    /** The color window for the territory under edit; a swatch or hex applies at once. */
+    private void openQuickColor() {
+        SavedAreaStore.Area area = editedArea();
+        quickMenu = false;
+        if (area == null || loadFailed) return;
+        colorReturn = Dialog.NONE;
+        dialog = Dialog.COLOR;
+        setDialogValue(HEX_FIELD, AreaPalette.format(area.color()));
+        message = ""; focus(null); updateVisibility();
+    }
+
     private void cycleNewAreaGroup() {
         List<SavedAreaStore.Group> groups = areaStore.state().groups();
         int index = -1;
@@ -1150,6 +1200,15 @@ public final class ExactSelectionController {
     private void applyColor(int color) {
         if (colorReturn == Dialog.WAYPOINTS) {
             editPoints(null, color);
+            return;
+        }
+        if (colorReturn == Dialog.NONE) {
+            SavedAreaStore.Area area = editedArea();
+            dialog = Dialog.NONE;
+            if (area != null) changeAreas(areaState(areaStore.state().areas().stream().map(a -> a != area ? a
+                    : new SavedAreaStore.Area(a.id(), a.name(), a.x1(), a.z1(), a.x2(), a.z2(), color, a.opacity(),
+                            a.groupId(), a.visible(), a.vertices())).toList(), areaStore.state().groups()), "area_update");
+            focus(null); updateVisibility();
             return;
         }
         if (loadFailed) return;
@@ -2141,6 +2200,13 @@ public final class ExactSelectionController {
         toggle.active = enabled() || frame != null;
         toggle.setMessage(Component.literal(enabled() ? "■" : "□"));
         if (dialog != Dialog.NONE) renderDialog(g);
+        if (quickMenu) {
+            Button first = quickMenuButtons().get(0);
+            int count = quickMenuButtons().size();
+            g.nextStratum();
+            g.fill(first.getX() - 2, first.getY() - 2, first.getX() + 122, first.getY() + count * 18, 0xEE101922);
+            g.renderOutline(first.getX() - 2, first.getY() - 2, 124, count * 18 + 2, 0xFF42636D);
+        }
         for (AbstractWidget widget : widgets) {
             if (widget.visible) widget.render(g, mouseX, mouseY, delta);
         }
@@ -2334,6 +2400,9 @@ public final class ExactSelectionController {
             label(g, tr("length", b.length()), Math.min(screen.width - 60, x2 - 36), (y1 + y2) / 2);
         }
         if (!(state.geometry() instanceof PolygonGeometry)) renderHandles(g, frame, b);
+        SavedAreaStore.Area editing = editedArea();
+        if (editing != null && x1 < x2 && y1 < y2)
+            label(g, tr("editing_area", editing.name()), (x1 + x2) / 2, Math.max(2, y1 - 14), 0xFFFFCF62);
         if (selected != null) {
             g.enableScissor(0, 0, screen.width, screen.height);
             for (WaypointAccess.Point point : selected.points()) {
@@ -2493,6 +2562,17 @@ public final class ExactSelectionController {
                             && widget.getY() + widget.getHeight() <= PANEL_Y + panelHeight - (maxPanelScroll() > 0 ? 16 : 3);
             }
         }
+        if (quickMenu && (!main || state.phase() != SelectionState.Phase.SELECTED || gesture != null)) quickMenu = false;
+        if (quickMenu) {
+            List<Button> items = quickMenuButtons();
+            int x = Math.max(2, Math.min(screen.width - 124, quickMenuX)), y = Math.max(2, Math.min(screen.height - 2 - items.size() * 18, quickMenuY));
+            for (int i = 0; i < items.size(); i++) {
+                place(items.get(i), x + 2, y + 2 + i * 18, 120, 16);
+                items.get(i).visible = true;
+            }
+            SavedAreaStore.Area edited = editedArea();
+            if (edited != null) quickMenuOpacity.setMessage(tr("area_new_opacity", edited.opacity() + "%"));
+        }
         boolean contourDraft = !polygonDraft.isEmpty();
         boolean polygonSelection = state.geometry() instanceof PolygonGeometry;
         for (EditBox field : fields) field.active = !polygonSelection && !contourDraft && !holding();
@@ -2514,9 +2594,10 @@ public final class ExactSelectionController {
         polygonModeButton.setMessage(tr(polygonMode ? "polygon_mode_on" : "polygon_mode"));
         polygonModeButton.active = enabled() && !dirty && !holding() && dialog == Dialog.NONE;
         polygonModeButton.setTooltip(Tooltip.create(tr(polygonMode ? "polygon_controls" : "polygon_mode_tooltip")));
-        sizeButton.active = !(state.geometry() instanceof PolygonGeometry) && !dirty && !contourDraft && !holding();
+        boolean finished = state.phase() == SelectionState.Phase.SELECTED && state.bounds() != null;
+        sizeButton.active = finished && !(state.geometry() instanceof PolygonGeometry) && !dirty && !contourDraft && !holding();
         chunkMode.active = !(state.geometry() instanceof PolygonGeometry) && !contourDraft && !holding();
-        moveButton.active = centerButton.active = !dirty && !contourDraft && !holding();
+        moveButton.active = centerButton.active = finished && !dirty && !contourDraft && !holding();
         areasButton.active = groupsButton.active = !dirty && !contourDraft && !holding();
         int framed = compact ? 0 : areasInSelection().size();
         zonesButton.setMessage(tr("zones_in_selection", framed));
@@ -2528,7 +2609,7 @@ public final class ExactSelectionController {
                 modalApply, modalCancel);
         if (dialog == Dialog.COLOR) {
             // A swatch or Apply chooses the color; Esc leaves without one.
-            if (colorReturn == Dialog.AREAS) show(true, dialogFields[HEX_FIELD], colorHexApply);
+            if (colorReturn != Dialog.WAYPOINTS) show(true, dialogFields[HEX_FIELD], colorHexApply);
         }
         if (dialog == Dialog.GROUP_NAME) show(true, dialogFields[5], modalApply, modalCancel);
         if (dialog == Dialog.ASSIGN_GROUP) show(true, manageGroups, managementClose);
@@ -3070,6 +3151,12 @@ public final class ExactSelectionController {
         }
         if (toggle.mouseClicked(event, twice)) return true;
         if (!enabled()) return false;
+        if (quickMenu) {
+            for (Button item : quickMenuButtons()) if (item.visible && item.mouseClicked(event, twice)) return true;
+            quickMenu = false;
+            updateVisibility();
+            return true;
+        }
         if (overPanel(event.x(), event.y())) {
             focus(null);
             for (AbstractWidget widget : widgets) {
@@ -3086,7 +3173,7 @@ public final class ExactSelectionController {
         if (!enabled() || frame == null) return true;
         if (event.button() == GLFW.GLFW_MOUSE_BUTTON_RIGHT) {
             dragging = true;
-            lastMouseX = event.x(); lastMouseY = event.y();
+            lastMouseX = rightPressX = event.x(); lastMouseY = rightPressY = event.y();
         } else if (event.button() == GLFW.GLFW_MOUSE_BUTTON_LEFT) {
             if (dirty || holding()) return true;
             if ((event.modifiers() & (GLFW.GLFW_MOD_CONTROL | GLFW.GLFW_MOD_SUPER)) != 0
@@ -3112,7 +3199,7 @@ public final class ExactSelectionController {
                     return true;
                 }
                 if (hitVertex(frame, polygon.vertices(), event.x(), event.y()) >= 0
-                        || !polygonMode && !shiftDown) {
+                        || !polygonMode && !insideBounds(frame, event.x(), event.y())) {
                     message = tr("polygon_edit_controls").getString();
                     return true;
                 }
@@ -3126,9 +3213,13 @@ public final class ExactSelectionController {
                 MapGesture.Handle handle = hitHandle(frame, event.x(), event.y());
                 int worldX = SelectionBounds.block(frame.worldX(event.x()));
                 int worldZ = SelectionBounds.block(frame.worldZ(event.y()));
-                boolean moveWhole = (event.modifiers() & GLFW.GLFW_MOD_SHIFT) != 0 && insideBounds(frame, event.x(), event.y());
+                // While a contour is being drawn a plain click adds a vertex, so moving it there still needs Shift.
+                boolean moveWhole = insideBounds(frame, event.x(), event.y())
+                        && (!polygonMode || (event.modifiers() & GLFW.GLFW_MOD_SHIFT) != 0);
                 if (handle != null || moveWhole) {
-                    gesture = MapGesture.Drag.start(state.snapshot(), moveWhole ? MapGesture.Handle.MOVE : handle,
+                    // Handles resize; Shift still moves the whole shape even from a handle.
+                    boolean shift = (event.modifiers() & GLFW.GLFW_MOD_SHIFT) != 0;
+                    gesture = MapGesture.Drag.start(state.snapshot(), handle == null || moveWhole && shift ? MapGesture.Handle.MOVE : handle,
                             frame, event.x(), event.y());
                     return true;
                 }
@@ -3162,7 +3253,12 @@ public final class ExactSelectionController {
     }
 
     public boolean mouseReleased(MouseButtonEvent event) {
-        if (event.button() == GLFW.GLFW_MOUSE_BUTTON_RIGHT) dragging = false;
+        if (event.button() == GLFW.GLFW_MOUSE_BUTTON_RIGHT && dragging) {
+            dragging = false;
+            // A right click that did not pan the map opens the quick actions of the selection under it.
+            if (Math.hypot(event.x() - rightPressX, event.y() - rightPressY) < 4 && enabled()
+                    && openQuickMenu(checkedFrame(), event.x(), event.y())) return true;
+        }
         if (event.button() == GLFW.GLFW_MOUSE_BUTTON_LEFT && scrollbarDragging) {
             dragWaypointScrollbar(event.y());
             scrollbarDragging = false;
@@ -3232,7 +3328,8 @@ public final class ExactSelectionController {
                 || (event.modifiers() & GLFW.GLFW_MOD_SHIFT) != 0;
         if (!enabled()) return false;
         if (event.key() == GLFW.GLFW_KEY_ESCAPE) {
-            if (gesture instanceof MapGesture.VertexDrag) { cancelGesture(); message = tr("draft_cancelled").getString(); }
+            if (quickMenu) { quickMenu = false; updateVisibility(); }
+            else if (gesture instanceof MapGesture.VertexDrag) { cancelGesture(); message = tr("draft_cancelled").getString(); }
             else if (gesture instanceof MapGesture.Drag) cancelGesture();
             else if (dialog != Dialog.NONE) cancelDialog();
             else if (polygonMode) {

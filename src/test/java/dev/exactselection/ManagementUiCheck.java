@@ -349,6 +349,10 @@ public final class ManagementUiCheck {
         return new MouseButtonEvent(x, y, new MouseButtonInfo(GLFW.GLFW_MOUSE_BUTTON_LEFT, modifiers));
     }
 
+    private static MouseButtonEvent right(int x, int y) {
+        return new MouseButtonEvent(x, y, new MouseButtonInfo(GLFW.GLFW_MOUSE_BUTTON_RIGHT, 0));
+    }
+
     private static void clickMap(ExactSelectionController controller, int x, int y, int modifiers) {
         require(controller.mouseClicked(left(x, y, modifiers), false), "Map click was not captured");
         controller.mouseReleased(left(x, y, modifiers));
@@ -687,6 +691,21 @@ public final class ManagementUiCheck {
         controller.mouseReleased(left(570, 340, 0));
         require(selection.bounds().equals(new SelectionBounds(80, 80, 249, 239)),
                 "The resize release coordinate was not applied");
+
+        // Like a photo editor: a plain drag inside moves the selection; a click inside without moving keeps it.
+        selection.set(new SelectionBounds(80, 80, 239, 239));
+        controller.mouseClicked(left(450, 300, 0), false);
+        controller.mouseReleased(left(480, 300, 0));
+        require(selection.bounds().equals(new SelectionBounds(110, 80, 269, 239)), "A plain drag inside did not move the selection");
+        controller.mouseClicked(left(450, 300, 0), false);
+        controller.mouseReleased(left(450, 300, 0));
+        require(selection.phase() == SelectionState.Phase.SELECTED && selection.bounds().equals(new SelectionBounds(110, 80, 269, 239)),
+                "A click inside the selection started a new one");
+        selection.reset(); call(controller, "updateVisibility");
+        for (String name : List.of("sizeButton", "moveButton", "centerButton"))
+            require(!((Button) get(controller, name)).active, name + " works without a selection");
+        selection.set(new SelectionBounds(80, 80, 239, 239)); call(controller, "updateVisibility");
+        require(((Button) get(controller, "moveButton")).active, "Move is unavailable for a finished selection");
 
         selection.enable();
         set(controller, "chunks", true);
@@ -1113,6 +1132,54 @@ public final class ManagementUiCheck {
     }
 
     @SuppressWarnings("unchecked")
+    /** Right click inside the selection: quick actions for the territory under edit, or save and clear for a new one. */
+    private static void checkQuickMenu(ExactSelectionController controller, SavedAreaStore store) throws Exception {
+        SelectionState selection = (SelectionState) get(controller, "state");
+        SelectionState.Snapshot initial = selection.snapshot();
+        SavedAreaStore.State saved = store.state();
+        try {
+            selection.enable();
+            selection.set(new SelectionBounds(80, 80, 239, 239)); call(controller, "updateVisibility");
+            controller.mouseClicked(right(450, 300), false);
+            controller.mouseReleased(right(490, 300));
+            require(!(Boolean) get(controller, "quickMenu"), "Panning with the right button opened the quick menu");
+            controller.mouseClicked(right(450, 300), false);
+            controller.mouseReleased(right(450, 300));
+            require((Boolean) get(controller, "quickMenu") && ((Button) get(controller, "quickMenuSave")).visible
+                    && !((Button) get(controller, "quickMenuDelete")).visible, "A new selection did not offer Save and Clear");
+            key(controller, GLFW.GLFW_KEY_ESCAPE, 0);
+            require(!(Boolean) get(controller, "quickMenu") && selection.bounds() != null, "Esc did not just close the quick menu");
+
+            var area = SavedAreaStore.create("Edited", new SelectionBounds(80, 80, 239, 239), 0x123456, 25, null);
+            store.replace(new SavedAreaStore.State(List.of(area), List.of(), true, true));
+            selection.load(area.geometry(), area.id()); call(controller, "updateVisibility");
+            controller.mouseClicked(right(450, 300), false);
+            controller.mouseReleased(right(450, 300));
+            press(controller, "quickMenuOpacity");
+            require(store.state().areas().get(0).opacity() == 50 && (Boolean) get(controller, "quickMenu"),
+                    "Quick fill did not apply at once or closed the menu");
+            press(controller, "quickMenuColor");
+            require(window(controller).equals("COLOR"), "Quick color did not open the palette");
+            controller.mouseClicked(left((Integer) call(controller, "swatchX", ((int[]) call(controller, "dialogRect"))[0],
+                    ((int[]) call(controller, "dialogRect"))[2], 2) + 2, ((int[]) call(controller, "dialogRect"))[1] + 36, 0), false);
+            require(window(controller).equals("NONE") && store.state().areas().get(0).color() == AreaPalette.COLORS[2],
+                    "A quick color pick was not applied to the territory");
+            controller.mouseClicked(right(450, 300), false);
+            controller.mouseReleased(right(450, 300));
+            press(controller, "quickMenuDelete");
+            require(store.state().areas().isEmpty() && selection.bounds() == null, "Quick delete kept the zone or the selection");
+            call(controller, "updateVisibility");
+            press(controller, "undo"); press(controller, "undo");
+            require(store.state().areas().size() == 1 && selection.source() != null, "Undo did not bring the deleted zone back");
+        } finally {
+            set(controller, "quickMenu", false);
+            store.replace(saved); selection.restore(initial);
+            ((SelectionHistory) get(controller, "history")).clear();
+            call(controller, "syncFields"); call(controller, "updateVisibility");
+        }
+        System.out.println("PASS: right-click quick menu: pan does not open it, save/clear for new, fill/color/delete for an edited zone, Esc, undo");
+    }
+
     private static void checkAreaDraftAndAutosave(ExactSelectionController controller, GuiMap map, SavedAreaStore store,
                                                    Unsafe unsafe) throws Exception {
         SelectionState selection = (SelectionState) get(controller, "state");
@@ -1527,6 +1594,7 @@ public final class ManagementUiCheck {
             checkPrecisePointer(controller, minecraft, unsafe);
             checkWaypointRows(controller);
             checkReleaseFeatures(controller, map, store);
+            checkQuickMenu(controller, store);
             checkWaypointManagement(map, bridge, minecraft, store, context);
             controller.init();
             press(controller, "groupsButton");

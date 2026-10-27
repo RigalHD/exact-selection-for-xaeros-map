@@ -12,12 +12,16 @@ import java.util.EnumSet;
 import java.util.Locale;
 import org.slf4j.LoggerFactory;
 
-/** Which saved-area changes are written immediately instead of waiting for Save; shared by all worlds. */
+/**
+ * The Areas window's settings, shared by all worlds: which saved-area changes are written immediately instead of
+ * waiting for Save, and whether area and perimeter are copied exactly instead of rounded down.
+ */
 public final class AutosaveSettings {
     public enum Field { NAME, GROUP, COLOR, OPACITY, GEOMETRY }
 
     private final Path file;
     private boolean enabled;
+    private boolean exactCopy;
     private final EnumSet<Field> fields = EnumSet.allOf(Field.class);
 
     private AutosaveSettings(Path file) { this.file = file; }
@@ -27,8 +31,9 @@ public final class AutosaveSettings {
         AutosaveSettings settings = new AutosaveSettings(root.resolve("xaero-exact-selection").resolve("settings.json"));
         if (!Files.exists(settings.file)) return settings;
         try {
-            JsonObject json = JsonParser.parseString(Files.readString(settings.file, StandardCharsets.UTF_8))
-                    .getAsJsonObject().getAsJsonObject("autosave");
+            JsonObject stored = JsonParser.parseString(Files.readString(settings.file, StandardCharsets.UTF_8)).getAsJsonObject();
+            settings.exactCopy = stored.has("exactCopy") && stored.get("exactCopy").getAsBoolean();
+            JsonObject json = stored.getAsJsonObject("autosave");
             settings.enabled = json.get("enabled").getAsBoolean();
             settings.fields.clear();
             for (JsonElement field : json.getAsJsonArray("fields")) {
@@ -51,6 +56,11 @@ public final class AutosaveSettings {
 
     public void setEnabled(boolean enabled) { this.enabled = enabled; save(); }
 
+    /** Whether copied area and perimeter keep their fractions; off rounds them down to whole blocks. */
+    public boolean exactCopy() { return exactCopy; }
+
+    public void setExactCopy(boolean exactCopy) { this.exactCopy = exactCopy; save(); }
+
     public void toggle(Field field) {
         if (!fields.remove(field)) fields.add(field);
         save();
@@ -64,6 +74,7 @@ public final class AutosaveSettings {
         autosave.add("fields", list);
         JsonObject root = new JsonObject();
         root.add("autosave", autosave);
+        root.addProperty("exactCopy", exactCopy);
         try {
             SavedAreaStore.writeAtomically(file, root.toString());
         } catch (IOException e) {

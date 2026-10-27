@@ -1687,6 +1687,31 @@ public final class ManagementUiCheck {
                     "Polygon vertex copy exposed rectangle corners");
             copies[1].onPress(new KeyEvent(GLFW.GLFW_KEY_ENTER, 0, 0));
             require("0 0; 3 0; 0 4".equals(keyboard.copied), "Polygon vertex coordinate pairs must use spaces");
+            // Its area is 6 blocks² exactly, its perimeter 12; a sloped one has fractions, copied rounded down unless exact.
+            var sloped = SavedAreaStore.create("Sloped", new PolygonGeometry(List.of(new GridPoint(0, 0),
+                    new GridPoint(3, 0), new GridPoint(0, 3))), AreaPalette.DEFAULT, 25, null);
+            store.replace(new SavedAreaStore.State(List.of(sloped), List.of(), true, true));
+            pick(controller, store, sloped.id()); call(controller, "layoutDialog");
+            AutosaveSettings settings = (AutosaveSettings) get(controller, "autosave");
+            boolean exact = settings.exactCopy();
+            try {
+                settings.setExactCopy(false);
+                double slopedArea = sloped.geometry().area(), perimeter = sloped.geometry().perimeter();
+                require(slopedArea != Math.floor(slopedArea) && perimeter != Math.floor(perimeter), "The sloped polygon has whole metrics");
+                copies[2].onPress(new KeyEvent(GLFW.GLFW_KEY_ENTER, 0, 0));
+                require(Long.toString((long) Math.floor(slopedArea)).equals(keyboard.copied), "Area was not rounded down: " + keyboard.copied);
+                copies[3].onPress(new KeyEvent(GLFW.GLFW_KEY_ENTER, 0, 0));
+                require(Long.toString((long) Math.floor(perimeter)).equals(keyboard.copied), "Perimeter was not rounded down: " + keyboard.copied);
+                set(controller, "autosaveOpen", true); call(controller, "updateVisibility"); call(controller, "layoutDialog");
+                press(controller, "exactCopyButton");
+                checkLayout(controller);
+                require(settings.exactCopy() && AutosaveSettings.load(store.root()).exactCopy(), "Exact copying was not switched on and saved");
+                copies[2].onPress(new KeyEvent(GLFW.GLFW_KEY_ENTER, 0, 0));
+                require(keyboard.copied.contains("."), "Exact copying still rounded the area: " + keyboard.copied);
+            } finally {
+                settings.setExactCopy(exact);
+                set(controller, "autosaveOpen", false);
+            }
             System.out.println("PASS: separate A/B corner copying in the expanded panel, four compass corners for saved areas, none in the compact panel, space-separated coordinates, polygon vertices preserved");
         } finally {
             set(minecraft, "keyboardHandler", previousKeyboard); store.replace(saved); selection.restore(before);

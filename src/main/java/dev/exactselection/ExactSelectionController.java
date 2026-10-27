@@ -60,7 +60,7 @@ public final class ExactSelectionController {
     private int panelHeight, panelScroll;
     private Button modalApply, modalCancel, anchorButton, moveUnitsButton;
     private Button centerCopy, centerCreate, areaSave, areaLoad, areaDelete;
-    private Button areaSelectAll, areaClearSelection, areaSaveChanges, autosaveButton, autosaveToggle, autosaveClose;
+    private Button areaSelectAll, areaClearSelection, areaSaveChanges, autosaveButton, autosaveToggle, autosaveClose, exactCopyButton;
     /** Name, corner A or polygon vertices, area, perimeter, length, width, corner B. */
     /** Name, NW corner (or all polygon vertices), area, perimeter, length, width, SE, NE and SW corners. */
     private final Button[] areaCopies = new Button[9];
@@ -304,6 +304,8 @@ public final class ExactSelectionController {
         areaImport.setTooltip(Tooltip.create(tr("areas_import_tooltip")));
         groupExport.setTooltip(Tooltip.create(tr("group_export_tooltip")));
         autosaveClose = button("autosave_close", 0, 0, 120, () -> { autosaveOpen = false; focus(null); updateVisibility(); });
+        exactCopyButton = button("exact_copy_off", 0, 0, 120, () -> { autosave.setExactCopy(!autosave.exactCopy()); updateVisibility(); });
+        exactCopyButton.setTooltip(Tooltip.create(tr("exact_copy_tooltip")));
         String[] copies = {"copy_name_tooltip", "copy_corner_nw_tooltip", "copy_area_tooltip", "copy_perimeter_tooltip",
                 "copy_length_tooltip", "copy_width_tooltip", "copy_corner_se_tooltip", "copy_corner_ne_tooltip",
                 "copy_corner_sw_tooltip"};
@@ -794,7 +796,9 @@ public final class ExactSelectionController {
                     place(autosaveToggle, right, y + 46, col, 18);
                     int row = 0;
                     for (Button button : autosaveFields.values()) place(button, right, y + 68 + 20 * row++, col, 18);
-                    place(autosaveClose, right, y + 68 + 20 * row, col, 18);
+                    // The autosave hint follows the switches (renderAreasDialog), then exact copying and Close.
+                    place(exactCopyButton, right, y + 84 + 20 * row, col, 18);
+                    place(autosaveClose, right, y + 104 + 20 * row, col, 18);
                 } else {
                     place(dialogFields[4], right, y + 46, col - 21, 18);
                     place(areaCopies[0], right + col - 18, y + 46, 18, 18);
@@ -1818,13 +1822,16 @@ public final class ExactSelectionController {
             case 0 -> geometry instanceof PolygonGeometry polygon
                     ? polygon.vertices().stream().map(p -> p.x() + " " + p.z()).collect(java.util.stream.Collectors.joining("; "))
                     : cornerCoordinates(b, true);
-            case 1 -> formatMetric(geometry.area());
-            case 2 -> formatLength(geometry.perimeter());
+            case 1 -> autosave.exactCopy() ? formatMetric(geometry.area()) : roundedDown(geometry.area());
+            case 2 -> autosave.exactCopy() ? formatLength(geometry.perimeter()) : roundedDown(geometry.perimeter());
             case 3 -> Long.toString(b.length());
             case 5 -> cornerCoordinates(b, false);
             default -> Long.toString(b.width());
         });
     }
+
+    /** Whole blocks for pasting; the small margin keeps a value computed a hair under an integer from losing a block. */
+    static String roundedDown(double value) { return Long.toString((long) Math.floor(value + 1e-9)); }
 
     private static String formatLength(double value) {
         return value == Math.rint(value) ? Long.toString((long) value) : String.format(Locale.ROOT, "%.2f", value);
@@ -2820,7 +2827,8 @@ public final class ExactSelectionController {
                 int[] r = dialogRect();
                 areaSearch.visible = areaSearchSpan(r[0], (r[2] - 36) / 2)[1] >= 40;
                 if (autosaveOpen) {
-                    show(true, autosaveToggle, autosaveClose);
+                    show(true, autosaveToggle, autosaveClose, exactCopyButton);
+                    exactCopyButton.setMessage(tr(autosave.exactCopy() ? "exact_copy_on" : "exact_copy_off"));
                     show(true, autosaveFields.values().toArray(AbstractWidget[]::new));
                 } else {
                     show(true, dialogFields[4], groupAssign, areaLoad, areaExportButton, areaDelete,
@@ -3064,7 +3072,7 @@ public final class ExactSelectionController {
         if (autosaveOpen) {
             g.drawString(mc.font, tr("autosave_title"), right, y + 34, ACCENT);
             g.drawString(mc.font, mc.font.plainSubstrByWidth(tr("autosave_hint").getString(), col),
-                    right, y + 68 + 20 * (autosaveFields.size() + 1) + 4, 0xFF9BAAB7);
+                    right, y + 68 + 20 * autosaveFields.size() + 4, 0xFF9BAAB7);
             renderManagementStatus(g, x, y, w, h, "areas_selection_hint");
             return;
         }

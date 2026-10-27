@@ -84,6 +84,7 @@ Expand the selection panel and choose **Export selection as PNG…**, or **Expor
 - **Time: day / night**: night uses Xaero's own night export, with the dark sky and block light.
 - **Scale**: 1, 2, 4 or 8 image pixels per block; the map is enlarged without blurring and the resulting image size is shown.
 - **Labels: on / off**.
+- **This area's fill: on/off** — only when exporting a saved area (from the Areas window or loaded for editing): leaves out that area's own fill so the map under it is not tinted. Its outline and name and other areas' fills stay. The choice is remembered.
 
 The image looks like the in-game World Map: translucent area fills with thin outlines, and names in the area's color with Minecraft's pixel font, drop shadow and dark backing, drawn above all fills. As in game, an area is named once it is large enough for its label. Pixels outside a polygon are transparent. The choices are remembered for all worlds.
 

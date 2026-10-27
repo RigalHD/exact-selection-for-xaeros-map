@@ -3,6 +3,7 @@
 ## 1.3.1+1.21.11
 
 - Like a photo editor: dragging inside a finished selection moves it (handles and edges still resize, Shift still moves from anywhere). Size, Move and Center wait for a finished selection. The territory being edited is named above its frame on the map. A right click inside the selection opens quick actions: Save… and Clear selection, or Color…, Fill and Delete zone for an edited territory, each applied at once and undoable. A click outside a polygon starts a new selection, as it does for a rectangle.
+- Map export of a saved area can leave out that area's own fill (This area's fill: off); its outline, name and other areas stay.
 - Names: ON/OFF in the Areas window hides area names on the world map while the areas stay drawn; saved per world and undoable, older files keep names shown.
 - Drop the separate XaeroLib requirement: World Map already requires its own XaeroLib, and every XaeroLib for 1.21.11 (1.0.44 and newer) has what the addon uses.
 - Internal: the PNG export window moved to its own class, one atomic file writer replaces four copies, the Areas window sort is cached instead of recomputed every frame, and unused code was removed.

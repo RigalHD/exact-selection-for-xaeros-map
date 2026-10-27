@@ -24,8 +24,10 @@ final class ExportWindow {
     private final Minecraft mc;
     private final Supplier<Path> defaultFolder;
     EditBox folder;
-    Button pick, standardFolder, openFolder, time, scale, labels, areas, run;
+    Button pick, standardFolder, openFolder, time, scale, labels, areas, ownFill, run;
     private AreaGeometry target;
+    /** The saved area being exported, whose fill can be left out; null for a plain selection. */
+    private String targetArea;
     private Component title = Component.empty();
     /** This window's scale: the remembered one, lowered until the target fits; only the Scale button changes the preference. */
     int windowScale;
@@ -73,17 +75,20 @@ final class ExportWindow {
         });
         labels = button("export_labels_on", () -> { preferences.labels = !preferences.labels; changed.run(); });
         areas = button("export_areas_on", () -> { preferences.areas = !preferences.areas; changed.run(); });
+        ownFill = button("export_own_fill_on", () -> { preferences.ownFill = !preferences.ownFill; changed.run(); });
         run = button("export_run", export);
         pick.setTooltip(Tooltip.create(tr("export_pick_tooltip")));
         time.setTooltip(Tooltip.create(tr("export_time_tooltip")));
         scale.setTooltip(Tooltip.create(tr("export_scale_tooltip")));
         areas.setTooltip(Tooltip.create(tr("export_areas_tooltip")));
         labels.setTooltip(Tooltip.create(tr("export_labels_tooltip")));
-        return List.of(folder, pick, standardFolder, openFolder, time, scale, areas, labels, run);
+        ownFill.setTooltip(Tooltip.create(tr("export_own_fill_tooltip")));
+        return List.of(folder, pick, standardFolder, openFolder, time, scale, areas, labels, ownFill, run);
     }
 
-    void open(AreaGeometry target, Component title) {
+    void open(AreaGeometry target, Component title, String targetArea) {
         this.target = target;
+        this.targetArea = targetArea;
         this.title = title;
         // Start from the largest scale up to the remembered one that the area fits at.
         windowScale = preferences.scale;
@@ -92,6 +97,11 @@ final class ExportWindow {
     }
 
     AreaGeometry target() { return target; }
+
+    boolean hasTargetArea() { return targetArea != null; }
+
+    /** The saved area to export without its fill, or null when every area keeps its fill. */
+    String unfilledArea() { return targetArea != null && preferences.areas && !preferences.ownFill ? targetArea : null; }
 
     /** The folder typed in the window (empty: the default one), or null when it is not an absolute path. */
     Path folder() {
@@ -151,6 +161,7 @@ final class ExportWindow {
         ExactSelectionController.place(scale, x + 15 + half, y + 122, w - 27 - half, 18);
         ExactSelectionController.place(areas, x + 12, y + 144, half, 18);
         ExactSelectionController.place(labels, x + 15 + half, y + 144, w - 27 - half, 18);
+        ExactSelectionController.place(ownFill, x + 12, y + 166, w - 24, 18);
         ExactSelectionController.place(run, x + w / 2 - 116, buttonY, 110, 18);
     }
 
@@ -161,7 +172,9 @@ final class ExportWindow {
         scale.setMessage(tr("export_scale", windowScale));
         labels.setMessage(tr(preferences.labels ? "export_labels_on" : "export_labels_off"));
         areas.setMessage(tr(preferences.areas ? "export_areas_on" : "export_areas_off"));
-        labels.active = preferences.areas;
+        labels.active = ownFill.active = preferences.areas;
+        ownFill.visible = hasTargetArea();
+        ownFill.setMessage(tr(preferences.ownFill ? "export_own_fill_on" : "export_own_fill_off"));
         Path target = folder();
         openFolder.active = target != null && Files.isDirectory(target);
         run.active = target != null && this.target != null && !exportRunning
@@ -183,9 +196,9 @@ final class ExportWindow {
         if (b != null) {
             boolean fits = AreaExportService.fits(b, windowScale);
             g.drawString(mc.font, fits ? tr("export_size", b.width() * windowScale, b.length() * windowScale)
-                    : tr("export_size_too_large", AreaExportService.MAX_OUTPUT_PIXELS), x + 12, y + 168, fits ? 0xFF9BAAB7 : 0xFFFFCF62);
+                    : tr("export_size_too_large", AreaExportService.MAX_OUTPUT_PIXELS), x + 12, y + (hasTargetArea() ? 190 : 168), fits ? 0xFF9BAAB7 : 0xFFFFCF62);
         }
-        if (!message.isEmpty()) g.drawString(mc.font, mc.font.plainSubstrByWidth(message, w - 24), x + 12, y + 182, 0xFFFFCF62);
+        if (!message.isEmpty()) g.drawString(mc.font, mc.font.plainSubstrByWidth(message, w - 24), x + 12, y + (hasTargetArea() ? 204 : 182), 0xFFFFCF62);
     }
 
     /** Drawn above the widgets: the default folder stays greyed in the empty field; the end of the path is kept. */

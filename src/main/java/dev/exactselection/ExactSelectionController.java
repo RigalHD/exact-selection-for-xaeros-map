@@ -693,7 +693,7 @@ public final class ExactSelectionController {
             case GROUP_NAME -> Math.min(140, screen.height - 16);
             case COLOR -> Math.min(140, screen.height - 16);
             case WAYPOINTS, IMPORT -> Math.min(330, screen.height - 16);
-            case EXPORT -> Math.min(220, screen.height - 16);
+            case EXPORT -> Math.min(exportWindow.hasTargetArea() ? 242 : 220, screen.height - 16);
             default -> 0;
         };
         return new int[]{(screen.width - width) / 2, (screen.height - height) / 2, width, height};
@@ -1373,7 +1373,7 @@ public final class ExactSelectionController {
         SavedAreaStore.Area area = selectedArea();
         if (area == null || frame == null || loadFailed || exportRunning) return;
         flushDraft();
-        openExportDialog(area.geometry(), tr("export_what_area", area.name()), Dialog.AREAS);
+        openExportDialog(area.geometry(), tr("export_what_area", area.name()), Dialog.AREAS, area.id());
     }
 
     private boolean canExportSelection() {
@@ -1385,11 +1385,12 @@ public final class ExactSelectionController {
     private void exportCurrentSelection() {
         MapBridge.Frame frame = checkedFrame();
         if (frame == null || !canExportSelection()) return;
-        openExportDialog(state.geometry(), tr("export_what_selection"), Dialog.NONE);
+        SavedAreaStore.Area edited = editedArea();
+        openExportDialog(state.geometry(), tr("export_what_selection"), Dialog.NONE, edited == null ? null : edited.id());
     }
 
-    private void openExportDialog(AreaGeometry geometry, Component title, Dialog returnTo) {
-        exportWindow.open(geometry, title);
+    private void openExportDialog(AreaGeometry geometry, Component title, Dialog returnTo, String areaId) {
+        exportWindow.open(geometry, title, areaId);
         exportReturn = returnTo;
         dialog = Dialog.EXPORT;
         message = "";
@@ -1408,14 +1409,16 @@ public final class ExactSelectionController {
         AreaExportService.Options options = exportWindow.options();
         if (options == null) return;
         dialog = exportReturn;
-        exportGeometry(frame, exportWindow.target(), options);
+        exportGeometry(frame, exportWindow.target(), options, exportWindow.unfilledArea());
     }
 
-    private void exportGeometry(MapBridge.Frame frame, AreaGeometry geometry, AreaExportService.Options options) {
+    private void exportGeometry(MapBridge.Frame frame, AreaGeometry geometry, AreaExportService.Options options, String unfilledArea) {
         java.util.concurrent.CompletableFuture<AreaExportService.Result> pendingExport;
         try {
             pendingExport = AreaExportService.export(bridge.exactselection$processor(),
-                    frame.context(), geometry, areaStore.state().areas(), areaStore.state().groups(), options);
+                    frame.context(), geometry, areaStore.state().areas().stream().map(a -> !a.id().equals(unfilledArea) ? a
+                            : new SavedAreaStore.Area(a.id(), a.name(), a.x1(), a.z1(), a.x2(), a.z2(), a.color(), 0,
+                                    a.groupId(), a.visible(), a.vertices())).toList(), areaStore.state().groups(), options);
         } catch (AreaExportService.TooLargeException e) {
             message = tr("area_export_too_large", AreaExportService.MAX_PIXELS).getString();
             updateVisibility();

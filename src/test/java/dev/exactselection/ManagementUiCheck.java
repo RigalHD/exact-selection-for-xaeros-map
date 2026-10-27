@@ -1444,6 +1444,7 @@ public final class ManagementUiCheck {
                     "Default export folder must remain an empty field resolving to the default path: " + folder.getValue());
             Button run = window.run;
             require(run.visible && run.active, "Export is unavailable for a small selection");
+            require(!window.ownFill.visible && window.unfilledArea() == null, "A plain selection offered to drop its own area fill");
             ExportPreferences preferences = window.preferences;
             Button areas = window.areas, labels = window.labels;
             require(preferences.areas && areas.visible && areas.active && labels.active,
@@ -1477,6 +1478,27 @@ public final class ManagementUiCheck {
             }
             key(controller, GLFW.GLFW_KEY_ESCAPE, 0);
             require(window(controller).equals("NONE"), "Esc did not close the export window back to the map");
+            // Exporting a saved area can leave out that area's own fill; the choice is remembered.
+            SavedAreaStore store = (SavedAreaStore) get(controller, "areaStore");
+            SavedAreaStore.State savedAreas = store.state();
+            var own = SavedAreaStore.create("Own", new SelectionBounds(0, 0, 99, 49), 0x123456, 40, null);
+            store.replace(new SavedAreaStore.State(List.of(own), List.of()));
+            try {
+                selection.load(own.geometry(), own.id()); call(controller, "updateVisibility");
+                press(controller, "selectionExportButton");
+                require(window.ownFill.visible && window.ownFill.active && window.unfilledArea() == null,
+                        "Exporting a saved area did not offer its own fill, on by default");
+                checkLayout(controller);
+                press(controller, window.ownFill, "ownFill");
+                require(own.id().equals(window.unfilledArea()), "Turning off the area's fill did not reach the export");
+                preferences.save();
+                require(!ExportPreferences.load(directory).ownFill, "The area's own fill choice was not remembered");
+                press(controller, window.areas, "areas");
+                require(!window.ownFill.active && window.unfilledArea() == null, "The fill switch works with areas hidden");
+                press(controller, window.areas, "areas"); press(controller, window.ownFill, "ownFill");
+                preferences.save();
+                key(controller, GLFW.GLFW_KEY_ESCAPE, 0);
+            } finally { store.replace(savedAreas); }
             preferences.scale = 4;
             selection.set(new SelectionBounds(0, 0, 3999, 3999));
             call(controller, "updateVisibility");
@@ -1493,7 +1515,7 @@ public final class ManagementUiCheck {
             selection.restore(initial);
             call(controller, "layoutMainPanel"); call(controller, "syncFields"); call(controller, "updateVisibility");
         }
-        System.out.println("PASS: export window with default folder, path validation, scale, day/night, size limit and responsive layout");
+        System.out.println("PASS: export window with default folder, path validation, scale, day/night, own area fill, size limit and responsive layout");
     }
 
     private static void checkSeparateCorners(ExactSelectionController controller, GuiMap map, Minecraft minecraft,

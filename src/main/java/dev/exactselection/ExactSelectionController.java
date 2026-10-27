@@ -2401,8 +2401,9 @@ public final class ExactSelectionController {
         }
         if (!(state.geometry() instanceof PolygonGeometry)) renderHandles(g, frame, b);
         SavedAreaStore.Area editing = editedArea();
+        // Above the frame; with no room there, below the width label instead of over it.
         if (editing != null && x1 < x2 && y1 < y2)
-            label(g, tr("editing_area", editing.name()), (x1 + x2) / 2, Math.max(2, y1 - 14), 0xFFFFCF62);
+            label(g, tr("editing_area", editing.name()), (x1 + x2) / 2, y1 >= 16 ? y1 - 14 : y1 + 16, 0xFFFFCF62);
         if (selected != null) {
             g.enableScissor(0, 0, screen.width, screen.height);
             for (WaypointAccess.Point point : selected.points()) {
@@ -3277,6 +3278,8 @@ public final class ExactSelectionController {
     }
 
     public boolean mouseScrolled(double x, double y, double vertical) {
+        // Zooming moves the selection away from the menu, which stays where it opened.
+        if (quickMenu) { quickMenu = false; updateVisibility(); }
         if (dialog == Dialog.WAYPOINTS && pending != null) {
             modalScroll = Math.max(0, Math.min(Math.max(0, filteredPoints().size() - waypointRows(dialogRect()[3])),
                     modalScroll - (vertical > 0 ? 1 : vertical < 0 ? -1 : 0)));

@@ -237,7 +237,7 @@
   "exactselection.area_geometry_unchanged": "Geometry is unchanged. Edit the map selection first.",
   "exactselection.polygon_loaded": "Area loaded. Ctrl/Cmd moves vertices; double click an edge to insert one. Then choose Apply on the panel.",
   "exactselection.quick_save": "Save",
-  "exactselection.quick_apply": "Apply",
+  "exactselection.quick_apply": "Save",
   "exactselection.quick_save_tooltip": "Save the selection as a new area…",
   "exactselection.quick_apply_tooltip": "Save the current shape to “%s”",
   "exactselection.editing_area": "Editing: “%s”",

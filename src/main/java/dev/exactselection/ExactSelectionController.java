@@ -33,7 +33,7 @@ import xaero.map.gui.GuiMap;
 
 public final class ExactSelectionController {
     private static final int PANEL_X = 34, PANEL_Y = 26;
-    private static final int COMPACT_HEIGHT = 156, EXPANDED_HEIGHT = 238, COPY_SIZE = 10;
+    private static final int COMPACT_HEIGHT = 111, EXPANDED_HEIGHT = 238, COPY_SIZE = 10;
     /** -12 while the perimeter shares the area line: everything below moves up one line and the panel gets shorter. */
     private int metricsShift;
     private static final int RENAME_FIELD = 9, HEX_FIELD = 10;
@@ -54,7 +54,7 @@ public final class ExactSelectionController {
     private final EditBox[] dialogFields = new EditBox[11];
     private Button toggle, apply, clear, pointsButton, confirm, cancel;
     private Button copyCoordinates, copyCornerB, copyArea, copyPerimeter, copyLength, copyWidth;
-    private Button undo, redo, chunkMode, sizeButton, moveButton, centerButton, areasButton, groupsButton;
+    private Button undo, redo, chunkMode, sizeButton, moveButton, centerButton, areasButton;
     private Button polygonModeButton, panelModeButton, selectionExportButton;
     private boolean compact = true;
     private int panelHeight, panelScroll;
@@ -214,7 +214,6 @@ public final class ExactSelectionController {
         centerButton = button("center", 0, 0, 100, () -> openDialog(Dialog.CENTER));
         polygonModeButton = button("polygon_mode", 0, 0, 100, this::togglePolygonMode);
         areasButton = button("areas_window", 0, 0, 100, () -> openDialog(Dialog.AREAS));
-        groupsButton = button("groups_window", 0, 0, 100, () -> openGroupsWindow(Dialog.NONE));
         clear = button("clear", 0, 0, 100, this::reset);
         quickSave = button("quick_save", 0, 0, 100, this::quickSave);
         zonesButton = button("zones_in_selection", 0, 0, 100, this::openAreasInSelection);
@@ -405,13 +404,17 @@ public final class ExactSelectionController {
         panelHeight = Math.min(contentHeight(), screen.height - PANEL_Y - 8);
         panelScroll = Math.max(0, Math.min(panelScroll, maxPanelScroll()));
         int x = PANEL_X + 8, top = PANEL_Y - (compact ? 0 : panelScroll), y = top + metricsShift, w = panelWidth - 16;
-        place(panelModeButton, PANEL_X + panelWidth - 80, PANEL_Y + 4, 72, 16);
+        place(panelModeButton, PANEL_X + panelWidth - 24, PANEL_Y + 4, 16, 16);
         if (compact) {
-            arrowRow(new Button[]{clear, polygonModeButton}, x, y + 98, w);
-            mainRow(new Button[]{areasButton, groupsButton}, x, y + 119, w, 18);
+            // Groups open from the Areas window; Esc or the right-click menu clears the selection.
+            arrowRow(new Button[]{polygonModeButton, areasButton}, x, y + 74, w);
         } else {
-            // Narrow coordinate fields with Apply beside both rows; Size, Move and Center live in the right-click menu.
-            int applyWidth = mc.font.width(apply.getMessage()) + 12;
+            // Narrow coordinate fields; Apply and Save stand beside them (Save is placed in updateVisibility).
+            // Size, Move and Center live in the right-click menu, Groups in the Areas window.
+            int applyWidth = mc.font.width(apply.getMessage());
+            for (String key : List.of("quick_save", "quick_apply", "quick_autosaved")) applyWidth = Math.max(applyWidth, mc.font.width(tr(key)));
+            // A long translation scrolls inside its button instead of squeezing the fields.
+            applyWidth = Math.min(w / 4, applyWidth + 12);
             fieldWidth = (w - coordinateLabelWidth - zLabelWidth - fieldGap * 3 - COPY_SIZE - 3 - 6 - applyWidth) / 2;
             int xField = x + coordinateLabelWidth + fieldGap;
             int zField = xField + fieldWidth + fieldGap * 2 + zLabelWidth;
@@ -419,10 +422,10 @@ public final class ExactSelectionController {
                 place(fields[i], i % 2 == 0 ? xField : zField, top + 34 + i / 2 * 24, fieldWidth, 18);
             place(copyCoordinates, zField + fieldWidth + 3, top + 38, COPY_SIZE, COPY_SIZE);
             place(copyCornerB, zField + fieldWidth + 3, top + 62, COPY_SIZE, COPY_SIZE);
-            place(apply, x + w - applyWidth, top + 34, applyWidth, 42);
+            place(apply, x + w - applyWidth, top + 34, applyWidth, 18);
             arrowRow(new Button[]{chunkMode, polygonModeButton, clear}, x, y + 126, w);
-            mainRow(new Button[]{areasButton, groupsButton, zonesButton}, x, y + 148, w, 18);
-            mainRow(new Button[]{pointsButton, selectionExportButton}, x, y + 170, w, 18);
+            mainRow(new Button[]{areasButton, zonesButton, pointsButton}, x, y + 148, w, 18);
+            place(selectionExportButton, x, y + 170, w, 18);
         }
     }
 
@@ -519,24 +522,18 @@ public final class ExactSelectionController {
     /** The panel's metric lines; their y is relative to the panel top, as for line(). */
     private List<Map.Entry<Integer, MetricLine>> panelMetricLines() {
         List<Map.Entry<Integer, MetricLine>> lines = new ArrayList<>();
-        lines.add(Map.entry(compact ? 57 : 82, new MetricLine(dimensionText(), List.of(copyWidth, copyLength))));
-        if (metricsShift != 0) lines.add(Map.entry(compact ? 69 : 94, new MetricLine(
+        lines.add(Map.entry(compact ? 33 : 82, new MetricLine(dimensionText(), List.of(copyWidth, copyLength))));
+        if (metricsShift != 0) lines.add(Map.entry(compact ? 45 : 94, new MetricLine(
                 List.of(areaText().getString(), perimeterText().getString()), List.of(copyArea, copyPerimeter))));
         else {
-            lines.add(Map.entry(compact ? 69 : 94, new MetricLine(List.of(areaText().getString()), List.of(copyArea))));
-            lines.add(Map.entry(compact ? 81 : 106, new MetricLine(List.of(perimeterText().getString()), List.of(copyPerimeter))));
+            lines.add(Map.entry(compact ? 45 : 94, new MetricLine(List.of(areaText().getString()), List.of(copyArea))));
+            lines.add(Map.entry(compact ? 57 : 106, new MetricLine(List.of(perimeterText().getString()), List.of(copyPerimeter))));
         }
         return lines;
     }
 
     private void placePanelCopies() {
         int scroll = compact ? 0 : panelScroll;
-        if (compact) {
-            placeMetricLine(new MetricLine(List.of(coordinateLine(state.bounds(), true)), List.of(copyCoordinates)),
-                    PANEL_X + 8, PANEL_Y + 33, panelWidth - 16);
-            placeMetricLine(new MetricLine(List.of(coordinateLine(state.bounds(), false)), List.of(copyCornerB)),
-                    PANEL_X + 8, PANEL_Y + 45, panelWidth - 16);
-        }
         for (Map.Entry<Integer, MetricLine> line : panelMetricLines())
             placeMetricLine(line.getValue(), PANEL_X + 8, PANEL_Y + line.getKey() - scroll, panelWidth - 16);
     }
@@ -2313,6 +2310,7 @@ public final class ExactSelectionController {
             if (widget.visible) widget.render(g, mouseX, mouseY, delta);
         }
         g.nextStratum();
+        if (panelModeButton.visible) renderIcon(g, compact ? EXPAND : COLLAPSE, panelModeButton, 0xFFE0E0E0);
         if (autosaveButton.visible) renderIcon(g, GEAR, autosaveButton, autosaveOpen ? ACCENT : 0xFFE0E0E0);
         if (transferFolderButton.visible) renderIcon(g, FOLDER, transferFolderButton, 0xFFE0E0E0);
         for (Button copy : List.of(copyCoordinates, copyCornerB, copyArea, copyPerimeter, copyLength, copyWidth))
@@ -2348,6 +2346,29 @@ public final class ExactSelectionController {
             "###...#",
             "..#...#",
             "..#####",
+    };
+
+    /** Double chevrons: down to expand the panel, up to make it compact. */
+    private static final String[] EXPAND = {
+            "#.....#",
+            ".#...#.",
+            "..#.#..",
+            "...#...",
+            "#.....#",
+            ".#...#.",
+            "..#.#..",
+            "...#...",
+    };
+
+    private static final String[] COLLAPSE = {
+            "...#...",
+            "..#.#..",
+            ".#...#.",
+            "#.....#",
+            "...#...",
+            "..#.#..",
+            ".#...#.",
+            "#.....#",
     };
 
     private static final String[] FOLDER = {
@@ -2592,7 +2613,7 @@ public final class ExactSelectionController {
         g.nextStratum();
         g.fill(PANEL_X, PANEL_Y, PANEL_X + panelWidth, PANEL_Y + panelHeight, 0xEE101922);
         g.renderOutline(PANEL_X, PANEL_Y, panelWidth, panelHeight, 0xFF42636D);
-        int titleEnd = (quickSave.visible ? quickSave : panelModeButton).getX() - 4;
+        int titleEnd = (compact && quickSave.visible ? quickSave : panelModeButton).getX() - 4;
         g.drawString(mc.font, fitHint(tr("title").getString(), titleEnd - PANEL_X - 8),
                 PANEL_X + 8, PANEL_Y + 7, ACCENT);
         String hint = polygonMode ? compact ? "polygon_controls_short" : "polygon_controls"
@@ -2604,13 +2625,8 @@ public final class ExactSelectionController {
         g.drawString(mc.font, fitHint(tr(hint).getString(), panelWidth - 16), PANEL_X + 8, PANEL_Y + 22, 0xFFD0DBE2);
         g.enableScissor(PANEL_X + 1, PANEL_Y + 32, PANEL_X + panelWidth - 1,
                 PANEL_Y + panelHeight - (maxPanelScroll() > 0 ? 16 : 3));
-        SelectionBounds b = state.bounds();
-        if (compact) {
-            drawMetricLine(g, new MetricLine(List.of(coordinateLine(b, true)), List.of(copyCoordinates)),
-                    PANEL_X + 8, PANEL_Y + 33, panelWidth - 16, -1);
-            drawMetricLine(g, new MetricLine(List.of(coordinateLine(b, false)), List.of(copyCornerB)),
-                    PANEL_X + 8, PANEL_Y + 45, panelWidth - 16, -1);
-        } else {
+        // The compact panel leaves the corners to the expanded one.
+        if (!compact) {
             int labelX = fields[0].getX() - fieldGap - coordinateLabelWidth;
             int zX = fields[1].getX() - fieldGap - zLabelWidth;
             g.drawString(mc.font, "A: X", labelX, PANEL_Y + 39 - panelScroll, -1);
@@ -2625,7 +2641,7 @@ public final class ExactSelectionController {
                     first ? -1 : ACCENT);
             first = false;
         }
-        int lineY = PANEL_Y + sh + (compact ? 94 : 120 - panelScroll);
+        int lineY = PANEL_Y + sh + (compact ? 70 : 120 - panelScroll);
         g.fill(PANEL_X + 8, lineY, PANEL_X + panelWidth - 8, lineY + 1, 0xFF42636D);
         if (!compact) {
             int n = selected == null ? 0 : selected.points().size();
@@ -2637,7 +2653,7 @@ public final class ExactSelectionController {
         SavedAreaStore.Area editing = editedArea();
         // Messages go to the bottom of the screen (renderToast); the panel keeps the controls or the edited area.
         Component status = editing == null ? tr("controls") : tr("editing_area", editing.name());
-        if (!hasExportNotice()) line(g, status, (compact ? 141 : 221) + sh, 0xFF9BAAB7);
+        if (!hasExportNotice()) line(g, status, (compact ? 96 : 221) + sh, 0xFF9BAAB7);
         g.disableScissor();
         if (maxPanelScroll() > 0)
             g.drawString(mc.font, tr("panel_scroll"), PANEL_X + 8, PANEL_Y + panelHeight - 12, 0xFF9BAAB7);
@@ -2670,14 +2686,13 @@ public final class ExactSelectionController {
         if ((perimeterInline() ? -12 : 0) != metricsShift) layoutMainPanel();
         for (AbstractWidget widget : widgets) widget.visible = false;
         boolean main = enabled() && dialog == Dialog.NONE;
-        show(main, panelModeButton, copyCoordinates, copyCornerB, copyArea, copyPerimeter, copyLength, copyWidth,
-                undo, redo, polygonModeButton, groupsButton, clear);
+        show(main, panelModeButton, copyArea, copyPerimeter, copyLength, copyWidth, undo, redo, polygonModeButton);
         show(main, areasButton);
         show(main && (!compact || state.phase() == SelectionState.Phase.SELECTED), quickSave);
-        show(main && !compact, fields[0], fields[1], fields[2], fields[3], apply, chunkMode,
+        show(main && !compact, fields[0], fields[1], fields[2], fields[3], apply, chunkMode, copyCoordinates, copyCornerB, clear,
                 zonesButton, pointsButton, selectionExportButton);
         if (main && hasExportNotice()) {
-            place(openExportButton, PANEL_X + 8, PANEL_Y + metricsShift + (compact ? 138 : 218 - panelScroll),
+            place(openExportButton, PANEL_X + 8, PANEL_Y + metricsShift + (compact ? 93 : 218 - panelScroll),
                     panelWidth - 16, 16);
             show(true, openExportButton);
         }
@@ -2688,14 +2703,16 @@ public final class ExactSelectionController {
                 : autoGeometry ? tr("quick_autosaved_tooltip", editing.name()) : tr("quick_apply_tooltip", editing.name())));
         quickSave.active = state.phase() == SelectionState.Phase.SELECTED && !dirty && polygonDraft.isEmpty()
                 && !holding() && !loadFailed && (editing == null || !editing.geometry().equals(state.geometry()));
+        // Compact: in the header beside the mode icon; expanded: under Apply, beside the second coordinate row.
         int saveWidth = Math.max(40, mc.font.width(quickSave.getMessage()) + 10);
-        place(quickSave, panelModeButton.getX() - 3 - saveWidth, PANEL_Y + 4, saveWidth, 16);
-        panelModeButton.setMessage(tr(compact ? "panel_expand" : "panel_compact"));
+        if (compact) place(quickSave, panelModeButton.getX() - 3 - saveWidth, PANEL_Y + 4, saveWidth, 16);
+        else place(quickSave, apply.getX(), apply.getY() + 24, apply.getWidth(), 18);
+        panelModeButton.setMessage(Component.empty());
         panelModeButton.setTooltip(Tooltip.create(tr(compact ? "panel_expand_tooltip" : "panel_compact_tooltip")));
         if (main) placePanelCopies();
         if (main && !compact) {
             for (AbstractWidget widget : widgets) {
-                if (widget.visible && widget != panelModeButton && widget != quickSave)
+                if (widget.visible && widget != panelModeButton)
                     widget.visible = widget.getY() >= PANEL_Y + 32
                             && widget.getY() + widget.getHeight() <= PANEL_Y + panelHeight - (maxPanelScroll() > 0 ? 16 : 3);
             }
@@ -2736,7 +2753,7 @@ public final class ExactSelectionController {
         sizeButton.active = finished && !(state.geometry() instanceof PolygonGeometry) && !dirty && !contourDraft && !holding();
         chunkMode.active = !(state.geometry() instanceof PolygonGeometry) && !contourDraft && !holding();
         moveButton.active = centerButton.active = finished && !dirty && !contourDraft && !holding();
-        areasButton.active = groupsButton.active = !dirty && !contourDraft && !holding();
+        areasButton.active = !dirty && !contourDraft && !holding();
         int framed = compact ? 0 : areasInSelection().size();
         zonesButton.setMessage(tr("zones_in_selection", framed));
         zonesButton.active = framed > 0 && !dirty && !contourDraft && !holding();

@@ -210,7 +210,8 @@ public final class ManagementUiCheck {
                 require(widget.getX() >= other.getX() + other.getWidth()
                         || widget.getX() + widget.getWidth() <= other.getX()
                         || widget.getY() >= other.getY() + other.getHeight()
-                        || widget.getY() + widget.getHeight() <= other.getY(), "Main panel widgets overlap");
+                        || widget.getY() + widget.getHeight() <= other.getY(), "Main panel widgets overlap: "
+                        + widget.getMessage().getString() + " " + widget.getRectangle() + " / " + other.getMessage().getString() + " " + other.getRectangle());
             }
         }
     }
@@ -566,7 +567,7 @@ public final class ManagementUiCheck {
                 "Double click did not insert into the closing side");
         doubleClickMap(controller, 400, 160, 0);
         require(selection.geometry().equals(closing), "Double click on an existing vertex created a duplicate");
-        press(controller, "clear"); press(controller, "polygonModeButton");
+        call(controller, "reset"); press(controller, "polygonModeButton");
         clickMap(controller, 400, 60, 0);
         key(controller, GLFW.GLFW_KEY_LEFT_SHIFT, GLFW.GLFW_MOD_SHIFT);
         controller.beforeRender(550, 85);
@@ -956,7 +957,7 @@ public final class ManagementUiCheck {
             AreaGeometry triangle = selection.geometry();
             doubleClickMap(controller, 561, 60, GLFW.GLFW_MOD_CONTROL);
             require(selection.geometry().equals(triangle), "Deleting a triangle vertex was allowed");
-            press(controller, "clear"); press(controller, "polygonModeButton");
+            call(controller, "reset"); press(controller, "polygonModeButton");
             clickMap(controller, 400, 60, 0); clickMap(controller, 560, 60, 0); clickMap(controller, 560, 260, 0);
             doubleClickMap(controller, 560, 60, GLFW.GLFW_MOD_CONTROL);
             require(draft.size() == 2, "Ctrl double click did not delete a draft vertex");
@@ -1634,7 +1635,12 @@ public final class ManagementUiCheck {
         try {
             SelectionBounds bounds = new SelectionBounds(-120, 340, 56, -78);
             selection.set(bounds); call(controller, "syncFields"); call(controller, "updateVisibility");
-            for (boolean compact : List.of(true, false)) {
+            // The compact panel has no corner rows; the expanded one copies each corner beside its fields.
+            set(controller, "compact", true); call(controller, "layoutMainPanel"); call(controller, "updateVisibility");
+            require(!((Button) get(controller, "copyCoordinates")).visible && !((Button) get(controller, "clear")).visible,
+                    "The compact panel still shows the corners or Clear");
+            checkMainLayout(controller, map);
+            for (boolean compact : List.of(false)) {
                 set(controller, "compact", compact); call(controller, "layoutMainPanel"); call(controller, "updateVisibility");
                 Button a = (Button) get(controller, "copyCoordinates"), b = (Button) get(controller, "copyCornerB");
                 require(a.visible && a.active && b.visible && b.active && a.getY() < b.getY(),
@@ -1662,7 +1668,7 @@ public final class ManagementUiCheck {
             require(copies[1].visible && !copies[6].visible, "Polygon vertex copy exposed an unrelated second corner");
             copies[1].onPress(new KeyEvent(GLFW.GLFW_KEY_ENTER, 0, 0));
             require("0 0; 3 0; 0 4".equals(keyboard.copied), "Polygon vertex coordinate pairs must use spaces");
-            System.out.println("PASS: separate A/B corner copying in both panels and saved areas, space-separated coordinates, polygon vertices preserved");
+            System.out.println("PASS: separate A/B corner copying in the expanded panel and saved areas, none in the compact panel, space-separated coordinates, polygon vertices preserved");
         } finally {
             set(minecraft, "keyboardHandler", previousKeyboard); store.replace(saved); selection.restore(before);
             ((Set<?>) get(controller, "selectedAreaIds")).clear(); set(controller, "areaId", null);
@@ -1730,7 +1736,12 @@ public final class ManagementUiCheck {
             checkColorPicker(controller);
             checkWaypointManagement(map, bridge, minecraft, store, context);
             controller.init();
-            press(controller, "groupsButton");
+            // Groups left the panel; they open from the Areas window (checked there), here directly.
+            Object none = dialog(controller, "NONE");
+            Method openGroups = ExactSelectionController.class.getDeclaredMethod("openGroupsWindow", none.getClass());
+            openGroups.setAccessible(true);
+            openGroups.invoke(controller, none);
+            call(controller, "layoutDialog");
             require(window(controller).equals("GROUPS"), "Groups did not open separately");
             checkLayout(controller);
             press(controller, "groupCreate");

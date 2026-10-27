@@ -237,7 +237,7 @@
   "exactselection.area_geometry_unchanged": "Геометрия не изменилась. Сначала измените выделение на карте.",
   "exactselection.polygon_loaded": "Область загружена. Ctrl/Cmd: двигать вершины; двойной ЛКМ по стороне: добавить вершину. Затем нажмите «Применить» на панели.",
   "exactselection.quick_save": "Сохранить",
-  "exactselection.quick_apply": "Применить",
+  "exactselection.quick_apply": "Сохранить",
   "exactselection.quick_save_tooltip": "Сохранить выделение как новую область…",
   "exactselection.quick_apply_tooltip": "Записать текущую форму в «%s»",
   "exactselection.editing_area": "Редактируется: «%s»",

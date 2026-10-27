@@ -5,6 +5,9 @@
 - Like a photo editor: dragging inside a finished selection moves it (handles and edges still resize, Shift still moves from anywhere). Size, Move and Center wait for a finished selection. The territory being edited is named above its frame on the map. A right click inside the selection opens quick actions: Save… and Clear selection, or Color…, Fill and Delete zone for an edited territory, each applied at once and undoable. A click outside a polygon starts a new selection, as it does for a rectangle.
 - Clicking the color preview in the save window or in a zone's color window opens a full color picker (saturation and brightness square, hue bar); in the zone's color window Apply recolors it at once.
 - The yellow frame around waypoints inside the selection now surrounds Xaero's icon above the point, following its waypoint scale and the window size, instead of a small square under it.
+- The expanded panel is narrower and shorter: half-width coordinate fields with Apply beside them, and the buttons in three rows.
+- Messages and warnings appear for a few seconds near the bottom centre of the screen instead of being cut short in the panel.
+- Fix: with the Polygon tool on, pressing inside a finished shape hid it as a new contour; a drag now moves it and a click still starts a contour.
 - Size, Move and Center moved from the expanded panel to the selection's right-click menu (Size is left out for polygons).
 - Map export of a saved area can leave out that area's own fill (This area's fill: off); its outline, name and other areas stay.
 - Names: ON/OFF in the Areas window hides area names on the world map while the areas stay drawn; saved per world and undoable, older files keep names shown.

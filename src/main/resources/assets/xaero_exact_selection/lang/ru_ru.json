@@ -339,6 +339,7 @@
   "exactselection.export_areas_off": "Зоны: ВЫКЛ",
   "exactselection.export_areas_tooltip": "Показывать сохранённые зоны на PNG: заливку, контуры и названия",
   "exactselection.export_labels_tooltip": "Показывать названия зон на PNG; доступно, когда зоны включены",
+  "exactselection.apply_short": "Применить",
   "exactselection.picker_title": "Выбор цвета",
   "exactselection.export_own_fill_on": "Заливка этой зоны: ВКЛ",
   "exactselection.export_own_fill_off": "Заливка этой зоны: ВЫКЛ",

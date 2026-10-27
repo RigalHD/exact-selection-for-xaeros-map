@@ -447,6 +447,19 @@ public final class ManagementUiCheck {
         key(controller, GLFW.GLFW_KEY_Z, GLFW.GLFW_MOD_SUPER | GLFW.GLFW_MOD_SHIFT);
         require(selection.geometry().equals(moved.translated(20, 20)), "Cmd+Shift+Z did not redo the whole-polygon move");
         key(controller, GLFW.GLFW_KEY_Z, GLFW.GLFW_MOD_SUPER);
+        // In contour mode a plain drag inside moves the shape too; a click without movement starts a new contour.
+        controller.mouseClicked(left(480, 160, 0), false);
+        controller.beforeRender(500, 180);
+        controller.mouseReleased(left(500, 180, 0));
+        require(selection.geometry().equals(moved.translated(20, 20)), "A plain drag inside a polygon in contour mode did not move it");
+        key(controller, GLFW.GLFW_KEY_Z, GLFW.GLFW_MOD_SUPER);
+        require(selection.geometry().equals(moved), "Undo did not restore the dragged polygon");
+        controller.mouseClicked(left(480, 160, 0), false);
+        controller.mouseReleased(left(480, 160, 0));
+        require(((List<?>) get(controller, "polygonDraft")).size() == 1, "A click inside a polygon in contour mode did not add a vertex");
+        key(controller, GLFW.GLFW_KEY_Z, GLFW.GLFW_MOD_CONTROL);
+        require(((List<?>) get(controller, "polygonDraft")).isEmpty() && selection.geometry().equals(moved),
+                "Undo did not drop the new contour and bring the polygon back");
         controller.mouseClicked(left(590, 90, GLFW.GLFW_MOD_CONTROL), false);
         controller.beforeRender(620, 110);
         key(controller, GLFW.GLFW_KEY_ESCAPE, 0);

@@ -339,6 +339,7 @@
   "exactselection.export_areas_off": "Areas: off",
   "exactselection.export_areas_tooltip": "Include saved areas in the PNG: fills, outlines and names",
   "exactselection.export_labels_tooltip": "Include area names in the PNG; available when areas are enabled",
+  "exactselection.apply_short": "Apply",
   "exactselection.picker_title": "Pick a color",
   "exactselection.export_own_fill_on": "This area's fill: on",
   "exactselection.export_own_fill_off": "This area's fill: off",

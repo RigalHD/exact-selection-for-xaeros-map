@@ -21,7 +21,7 @@ The addon uses Xaero internals. Other World Map or Minecraft versions need separ
 |---|---|
 | Left click, then left click | Set the two corners of a rectangle |
 | Drag a handle | Resize the rectangle |
-| Drag inside the finished selection (or Shift + drag, also from a handle) | Move the whole rectangle or polygon; a click inside without moving keeps it |
+| Drag inside the finished selection (or Shift + drag, also from a handle) | Move the whole rectangle or polygon, also with the Polygon tool on; a click inside without moving keeps it, or with the Polygon tool starts a new contour there |
 | Right click inside the selection | Quick actions: Size (not for polygons), Move, Center and Clear selection; plus Save… for a new selection, or Color…, Fill and Delete zone for the territory being edited |
 | Right mouse drag | Pan the map |
 | Scroll outside the panel | Zoom around the cursor |

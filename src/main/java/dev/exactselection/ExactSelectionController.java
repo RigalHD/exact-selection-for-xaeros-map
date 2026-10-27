@@ -33,7 +33,7 @@ import xaero.map.gui.GuiMap;
 
 public final class ExactSelectionController {
     private static final int PANEL_X = 34, PANEL_Y = 26;
-    private static final int COMPACT_HEIGHT = 156, EXPANDED_HEIGHT = 284, COPY_SIZE = 10;
+    private static final int COMPACT_HEIGHT = 156, EXPANDED_HEIGHT = 238, COPY_SIZE = 10;
     /** -12 while the perimeter shares the area line: everything below moves up one line and the panel gets shorter. */
     private int metricsShift;
     private static final int RENAME_FIELD = 9, HEX_FIELD = 10;
@@ -93,6 +93,13 @@ public final class ExactSelectionController {
     private boolean quickMenu;
     private int quickMenuX, quickMenuY;
     private double rightPressX, rightPressY;
+    /** The message shown at the bottom of the screen and when it appeared; it fades out after TOAST_MILLIS. */
+    private static final long TOAST_MILLIS = 6000;
+    private String toastText = "";
+    private long toastShownAt;
+    /** A contour-mode press inside a finished shape: a release without movement adds a vertex there instead of moving. */
+    private boolean vertexOnClick;
+    private double pressX, pressY;
     private Button pointVisibility, pointColor, pointScope, pointRename, pointRecolor;
     private Button quickSave, zonesButton, newAreaGroup, newAreaOpacityButton, colorHexApply;
     private Dialog areaNameReturn = Dialog.AREAS, colorReturn = Dialog.AREAS;
@@ -191,6 +198,8 @@ public final class ExactSelectionController {
         selectionExportButton.setTooltip(Tooltip.create(tr("selection_export_tooltip")));
         openExportButton = button("export_show_file", 0, 0, 120, this::openLastExport);
         apply = button("apply", 0, 0, 100, this::applyFields);
+        apply.setMessage(tr("apply_short"));
+        apply.setTooltip(Tooltip.create(tr("apply")));
         copyCoordinates = copyButton("copy_corner_a_tooltip", this::copyCoordinates);
         copyCornerB = copyButton("copy_corner_b_tooltip", () -> copySelection(5));
         copyArea = copyButton("copy_area_tooltip", this::copyArea);
@@ -391,7 +400,7 @@ public final class ExactSelectionController {
     }
 
     private void layoutMainPanel() {
-        panelWidth = Math.min(compact ? 256 : 420, Math.max(224, screen.width - 68));
+        panelWidth = Math.min(compact ? 256 : 320, Math.max(224, screen.width - 68));
         metricsShift = perimeterInline() ? -12 : 0;
         panelHeight = Math.min(contentHeight(), screen.height - PANEL_Y - 8);
         panelScroll = Math.max(0, Math.min(panelScroll, maxPanelScroll()));
@@ -401,19 +410,19 @@ public final class ExactSelectionController {
             arrowRow(new Button[]{clear, polygonModeButton}, x, y + 98, w);
             mainRow(new Button[]{areasButton, groupsButton}, x, y + 119, w, 18);
         } else {
-            fieldWidth = (panelWidth - 16 - coordinateLabelWidth - zLabelWidth - fieldGap * 3 - COPY_SIZE - 6) / 2;
+            // Narrow coordinate fields with Apply beside both rows; Size, Move and Center live in the right-click menu.
+            int applyWidth = mc.font.width(apply.getMessage()) + 12;
+            fieldWidth = (w - coordinateLabelWidth - zLabelWidth - fieldGap * 3 - COPY_SIZE - 3 - 6 - applyWidth) / 2;
             int xField = x + coordinateLabelWidth + fieldGap;
             int zField = xField + fieldWidth + fieldGap * 2 + zLabelWidth;
             for (int i = 0; i < fields.length; i++)
                 place(fields[i], i % 2 == 0 ? xField : zField, top + 34 + i / 2 * 24, fieldWidth, 18);
-            place(copyCoordinates, x + w - COPY_SIZE, top + 38, COPY_SIZE, COPY_SIZE);
-            place(copyCornerB, x + w - COPY_SIZE, top + 62, COPY_SIZE, COPY_SIZE);
-            place(apply, x, top + 82, w, 18);
-            // Size, Move and Center live in the selection's right-click menu.
-            arrowRow(new Button[]{chunkMode}, x, y + 150, w);
-            mainRow(new Button[]{polygonModeButton, groupsButton, clear}, x, y + 172, w, 18);
-            mainRow(new Button[]{areasButton, zonesButton, pointsButton}, x, y + 194, w, 18);
-            place(selectionExportButton, x, y + 216, w, 18);
+            place(copyCoordinates, zField + fieldWidth + 3, top + 38, COPY_SIZE, COPY_SIZE);
+            place(copyCornerB, zField + fieldWidth + 3, top + 62, COPY_SIZE, COPY_SIZE);
+            place(apply, x + w - applyWidth, top + 34, applyWidth, 42);
+            arrowRow(new Button[]{chunkMode, polygonModeButton, clear}, x, y + 126, w);
+            mainRow(new Button[]{areasButton, groupsButton, zonesButton}, x, y + 148, w, 18);
+            mainRow(new Button[]{pointsButton, selectionExportButton}, x, y + 170, w, 18);
         }
     }
 
@@ -510,12 +519,12 @@ public final class ExactSelectionController {
     /** The panel's metric lines; their y is relative to the panel top, as for line(). */
     private List<Map.Entry<Integer, MetricLine>> panelMetricLines() {
         List<Map.Entry<Integer, MetricLine>> lines = new ArrayList<>();
-        lines.add(Map.entry(compact ? 57 : 106, new MetricLine(dimensionText(), List.of(copyWidth, copyLength))));
-        if (metricsShift != 0) lines.add(Map.entry(compact ? 69 : 118, new MetricLine(
+        lines.add(Map.entry(compact ? 57 : 82, new MetricLine(dimensionText(), List.of(copyWidth, copyLength))));
+        if (metricsShift != 0) lines.add(Map.entry(compact ? 69 : 94, new MetricLine(
                 List.of(areaText().getString(), perimeterText().getString()), List.of(copyArea, copyPerimeter))));
         else {
-            lines.add(Map.entry(compact ? 69 : 118, new MetricLine(List.of(areaText().getString()), List.of(copyArea))));
-            lines.add(Map.entry(compact ? 81 : 130, new MetricLine(List.of(perimeterText().getString()), List.of(copyPerimeter))));
+            lines.add(Map.entry(compact ? 69 : 94, new MetricLine(List.of(areaText().getString()), List.of(copyArea))));
+            lines.add(Map.entry(compact ? 81 : 106, new MetricLine(List.of(perimeterText().getString()), List.of(copyPerimeter))));
         }
         return lines;
     }
@@ -2310,6 +2319,25 @@ public final class ExactSelectionController {
             if (copy.visible) renderIcon(g, COPY, copy, copy.active ? 0xFFE0E0E0 : 0xFF8A8A8A);
         for (Button copy : areaCopies) if (copy.visible) renderIcon(g, COPY, copy, copy.active ? 0xFFE0E0E0 : 0xFF8A8A8A);
         exportWindow.renderPlaceholder(g, screen.getFocused() == exportWindow.folder);
+        if (enabled() && frame != null && dialog == Dialog.NONE) renderToast(g);
+    }
+
+    /** The latest message, centred near the bottom of the screen for a few seconds instead of cut short in the panel. */
+    private void renderToast(GuiGraphics g) {
+        long now = net.minecraft.util.Util.getMillis();
+        if (!message.equals(toastText)) { toastText = message; toastShownAt = now; }
+        if (message.isEmpty()) return;
+        if (now - toastShownAt > TOAST_MILLIS) { message = ""; toastText = ""; return; }
+        List<net.minecraft.util.FormattedCharSequence> lines = mc.font.split(Component.literal(message), Math.min(360, screen.width - 40));
+        if (lines.size() > 3) lines = lines.subList(0, 3);
+        int w = 0;
+        for (var line : lines) w = Math.max(w, mc.font.width(line));
+        int boxW = w + 16, boxH = lines.size() * 10 + 10, x = (screen.width - boxW) / 2, y = screen.height - 52 - boxH;
+        g.nextStratum();
+        g.fill(x, y, x + boxW, y + boxH, 0xEE101922);
+        g.renderOutline(x, y, boxW, boxH, 0xFF42636D);
+        for (int i = 0; i < lines.size(); i++)
+            g.drawCenteredString(mc.font, lines.get(i), screen.width / 2, y + 6 + i * 10, 0xFFFFCF62);
     }
 
     private static final String[] COPY = {
@@ -2597,19 +2625,19 @@ public final class ExactSelectionController {
                     first ? -1 : ACCENT);
             first = false;
         }
-        int lineY = PANEL_Y + sh + (compact ? 94 : 144 - panelScroll);
+        int lineY = PANEL_Y + sh + (compact ? 94 : 120 - panelScroll);
         g.fill(PANEL_X + 8, lineY, PANEL_X + panelWidth - 8, lineY + 1, 0xFF42636D);
         if (!compact) {
             int n = selected == null ? 0 : selected.points().size();
             Component count = waypoints == null ? tr("minimap_missing") : selected == null
                     ? tr("waypoints_unavailable") : tr("count", n, setNameDisplay(selected.setName()));
-            line(g, count, 240 + sh, 0xFFFFCF62);
-            line(g, tr(loadFailed ? "area_load_failed" : "scope"), 252 + sh, 0xFF9BAAB7);
+            line(g, count, 194 + sh, 0xFFFFCF62);
+            line(g, tr(loadFailed ? "area_load_failed" : "scope"), 206 + sh, 0xFF9BAAB7);
         }
         SavedAreaStore.Area editing = editedArea();
-        Component status = !message.isEmpty() ? Component.literal(message)
-                : editing == null ? tr("controls") : tr("editing_area", editing.name());
-        if (!hasExportNotice()) line(g, status, (compact ? 141 : 267) + sh, message.isEmpty() ? 0xFF9BAAB7 : 0xFFFFCF62);
+        // Messages go to the bottom of the screen (renderToast); the panel keeps the controls or the edited area.
+        Component status = editing == null ? tr("controls") : tr("editing_area", editing.name());
+        if (!hasExportNotice()) line(g, status, (compact ? 141 : 221) + sh, 0xFF9BAAB7);
         g.disableScissor();
         if (maxPanelScroll() > 0)
             g.drawString(mc.font, tr("panel_scroll"), PANEL_X + 8, PANEL_Y + panelHeight - 12, 0xFF9BAAB7);
@@ -2649,7 +2677,7 @@ public final class ExactSelectionController {
         show(main && !compact, fields[0], fields[1], fields[2], fields[3], apply, chunkMode,
                 zonesButton, pointsButton, selectionExportButton);
         if (main && hasExportNotice()) {
-            place(openExportButton, PANEL_X + 8, PANEL_Y + metricsShift + (compact ? 138 : 264 - panelScroll),
+            place(openExportButton, PANEL_X + 8, PANEL_Y + metricsShift + (compact ? 138 : 218 - panelScroll),
                     panelWidth - 16, 16);
             show(true, openExportButton);
         }
@@ -3306,6 +3334,7 @@ public final class ExactSelectionController {
             dragging = true;
             lastMouseX = rightPressX = event.x(); lastMouseY = rightPressY = event.y();
         } else if (event.button() == GLFW.GLFW_MOUSE_BUTTON_LEFT) {
+            vertexOnClick = false;
             if (dirty || holding()) return true;
             if ((event.modifiers() & (GLFW.GLFW_MOD_CONTROL | GLFW.GLFW_MOD_SUPER)) != 0
                     && (polygonMode || state.geometry() instanceof PolygonGeometry
@@ -3334,18 +3363,19 @@ public final class ExactSelectionController {
                     return true;
                 }
             }
-            if (polygonMode && (!polygonDraft.isEmpty()
-                    || (event.modifiers() & GLFW.GLFW_MOD_SHIFT) == 0 || !insideBounds(frame, event.x(), event.y()))) {
+            // In contour mode a press inside a finished shape may become a move; a click without movement still
+            // adds the first vertex when the button is released.
+            if (polygonMode && (!polygonDraft.isEmpty() || !insideBounds(frame, event.x(), event.y()))) {
                 addPolygonPoint(frame, event.x(), event.y());
                 return true;
             }
+            vertexOnClick = polygonMode;
+            pressX = event.x(); pressY = event.y();
             try {
                 MapGesture.Handle handle = hitHandle(frame, event.x(), event.y());
                 int worldX = SelectionBounds.block(frame.worldX(event.x()));
                 int worldZ = SelectionBounds.block(frame.worldZ(event.y()));
-                // While a contour is being drawn a plain click adds a vertex, so moving it there still needs Shift.
-                boolean moveWhole = insideBounds(frame, event.x(), event.y())
-                        && (!polygonMode || (event.modifiers() & GLFW.GLFW_MOD_SHIFT) != 0);
+                boolean moveWhole = insideBounds(frame, event.x(), event.y());
                 if (handle != null || moveWhole) {
                     // Handles resize; Shift still moves the whole shape even from a handle.
                     boolean shift = (event.modifiers() & GLFW.GLFW_MOD_SHIFT) != 0;
@@ -3403,6 +3433,9 @@ public final class ExactSelectionController {
             MapBridge.Frame frame = checkedFrame();
             if (frame != null) held.update(gestureHost, frame, event.x(), event.y());
             held.finish(gestureHost);
+            if (vertexOnClick && frame != null && polygonMode && Math.hypot(event.x() - pressX, event.y() - pressY) < 3)
+                addPolygonPoint(frame, event.x(), event.y());
+            vertexOnClick = false;
             return true;
         }
         // Native release clears held toolbar buttons, even when released outside them.

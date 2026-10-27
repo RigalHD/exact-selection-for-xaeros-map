@@ -10,6 +10,7 @@
 - The yellow frame around waypoints inside the selection now surrounds Xaero's icon above the point, following its waypoint scale and the window size, instead of a small square under it.
 - The expanded panel is narrower and shorter: half-width coordinate fields with Apply and Save beside them, and the buttons in three rows. The compact panel drops the corner rows and Clear. Expand / Compact is an icon; the Groups button left the panel (Manage groups… in the Areas window). Applying an edited territory is labelled Save.
 - Messages and warnings appear for a few seconds near the bottom centre of the screen instead of being cut short in the panel.
+- Fix: a click inside the selection or on a handle whose pointer moved a pixel or two no longer moves or resizes it (zoomed out, a pixel is many blocks); with the Polygon tool on, such a click only adds the vertex. In the Areas window, All with a search that finds nothing no longer leaves the previous area active, and the checked count stays visible when the search field has no room.
 - Fix: with the Polygon tool on, pressing inside a finished shape hid it as a new contour; a drag now moves it and a click still starts a contour.
 - Size, Move and Center moved from the expanded panel to the selection's right-click menu (Size is left out for polygons).
 - Map export of a saved area can leave out that area's own fill (This area's fill: off); its outline, name and other areas stay.

@@ -1199,7 +1199,7 @@ public final class ExactSelectionController {
         // With a search, All checks the areas it shows.
         List<SavedAreaStore.Area> areas = displayedAreas();
         for (SavedAreaStore.Area area : areas) selectedAreaIds.add(area.id());
-        if (!areas.isEmpty()) areaId = areas.get(areas.size() - 1).id();
+        areaId = areas.isEmpty() ? null : areas.get(areas.size() - 1).id();
         setDialogValue(4, selectedAreaIds.size() == 1 && selectedArea() != null ? selectedArea().name() : "");
         updateVisibility();
     }
@@ -3048,7 +3048,8 @@ public final class ExactSelectionController {
         List<SavedAreaStore.Area> areas = displayedAreas();
         int rows = visibleAreaDialogRows(h);
         areaScroll = Math.min(areaScroll, Math.max(0, areas.size() - rows));
-        if (areaSearchSpan(x, col)[0] > x + 12)
+        int[] search = areaSearchSpan(x, col);
+        if (search[0] > x + 12 || search[1] < 40)
             g.drawString(mc.font, mc.font.plainSubstrByWidth(tr("area_list_count", selectedAreaIds.size()).getString(), 76),
                     x + 12, y + 34, 0xFF9BAAB7);
         g.fill(x + 10, y + 46, x + 14 + col, y + h - 98, 0xFF0C141D);
@@ -3516,11 +3517,18 @@ public final class ExactSelectionController {
         if (event.button() == GLFW.GLFW_MOUSE_BUTTON_LEFT && gesture instanceof MapGesture.Held held) {
             // A lost or changed map context disables the tool, which drops the gesture; update and finish then do nothing.
             MapBridge.Frame frame = checkedFrame();
+            // A move or resize that barely left its press point is a click: the shape stays as it was (zoomed out, a
+            // jitter of a pixel is many blocks), and in contour mode the click adds a vertex there.
+            boolean click = held instanceof MapGesture.Drag && Math.hypot(event.x() - pressX, event.y() - pressY) < 3;
+            boolean vertex = click && vertexOnClick && polygonMode;
+            vertexOnClick = false;
+            if (click && frame != null) {
+                cancelGesture();
+                if (vertex) addPolygonPoint(frame, event.x(), event.y());
+                return true;
+            }
             if (frame != null) held.update(gestureHost, frame, event.x(), event.y());
             held.finish(gestureHost);
-            if (vertexOnClick && frame != null && polygonMode && Math.hypot(event.x() - pressX, event.y() - pressY) < 3)
-                addPolygonPoint(frame, event.x(), event.y());
-            vertexOnClick = false;
             return true;
         }
         // Native release clears held toolbar buttons, even when released outside them.

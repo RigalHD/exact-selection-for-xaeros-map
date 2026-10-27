@@ -456,8 +456,11 @@ public final class ManagementUiCheck {
         key(controller, GLFW.GLFW_KEY_Z, GLFW.GLFW_MOD_SUPER);
         require(selection.geometry().equals(moved), "Undo did not restore the dragged polygon");
         controller.mouseClicked(left(480, 160, 0), false);
-        controller.mouseReleased(left(480, 160, 0));
+        controller.beforeRender(481, 161);
+        controller.mouseReleased(left(481, 161, 0));
         require(((List<?>) get(controller, "polygonDraft")).size() == 1, "A click inside a polygon in contour mode did not add a vertex");
+        require(((SelectionState.Snapshot) get(controller, "polygonBefore")).geometry().equals(moved),
+                "A jittery click in contour mode also moved the polygon");
         key(controller, GLFW.GLFW_KEY_Z, GLFW.GLFW_MOD_CONTROL);
         require(((List<?>) get(controller, "polygonDraft")).isEmpty() && selection.geometry().equals(moved),
                 "Undo did not drop the new contour and bring the polygon back");
@@ -715,6 +718,24 @@ public final class ManagementUiCheck {
         controller.mouseReleased(left(450, 300, 0));
         require(selection.phase() == SelectionState.Phase.SELECTED && selection.bounds().equals(new SelectionBounds(110, 80, 269, 239)),
                 "A click inside the selection started a new one");
+        // A click whose pointer jitters a pixel or two is still a click (zoomed out, a pixel is many blocks).
+        controller.mouseClicked(left(450, 300, 0), false);
+        controller.beforeRender(452, 301);
+        controller.mouseReleased(left(452, 301, 0));
+        require(selection.bounds().equals(new SelectionBounds(110, 80, 269, 239)), "A 2-pixel jitter moved the selection: " + selection.bounds());
+        controller.mouseClicked(left(586, 340, 0), false);
+        controller.beforeRender(588, 341);
+        controller.mouseReleased(left(588, 341, 0));
+        require(selection.bounds().equals(new SelectionBounds(110, 80, 269, 239)), "A 2-pixel jitter on a handle resized the selection: " + selection.bounds());
+        // In contour mode a click on a handle still starts a contour instead of resizing.
+        set(controller, "polygonMode", true);
+        controller.mouseClicked(left(586, 340, 0), false);
+        controller.mouseReleased(left(586, 340, 0));
+        require(((List<?>) get(controller, "polygonDraft")).size() == 1 && selection.bounds().equals(new SelectionBounds(110, 80, 269, 239)),
+                "A click on a handle in contour mode did not add a vertex or changed the frame");
+        key(controller, GLFW.GLFW_KEY_ESCAPE, 0);
+        require(!(Boolean) get(controller, "polygonMode"), "Esc did not leave contour mode");
+        selection.set(new SelectionBounds(110, 80, 269, 239));
         selection.reset(); call(controller, "updateVisibility");
         for (String name : List.of("sizeButton", "moveButton", "centerButton"))
             require(!((Button) get(controller, name)).active, name + " works without a selection");

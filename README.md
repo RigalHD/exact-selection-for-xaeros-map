@@ -22,14 +22,14 @@ The addon uses Xaero internals. Other World Map or Minecraft versions need separ
 | Left click, then left click | Set the two corners of a rectangle |
 | Drag a handle | Resize the rectangle |
 | Drag inside the finished selection (or Shift + drag, also from a handle) | Move the whole rectangle or polygon; a click inside without moving keeps it |
-| Right click inside the selection | Quick actions: Save… and Clear selection for a new selection; Color…, Fill and Delete zone for the territory being edited |
+| Right click inside the selection | Quick actions: Size (not for polygons), Move, Center and Clear selection; plus Save… for a new selection, or Color…, Fill and Delete zone for the territory being edited |
 | Right mouse drag | Pan the map |
 | Scroll outside the panel | Zoom around the cursor |
 | Coordinates / Size / Move | Enter exact coordinates, dimensions or offsets |
 | Ctrl/Cmd+Z, Ctrl+Y or Cmd+Shift+Z | Undo / redo |
 | Esc | Cancel a gesture/dialog/draft, clear the selection, then leave the tool |
 
-The compact panel is enabled by default. Expand it for coordinate input, dimensions, movement, waypoint management and PNG export. The expanded panel scrolls on small screens. Undo and redo are small arrow buttons with action tooltips.
+The compact panel is enabled by default. Expand it for coordinate input, waypoint management and PNG export; Size, Move and Center are in the selection's right-click menu. The expanded panel scrolls on small screens. Undo and redo are small arrow buttons with action tooltips.
 
 Blocks are the default unit. Both endpoint blocks are included: `(0, 0)` to `(15, 15)` is **16 × 16 = 256 blocks²**. Chunk mode snaps rectangle edges to the 16-block grid, including negative coordinates. Coordinate input stays exact. Width is the X extent and length is the Z extent. Polygon dimensions describe its bounding box; area and perimeter follow its actual shape.
 

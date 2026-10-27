@@ -1154,6 +1154,23 @@ public final class ManagementUiCheck {
                     && !((Button) get(controller, "quickMenuDelete")).visible, "A new selection did not offer Save and Clear");
             key(controller, GLFW.GLFW_KEY_ESCAPE, 0);
             require(!(Boolean) get(controller, "quickMenu") && selection.bounds() != null, "Esc did not just close the quick menu");
+            // Size, Move and Center moved from the panel into this menu; a polygon has no Size.
+            controller.mouseClicked(right(450, 300), false);
+            controller.mouseReleased(right(450, 300));
+            require(((Button) get(controller, "sizeButton")).visible && ((Button) get(controller, "centerButton")).visible,
+                    "Size and Center are not in the quick menu");
+            press(controller, "moveButton");
+            require(window(controller).equals("MOVE") && !(Boolean) get(controller, "quickMenu"), "Quick Move did not open its window");
+            key(controller, GLFW.GLFW_KEY_ESCAPE, 0);
+            require(!((Button) get(controller, "sizeButton")).visible, "Size is still shown outside the quick menu");
+            selection.setGeometry(new PolygonGeometry(List.of(new GridPoint(80, 80), new GridPoint(239, 80),
+                    new GridPoint(239, 239), new GridPoint(80, 239))));
+            call(controller, "updateVisibility");
+            controller.mouseClicked(right(450, 300), false);
+            controller.mouseReleased(right(450, 300));
+            require(!((Button) get(controller, "sizeButton")).visible && ((Button) get(controller, "moveButton")).visible,
+                    "A polygon's quick menu offered Size or lost Move");
+            key(controller, GLFW.GLFW_KEY_ESCAPE, 0);
 
             var area = SavedAreaStore.create("Edited", new SelectionBounds(80, 80, 239, 239), 0x123456, 25, null);
             store.replace(new SavedAreaStore.State(List.of(area), List.of(), true, true));

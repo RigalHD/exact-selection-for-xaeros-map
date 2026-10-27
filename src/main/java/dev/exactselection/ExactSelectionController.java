@@ -405,7 +405,8 @@ public final class ExactSelectionController {
             place(copyCoordinates, x + w - COPY_SIZE, top + 38, COPY_SIZE, COPY_SIZE);
             place(copyCornerB, x + w - COPY_SIZE, top + 62, COPY_SIZE, COPY_SIZE);
             place(apply, x, top + 82, w, 18);
-            arrowRow(new Button[]{chunkMode, sizeButton, moveButton, centerButton}, x, y + 150, w);
+            // Size, Move and Center live in the selection's right-click menu.
+            arrowRow(new Button[]{chunkMode}, x, y + 150, w);
             mainRow(new Button[]{polygonModeButton, groupsButton, clear}, x, y + 172, w, 18);
             mainRow(new Button[]{areasButton, zonesButton, pointsButton}, x, y + 194, w, 18);
             place(selectionExportButton, x, y + 216, w, 18);
@@ -1094,8 +1095,13 @@ public final class ExactSelectionController {
     }
 
     private List<Button> quickMenuButtons() {
-        return editedArea() == null ? List.of(quickMenuSave, quickMenuClear)
-                : List.of(quickMenuColor, quickMenuOpacity, quickMenuDelete, quickMenuClear);
+        List<Button> items = new ArrayList<>(editedArea() == null ? List.of(quickMenuSave) : List.of(quickMenuColor, quickMenuOpacity));
+        // A polygon has no width and length to set.
+        if (!(state.geometry() instanceof PolygonGeometry)) items.add(sizeButton);
+        items.addAll(List.of(moveButton, centerButton));
+        if (editedArea() != null) items.add(quickMenuDelete);
+        items.add(quickMenuClear);
+        return items;
     }
 
     /** The color window for the territory under edit; a swatch or hex applies at once. */
@@ -2541,7 +2547,7 @@ public final class ExactSelectionController {
         show(main, areasButton);
         show(main && (!compact || state.phase() == SelectionState.Phase.SELECTED), quickSave);
         show(main && !compact, fields[0], fields[1], fields[2], fields[3], apply, chunkMode,
-                sizeButton, moveButton, centerButton, zonesButton, pointsButton, selectionExportButton);
+                zonesButton, pointsButton, selectionExportButton);
         if (main && hasExportNotice()) {
             place(openExportButton, PANEL_X + 8, PANEL_Y + metricsShift + (compact ? 138 : 264 - panelScroll),
                     panelWidth - 16, 16);

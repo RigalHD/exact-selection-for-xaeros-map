@@ -1138,6 +1138,60 @@ public final class ManagementUiCheck {
 
     @SuppressWarnings("unchecked")
     /** Right click inside the selection: quick actions for the territory under edit, or save and clear for a new one. */
+    private static int[] pickerRect(String name, int[] r) throws Exception {
+        Method method = ExactSelectionController.class.getDeclaredMethod(name, int.class, int.class, int.class, int.class);
+        method.setAccessible(true);
+        return (int[]) method.invoke(null, r[0], r[1], r[2], r[3]);
+    }
+
+    private static void checkColorPicker(ExactSelectionController controller) throws Exception {
+        SelectionState selection = (SelectionState) get(controller, "state");
+        SelectionState.Snapshot initial = selection.snapshot();
+        int previous = (Integer) get(controller, "newAreaColor");
+        try {
+            require(AreaPalette.hsv(0, 1, 1) == 0xFF0000 && AreaPalette.hsv(1 / 3.0, 1, 1) == 0x00FF00
+                    && AreaPalette.hsv(0.5, 0, 0.5) == 0x808080, "HSV conversion is wrong");
+            for (int color : AreaPalette.COLORS) {
+                double[] hsv = AreaPalette.toHsv(color);
+                require(AreaPalette.hsv(hsv[0], hsv[1], hsv[2]) == color, "HSV round trip changed " + AreaPalette.format(color));
+            }
+            selection.enable(); selection.set(new SelectionBounds(0, 0, 9, 9));
+            call(controller, "openAreaNameDialog");
+            int[] r = (int[]) call(controller, "dialogRect");
+            int preview = (Integer) call(controller, "swatchX", r[0], r[2], AreaPalette.COLUMNS - 1);
+            controller.mouseClicked(left(preview + 2, r[1] + 175, 0), false);
+            require(window(controller).equals("PICKER"), "The color preview did not open the picker");
+            r = (int[]) call(controller, "dialogRect");
+            int[] square = pickerRect("pickerSquare", r), hue = pickerRect("pickerHueBar", r);
+            // Hue: drag from the top (red) down a third (green); then the square's top-right is the full color.
+            controller.mouseClicked(left(hue[0] + 4, hue[1], 0), false);
+            controller.mouseReleased(left(hue[0] + 4, hue[1] + (hue[3] - 1) / 3, 0));
+            controller.mouseClicked(left(square[0] + square[2] - 1, square[1], 0), false);
+            controller.mouseReleased(left(square[0] + square[2] + 20, square[1] - 20, 0));
+            int picked = (Integer) call(controller, "pickerColor");
+            require((picked >> 8 & 255) == 255 && (picked & 255) == 0 && (picked >> 16) < 16,
+                    "Picker did not give a full green: " + AreaPalette.format(picked));
+            key(controller, GLFW.GLFW_KEY_ESCAPE, 0);
+            require(window(controller).equals("AREA_NAME") && (Integer) get(controller, "newAreaColor") == previous,
+                    "Esc in the picker changed the color or left the save window");
+            controller.mouseClicked(left(preview + 2, r[1] + 175, 0), false);
+            square = pickerRect("pickerSquare", (int[]) call(controller, "dialogRect"));
+            controller.mouseClicked(left(square[0], square[1] + square[3] - 1, 0), false);
+            controller.mouseReleased(left(square[0], square[1] + square[3] - 1, 0));
+            press(controller, "modalApply");
+            require(window(controller).equals("AREA_NAME") && (Integer) get(controller, "newAreaColor") == 0
+                    && ((EditBox[]) get(controller, "dialogFields"))[10].getValue().equals("#000000"),
+                    "Apply in the picker did not hand black back to the save window");
+            key(controller, GLFW.GLFW_KEY_ESCAPE, 0);
+        } finally {
+            set(controller, "dialog", dialog(controller, "NONE"));
+            set(controller, "newAreaColor", previous);
+            selection.restore(initial);
+            call(controller, "syncFields"); call(controller, "updateVisibility");
+        }
+        System.out.println("PASS: color picker from the preview: HSV conversion, hue bar, square with clamping, Esc and Apply");
+    }
+
     private static void checkQuickMenu(ExactSelectionController controller, SavedAreaStore store) throws Exception {
         SelectionState selection = (SelectionState) get(controller, "state");
         SelectionState.Snapshot initial = selection.snapshot();
@@ -1639,6 +1693,7 @@ public final class ManagementUiCheck {
             checkWaypointRows(controller);
             checkReleaseFeatures(controller, map, store);
             checkQuickMenu(controller, store);
+            checkColorPicker(controller);
             checkWaypointManagement(map, bridge, minecraft, store, context);
             controller.init();
             press(controller, "groupsButton");

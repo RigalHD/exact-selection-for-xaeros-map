@@ -40,7 +40,7 @@ public final class ExactSelectionController {
     private static final int ACCENT = 0xFF59E3CE;
     private record MapLabel(Component text, int x, int y, int color) {}
     private record ScreenPoint(double x, double y) {}
-    private enum Dialog { NONE, SIZE, MOVE, CENTER, AREAS, GROUPS, ASSIGN_GROUP, AREA_NAME, GROUP_NAME, WAYPOINTS, COLOR, IMPORT, EXPORT }
+    private enum Dialog { NONE, SIZE, MOVE, CENTER, AREAS, GROUPS, ASSIGN_GROUP, AREA_NAME, GROUP_NAME, WAYPOINTS, COLOR, IMPORT, EXPORT, PICKER }
     private final GuiMap screen;
     private final MapBridge bridge;
     private final Minecraft mc;
@@ -96,6 +96,10 @@ public final class ExactSelectionController {
     private Button pointVisibility, pointColor, pointScope, pointRename, pointRecolor;
     private Button quickSave, zonesButton, newAreaGroup, newAreaOpacityButton, colorHexApply;
     private Dialog areaNameReturn = Dialog.AREAS, colorReturn = Dialog.AREAS;
+    /** The full color picker: the window it returns to, its hue, saturation and brightness, and what is dragged (0 none, 1 square, 2 hue). */
+    private Dialog pickerReturn = Dialog.AREA_NAME;
+    private double pickerHue, pickerSat, pickerValue;
+    private int pickerDrag;
     private String newAreaGroupId;
     /** Style for the next saved area; kept between saves so a series of areas can share it. */
     private int newAreaColor = AreaPalette.DEFAULT, newAreaOpacity = 25;
@@ -669,6 +673,7 @@ public final class ExactSelectionController {
         dialog = switch (dialog) {
             case AREA_NAME -> areaNameReturn;
             case COLOR -> colorReturn;
+            case PICKER -> pickerReturn;
             case ASSIGN_GROUP, IMPORT -> Dialog.AREAS;
             case EXPORT -> exportReturn;
             case GROUP_NAME -> Dialog.GROUPS;
@@ -682,7 +687,7 @@ public final class ExactSelectionController {
     private int[] dialogRect() {
         int width = Math.min(switch (dialog) {
             case AREAS, GROUPS -> 760;
-            case ASSIGN_GROUP, AREA_NAME, GROUP_NAME, COLOR -> 420;
+            case ASSIGN_GROUP, AREA_NAME, GROUP_NAME, COLOR, PICKER -> 420;
             default -> 560;
         }, screen.width - 20);
         int height = switch (dialog) {
@@ -690,7 +695,7 @@ public final class ExactSelectionController {
             case CENTER -> Math.min(150, screen.height - 16);
             case AREAS, GROUPS -> Math.min(460, screen.height - 16);
             case ASSIGN_GROUP -> Math.min(330, screen.height - 16);
-            case AREA_NAME -> Math.min(236, screen.height - 16);
+            case AREA_NAME, PICKER -> Math.min(236, screen.height - 16);
             case GROUP_NAME -> Math.min(140, screen.height - 16);
             case COLOR -> Math.min(140, screen.height - 16);
             case WAYPOINTS, IMPORT -> Math.min(330, screen.height - 16);
@@ -839,6 +844,10 @@ public final class ExactSelectionController {
                 place(modalApply, x + w / 2 - 116, buttonY, 110, 18);
                 place(modalCancel, x + w / 2 + 6, buttonY, 110, 18);
             }
+            case PICKER -> {
+                place(modalApply, x + w / 2 - 116, buttonY, 110, 18);
+                place(modalCancel, x + w / 2 + 6, buttonY, 110, 18);
+            }
             case COLOR -> {
                 place(dialogFields[HEX_FIELD], x + 12, y + 110, w - 24 - 94, 18);
                 place(colorHexApply, x + w - 102, y + 110, 90, 18);
@@ -863,6 +872,7 @@ public final class ExactSelectionController {
 
     private void applyDialog() {
         if (dialog == Dialog.AREA_NAME) { saveArea(); return; }
+        if (dialog == Dialog.PICKER) { applyPicker(); return; }
         if (dialog == Dialog.GROUP_NAME) {
             if (renamingGroup) renameGroup(); else createGroup();
             return;
@@ -1304,6 +1314,66 @@ public final class ExactSelectionController {
         renderSwatches(g, x, y, w, paletteColors(), current);
         if (!message.isEmpty()) g.drawString(mc.font, mc.font.plainSubstrByWidth(message, w - 24),
                 x + 12, y + (colorReturn == Dialog.WAYPOINTS ? 86 : 98), 0xFFFFCF62);
+    }
+
+    /** Opens the full color picker on {@code color}; Apply hands the color back to {@code returnTo}. */
+    private void openPicker(Dialog returnTo, int color) {
+        double[] hsv = AreaPalette.toHsv(color);
+        pickerHue = hsv[0]; pickerSat = hsv[1]; pickerValue = hsv[2];
+        pickerReturn = returnTo; pickerDrag = 0;
+        dialog = Dialog.PICKER;
+        message = ""; focus(null); updateVisibility();
+    }
+
+    private int pickerColor() { return AreaPalette.hsv(pickerHue, pickerSat, pickerValue); }
+
+    private void applyPicker() {
+        int color = pickerColor();
+        dialog = pickerReturn; pickerDrag = 0;
+        if (pickerReturn == Dialog.AREA_NAME) newAreaColor = color;
+        setDialogValue(HEX_FIELD, AreaPalette.format(color));
+        focus(null); updateVisibility();
+    }
+
+    /** Saturation and brightness: {x, y, width, height}; the hue bar stands to its right. */
+    private static int[] pickerSquare(int x, int y, int w, int h) { return new int[]{x + 16, y + 30, w - 58, h - 92}; }
+
+    private static int[] pickerHueBar(int x, int y, int w, int h) { return new int[]{x + w - 34, y + 30, 18, h - 92}; }
+
+    private static boolean inside(int[] r, double x, double y) {
+        return x >= r[0] && x < r[0] + r[2] && y >= r[1] && y < r[1] + r[3];
+    }
+
+    private void dragPicker(double mouseX, double mouseY) {
+        int[] r = dialogRect();
+        int[] square = pickerSquare(r[0], r[1], r[2], r[3]), hue = pickerHueBar(r[0], r[1], r[2], r[3]);
+        if (pickerDrag == 1) {
+            pickerSat = Math.max(0, Math.min(1, (mouseX - square[0]) / Math.max(1, square[2] - 1)));
+            pickerValue = 1 - Math.max(0, Math.min(1, (mouseY - square[1]) / Math.max(1, square[3] - 1)));
+        } else if (pickerDrag == 2) {
+            pickerHue = Math.max(0, Math.min(1, (mouseY - hue[1]) / Math.max(1, hue[3] - 1)));
+        }
+    }
+
+    private void renderPicker(GuiGraphics g, int x, int y, int w, int h) {
+        int[] square = pickerSquare(x, y, w, h), hue = pickerHueBar(x, y, w, h);
+        // Each column runs from its saturation at full brightness down to black.
+        for (int i = 0; i < square[2]; i++)
+            g.fillGradient(square[0] + i, square[1], square[0] + i + 1, square[1] + square[3],
+                    0xFF000000 | AreaPalette.hsv(pickerHue, i / (double) Math.max(1, square[2] - 1), 1), 0xFF000000);
+        for (int j = 0; j < hue[3]; j++)
+            g.fill(hue[0], hue[1] + j, hue[0] + hue[2], hue[1] + j + 1, 0xFF000000 | AreaPalette.hsv(j / (double) hue[3], 1, 1));
+        g.renderOutline(square[0] - 1, square[1] - 1, square[2] + 2, square[3] + 2, 0xFF42636D);
+        g.renderOutline(hue[0] - 1, hue[1] - 1, hue[2] + 2, hue[3] + 2, 0xFF42636D);
+        int mx = square[0] + (int) Math.round(pickerSat * (square[2] - 1));
+        int my = square[1] + (int) Math.round((1 - pickerValue) * (square[3] - 1));
+        g.renderOutline(mx - 3, my - 3, 7, 7, pickerValue > 0.5 ? 0xFF000000 : -1);
+        int hy = hue[1] + (int) Math.round(pickerHue * (hue[3] - 1));
+        g.renderOutline(hue[0] - 2, hy - 2, hue[2] + 4, 5, -1);
+        int color = pickerColor(), py = y + h - 54;
+        g.fill(x + 16, py, x + 56, py + 18, 0xFF000000 | color);
+        g.renderOutline(x + 16, py, 40, 18, -1);
+        g.drawString(mc.font, AreaPalette.format(color), x + 64, py + 5, -1);
     }
 
     private void cycleAreaOpacity() {
@@ -2117,6 +2187,9 @@ public final class ExactSelectionController {
         if (scrollbarDragging) {
             if (dialog == Dialog.WAYPOINTS) dragWaypointScrollbar(mouseY); else scrollbarDragging = false;
         }
+        if (pickerDrag != 0) {
+            if (dialog == Dialog.PICKER) dragPicker(mouseX, mouseY); else pickerDrag = 0;
+        }
         MapBridge.Frame frame = checkedFrame();
         if (frame != null && enabled() && dragging && pending == null && dialog == Dialog.NONE)
             bridge.exactselection$pan(mouseX - lastMouseX, mouseY - lastMouseY);
@@ -2638,6 +2711,7 @@ public final class ExactSelectionController {
             if (colorReturn != Dialog.WAYPOINTS) show(true, dialogFields[HEX_FIELD], colorHexApply);
         }
         if (dialog == Dialog.GROUP_NAME) show(true, dialogFields[5], modalApply, modalCancel);
+        if (dialog == Dialog.PICKER) show(true, modalApply, modalCancel);
         if (dialog == Dialog.ASSIGN_GROUP) show(true, manageGroups, managementClose);
         if (dialog == Dialog.AREAS) {
             if (areaDeleteConfirmation) show(true, confirm, cancel);
@@ -2806,7 +2880,7 @@ public final class ExactSelectionController {
             case AREAS -> "areas_window"; case GROUPS -> "groups_window";
             case ASSIGN_GROUP -> "group_picker_title"; case AREA_NAME -> "area_new_title";
             case GROUP_NAME -> renamingGroup ? "group_rename_title" : "group_new_title";
-            case WAYPOINTS -> "dialog_waypoints"; case COLOR -> "color_title";
+            case WAYPOINTS -> "dialog_waypoints"; case COLOR -> "color_title"; case PICKER -> "picker_title";
             case IMPORT -> "import_title"; case EXPORT -> "export_title"; default -> "title";
         };
         if (dialog == Dialog.AREAS || dialog == Dialog.GROUPS || dialog == Dialog.ASSIGN_GROUP || dialog == Dialog.IMPORT)
@@ -2851,6 +2925,7 @@ public final class ExactSelectionController {
             }
             case WAYPOINTS -> renderWaypointsDialog(g, x, y, w, h);
             case COLOR -> renderColorDialog(g, x, y, w, h);
+            case PICKER -> renderPicker(g, x, y, w, h);
             default -> {}
         }
     }
@@ -3081,6 +3156,12 @@ public final class ExactSelectionController {
                     if (i >= 0) applyColor(colorReturn == Dialog.WAYPOINTS ? i : colors[i]);
                     return true;
                 }
+                if (dialog == Dialog.PICKER) {
+                    int[] square = pickerSquare(x, y, w, h), hue = pickerHueBar(x, y, w, h);
+                    pickerDrag = inside(square, event.x(), event.y()) ? 1 : inside(hue, event.x(), event.y()) ? 2 : 0;
+                    dragPicker(event.x(), event.y());
+                    return true;
+                }
                 if (dialog == Dialog.IMPORT) {
                     int rows = importRows(h);
                     if (event.x() >= x + 10 && event.x() < x + w - 10 && event.y() >= y + 48 && event.y() < y + 48 + rows * 20) {
@@ -3090,6 +3171,12 @@ public final class ExactSelectionController {
                     return true;
                 }
                 if (dialog == Dialog.AREA_NAME) {
+                    // The preview of the chosen color opens the full picker.
+                    int px = swatchX(x, w, AreaPalette.COLUMNS - 1);
+                    if (event.x() >= px && event.x() < px + colorSampleWidth(w) && event.y() >= y + 170 && event.y() < y + 188) {
+                        openPicker(Dialog.AREA_NAME, newAreaColor);
+                        return true;
+                    }
                     int i = swatchAt(x, y, w, AreaPalette.COLORS.length, event.x(), event.y());
                     if (i >= 0) {
                         newAreaColor = AreaPalette.COLORS[i];
@@ -3282,6 +3369,11 @@ public final class ExactSelectionController {
             // A right click that did not pan the map opens the quick actions of the selection under it.
             if (Math.hypot(event.x() - rightPressX, event.y() - rightPressY) < 4 && enabled()
                     && openQuickMenu(checkedFrame(), event.x(), event.y())) return true;
+        }
+        if (event.button() == GLFW.GLFW_MOUSE_BUTTON_LEFT && pickerDrag != 0) {
+            dragPicker(event.x(), event.y());
+            pickerDrag = 0;
+            return true;
         }
         if (event.button() == GLFW.GLFW_MOUSE_BUTTON_LEFT && scrollbarDragging) {
             dragWaypointScrollbar(event.y());

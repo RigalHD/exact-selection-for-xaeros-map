@@ -1183,13 +1183,34 @@ public final class ManagementUiCheck {
                     && ((EditBox[]) get(controller, "dialogFields"))[10].getValue().equals("#000000"),
                     "Apply in the picker did not hand black back to the save window");
             key(controller, GLFW.GLFW_KEY_ESCAPE, 0);
+            // The zone color window has a preview too; the picker's Apply recolors the zone at once.
+            SavedAreaStore store = (SavedAreaStore) get(controller, "areaStore");
+            SavedAreaStore.State savedAreas = store.state();
+            var area = SavedAreaStore.create("Picked", new SelectionBounds(0, 0, 9, 9), 0x123456, 25, null);
+            store.replace(new SavedAreaStore.State(List.of(area), List.of()));
+            try {
+                selection.load(area.geometry(), area.id());
+                call(controller, "openQuickColor");
+                r = (int[]) call(controller, "dialogRect");
+                controller.mouseClicked(left(r[0] + r[2] - 146 + 2, r[1] + 115, 0), false);
+                require(window(controller).equals("PICKER"), "The zone color preview did not open the picker");
+                square = pickerRect("pickerSquare", (int[]) call(controller, "dialogRect"));
+                controller.mouseClicked(left(square[0], square[1] + square[3] - 1, 0), false);
+                controller.mouseReleased(left(square[0], square[1] + square[3] - 1, 0));
+                press(controller, "modalApply");
+                require(window(controller).equals("NONE") && store.state().areas().get(0).color() == 0,
+                        "Apply in the picker did not recolor the zone: " + AreaPalette.format(store.state().areas().get(0).color()));
+            } finally {
+                store.replace(savedAreas);
+                ((SelectionHistory) get(controller, "history")).clear();
+            }
         } finally {
             set(controller, "dialog", dialog(controller, "NONE"));
             set(controller, "newAreaColor", previous);
             selection.restore(initial);
             call(controller, "syncFields"); call(controller, "updateVisibility");
         }
-        System.out.println("PASS: color picker from the preview: HSV conversion, hue bar, square with clamping, Esc and Apply");
+        System.out.println("PASS: color picker from the save and zone color previews: HSV conversion, hue bar, square with clamping, Esc and Apply");
     }
 
     private static void checkQuickMenu(ExactSelectionController controller, SavedAreaStore store) throws Exception {

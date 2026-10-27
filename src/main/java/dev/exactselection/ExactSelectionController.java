@@ -849,7 +849,8 @@ public final class ExactSelectionController {
                 place(modalCancel, x + w / 2 + 6, buttonY, 110, 18);
             }
             case COLOR -> {
-                place(dialogFields[HEX_FIELD], x + 12, y + 110, w - 24 - 94, 18);
+                // The field leaves room for the preview, which opens the full picker.
+                place(dialogFields[HEX_FIELD], x + 12, y + 110, colorPreviewX(x, w) - 4 - (x + 12), 18);
                 place(colorHexApply, x + w - 102, y + 110, 90, 18);
             }
             case WAYPOINTS -> {
@@ -1306,12 +1307,20 @@ public final class ExactSelectionController {
         }
     }
 
+    /** The color window's preview, between the hex field and Apply. */
+    private static int colorPreviewX(int x, int w) { return x + w - 146; }
+
     private void renderColorDialog(GuiGraphics g, int x, int y, int w, int h) {
         List<WaypointAccess.Point> points = filteredChosenPoints();
         int current = colorReturn == Dialog.WAYPOINTS
                 ? points.isEmpty() ? -1 : waypoints.colorRgb(points.get(0).color())
                 : AreaPalette.parse(dialogFields[HEX_FIELD].getValue());
         renderSwatches(g, x, y, w, paletteColors(), current);
+        if (colorReturn != Dialog.WAYPOINTS) {
+            int px = colorPreviewX(x, w);
+            g.fill(px, y + 110, px + 40, y + 128, current < 0 ? 0xFF000000 : 0xFF000000 | current);
+            g.renderOutline(px, y + 110, 40, 18, current < 0 ? 0xFFFF5555 : -1);
+        }
         if (!message.isEmpty()) g.drawString(mc.font, mc.font.plainSubstrByWidth(message, w - 24),
                 x + 12, y + (colorReturn == Dialog.WAYPOINTS ? 86 : 98), 0xFFFFCF62);
     }
@@ -1330,8 +1339,10 @@ public final class ExactSelectionController {
     private void applyPicker() {
         int color = pickerColor();
         dialog = pickerReturn; pickerDrag = 0;
-        if (pickerReturn == Dialog.AREA_NAME) newAreaColor = color;
         setDialogValue(HEX_FIELD, AreaPalette.format(color));
+        // The color window applies a choice at once, like a swatch.
+        if (pickerReturn == Dialog.COLOR) { applyColor(color); return; }
+        newAreaColor = color;
         focus(null); updateVisibility();
     }
 
@@ -3151,6 +3162,13 @@ public final class ExactSelectionController {
                 int[] r = dialogRect(); int x = r[0], y = r[1], w = r[2], h = r[3];
                 int col = (w - 36) / 2;
                 if (dialog == Dialog.COLOR) {
+                    int px = colorPreviewX(x, w);
+                    if (colorReturn != Dialog.WAYPOINTS && event.x() >= px && event.x() < px + 40
+                            && event.y() >= y + 110 && event.y() < y + 128) {
+                        int typed = AreaPalette.parse(dialogFields[HEX_FIELD].getValue());
+                        openPicker(Dialog.COLOR, typed < 0 ? AreaPalette.DEFAULT : typed);
+                        return true;
+                    }
                     int[] colors = paletteColors();
                     int i = swatchAt(x, y, w, colors.length, event.x(), event.y());
                     if (i >= 0) applyColor(colorReturn == Dialog.WAYPOINTS ? i : colors[i]);

@@ -217,6 +217,8 @@
   "exactselection.area_created": "Область сохранена",
   "exactselection.group_created": "Группа «%s» создана",
   "exactselection.areas_empty": "Нет сохранённых областей",
+  "exactselection.area_search": "Поиск по названию",
+  "exactselection.area_search_empty": "Ничего не найдено",
   "exactselection.groups_empty": "Нет групп",
   "exactselection.areas_selection_hint": "Клик — одна зона · Ctrl/Cmd — добавить · Shift — диапазон",
   "exactselection.groups_window_hint": "Создайте группу или выберите существующую слева.",

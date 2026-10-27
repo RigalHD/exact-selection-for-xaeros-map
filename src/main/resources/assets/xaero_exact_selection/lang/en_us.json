@@ -217,6 +217,8 @@
   "exactselection.area_created": "Area saved",
   "exactselection.group_created": "Group created: %s",
   "exactselection.areas_empty": "No saved areas",
+  "exactselection.area_search": "Search by name",
+  "exactselection.area_search_empty": "No matching areas",
   "exactselection.groups_empty": "No groups",
   "exactselection.areas_selection_hint": "Click: one area · Ctrl/Cmd: add · Shift: range",
   "exactselection.groups_window_hint": "Create a group or select an existing group on the left.",

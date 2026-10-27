@@ -1482,6 +1482,19 @@ public final class ManagementUiCheck {
                     .equals(List.of("alpha", "Delta", "Bravo", "Charlie")), "Group order must list grouped areas by group, then the rest");
             press(controller, "areaSortButton"); press(controller, "areaSortButton");
             require(get(controller, "areaSort").toString().equals("DATE"), "Sort did not cycle back to date order");
+            // Search by name, case-insensitive; All checks only what the search shows.
+            EditBox search = (EditBox) get(controller, "areaSearch");
+            require(search.visible, "The Areas window has no search field");
+            search.setValue("RAV");
+            require(((List<?>) call(controller, "displayedAreas")).stream().map(area -> ((SavedAreaStore.Area) area).name()).toList()
+                    .equals(List.of("Bravo")), "Search did not find Bravo by part of its name");
+            press(controller, "areaSelectAll");
+            require(checkedNames(controller, store).equals(Set.of("Bravo")), "All checked areas the search hides");
+            search.setValue("nothing like it");
+            require(((List<?>) call(controller, "displayedAreas")).isEmpty(), "Search kept areas that do not match");
+            search.setValue("");
+            require(((List<?>) call(controller, "displayedAreas")).size() == 4, "An empty search hid areas");
+            checkLayout(controller);
             require(((Button[]) get(controller, "areaCopies")).length == 9, "Area copy buttons lack a name or one of the four corners");
 
             press(controller, "areaClearSelection");

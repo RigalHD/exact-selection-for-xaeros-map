@@ -68,6 +68,8 @@ public final class ExactSelectionController {
     private enum AreaSort { DATE, NAME, GROUP, VISIBILITY }
     private AreaSort areaSort = AreaSort.DATE;
     private Button areaSortButton;
+    /** Filters the Areas window list by name; cleared whenever the window opens. */
+    private EditBox areaSearch;
     private final Map<AutosaveSettings.Field, Button> autosaveFields = new java.util.EnumMap<>(AutosaveSettings.Field.class);
     private final AreaDraft areaDraft = new AreaDraft();
     private final AutosaveSettings autosave;
@@ -282,6 +284,13 @@ public final class ExactSelectionController {
             updateVisibility();
         });
         areaSortButton.setTooltip(Tooltip.create(tr("area_sort_tooltip")));
+        String typedSearch = areaSearch == null ? "" : areaSearch.getValue();
+        areaSearch = new EditBox(mc.font, 0, 0, 100, 16, tr("area_search"));
+        areaSearch.setMaxLength(64);
+        areaSearch.setHint(tr("area_search"));
+        areaSearch.setValue(typedSearch);
+        areaSearch.setResponder(value -> { areaScroll = 0; updateVisibility(); });
+        widgets.add(areaSearch);
         widgets.addAll(exportWindow.createWidgets(this::updateVisibility, this::runExport, text -> message = text));
         areaExportFile = button("areas_export", 0, 0, 110, this::exportAreaFile);
         areaImport = button("areas_import", 0, 0, 110, this::openImport);
@@ -585,6 +594,7 @@ public final class ExactSelectionController {
         polygonDraftUndo.clear(); polygonDraftRedo.clear();
         polygonBefore = null;
         dialog = next;
+        if (next == Dialog.AREAS) areaSearch.setValue("");
         if (next == Dialog.SIZE) {
             SelectionBounds b = state.bounds();
             setDialogValue(0, b == null ? "1" : Long.toString(b.width()));
@@ -718,7 +728,7 @@ public final class ExactSelectionController {
     }
 
     private int areaDialogRows() {
-        return Math.max(1, Math.min(24, areaStore.state().areas().size()));
+        return Math.max(1, Math.min(24, displayedAreas().size()));
     }
 
     private int groupDialogRows() {
@@ -802,6 +812,8 @@ public final class ExactSelectionController {
                 }
                 place(openExportButton, right, y + h - 44, col, 16);
                 place(areaSortButton, x + 14 + col - 130, y + 27, 130, 16);
+                int[] search = areaSearchSpan(x, col);
+                place(areaSearch, search[0], y + 27, Math.max(1, search[1]), 16);
                 place(areaExportFile, x + 12, y + h - 92, half, 18);
                 place(areaImport, x + 15 + half, y + h - 92, col - half - 24, 18);
                 place(transferFolderButton, x + 12 + col - 18, y + h - 92, 18, 18);
@@ -1180,11 +1192,10 @@ public final class ExactSelectionController {
     private void selectAllAreas() {
         flushDraft();
         selectedAreaIds.clear();
-        for (SavedAreaStore.Area area : areaStore.state().areas()) selectedAreaIds.add(area.id());
-        if (!selectedAreaIds.isEmpty()) {
-            List<SavedAreaStore.Area> areas = areaStore.state().areas();
-            areaId = areas.get(areas.size() - 1).id();
-        }
+        // With a search, All checks the areas it shows.
+        List<SavedAreaStore.Area> areas = displayedAreas();
+        for (SavedAreaStore.Area area : areas) selectedAreaIds.add(area.id());
+        if (!areas.isEmpty()) areaId = areas.get(areas.size() - 1).id();
         setDialogValue(4, selectedAreaIds.size() == 1 && selectedArea() != null ? selectedArea().name() : "");
         updateVisibility();
     }
@@ -1578,16 +1589,33 @@ public final class ExactSelectionController {
         net.minecraft.util.Util.getPlatform().openPath(lastExport.getParent());
     }
 
+    /**
+     * The search field's x and width: between the checked count and the order button, over the count when the list
+     * column is narrow; a width under 40 hides it.
+     */
+    private static int[] areaSearchSpan(int x, int col) {
+        int end = x + 14 + col - 134;
+        int start = end - (x + 92) >= 60 ? x + 92 : x + 12;
+        return new int[]{start, end - start};
+    }
+
     private SavedAreaStore.State sortedState;
     private AreaSort sortedBy;
+    private String sortedQuery = "";
     private List<SavedAreaStore.Area> sortedAreas = List.of();
 
-    /** Areas in the Areas window's display order; rows, Shift ranges and scrolling all use it. Cached per store state and sort. */
+    /**
+     * Areas in the Areas window's display order, matching the search; rows, Shift ranges, Select all and scrolling all
+     * use it. Cached per store state, sort and search.
+     */
     private List<SavedAreaStore.Area> displayedAreas() {
-        if (areaStore.state() != sortedState || areaSort != sortedBy) {
+        String query = areaSearch == null ? "" : areaSearch.getValue().trim().toLowerCase(Locale.ROOT);
+        if (areaStore.state() != sortedState || areaSort != sortedBy || !query.equals(sortedQuery)) {
             sortedState = areaStore.state();
             sortedBy = areaSort;
-            sortedAreas = sortAreas(sortedState.areas());
+            sortedQuery = query;
+            sortedAreas = sortAreas(sortedState.areas()).stream()
+                    .filter(area -> area.name().toLowerCase(Locale.ROOT).contains(query)).toList();
         }
         return sortedAreas;
     }
@@ -2787,8 +2815,10 @@ public final class ExactSelectionController {
             if (areaDeleteConfirmation) show(true, confirm, cancel);
             else {
                 show(true, managementClose, manageGroups, managementUndo, managementRedo, areaSave, areaExportFile, areaImport,
-                        transferFolderButton, areaSortButton,
+                        transferFolderButton, areaSortButton, areaSearch,
                         areaSelectAll, areaClearSelection, areaMapVisibility, areaMinimapVisibility, areaNames, autosaveButton);
+                int[] r = dialogRect();
+                areaSearch.visible = areaSearchSpan(r[0], (r[2] - 36) / 2)[1] >= 40;
                 if (autosaveOpen) {
                     show(true, autosaveToggle, autosaveClose);
                     show(true, autosaveFields.values().toArray(AbstractWidget[]::new));
@@ -3010,10 +3040,12 @@ public final class ExactSelectionController {
         List<SavedAreaStore.Area> areas = displayedAreas();
         int rows = visibleAreaDialogRows(h);
         areaScroll = Math.min(areaScroll, Math.max(0, areas.size() - rows));
-        g.drawString(mc.font, mc.font.plainSubstrByWidth(tr("area_list_count", selectedAreaIds.size()).getString(), col - 136),
-                x + 12, y + 34, 0xFF9BAAB7);
+        if (areaSearchSpan(x, col)[0] > x + 12)
+            g.drawString(mc.font, mc.font.plainSubstrByWidth(tr("area_list_count", selectedAreaIds.size()).getString(), 76),
+                    x + 12, y + 34, 0xFF9BAAB7);
         g.fill(x + 10, y + 46, x + 14 + col, y + h - 98, 0xFF0C141D);
-        if (areas.isEmpty()) g.drawString(mc.font, tr("areas_empty"), x + 16, y + 54, 0xFF9BAAB7);
+        if (areas.isEmpty()) g.drawString(mc.font, tr(areaStore.state().areas().isEmpty() ? "areas_empty" : "area_search_empty"),
+                x + 16, y + 54, 0xFF9BAAB7);
         for (int i = 0; i < rows && i + areaScroll < areas.size(); i++) {
             SavedAreaStore.Area area = areas.get(i + areaScroll);
             int rowY = y + 48 + i * 20;
@@ -3505,7 +3537,7 @@ public final class ExactSelectionController {
             if (areaDeleteConfirmation || groupDeleteConfirmation) return true;
             int[] r = dialogRect();
             if (dialog == Dialog.AREAS) {
-                areaScroll = Math.max(0, Math.min(Math.max(0, areaStore.state().areas().size() - visibleAreaDialogRows(r[3])), areaScroll - step));
+                areaScroll = Math.max(0, Math.min(Math.max(0, displayedAreas().size() - visibleAreaDialogRows(r[3])), areaScroll - step));
             } else if (dialog == Dialog.GROUPS) {
                 groupScroll = Math.max(0, Math.min(Math.max(0, areaStore.state().groups().size() - visibleGroupDialogRows(r[3])), groupScroll - step));
             } else {

@@ -506,9 +506,9 @@ public final class ManagementUiCheck {
         require(selection.geometry().equals(polygon) && !(Boolean) get(controller, "polygonMode"),
                 "Loading a polygon did not enter safe editing mode");
         clickMap(controller, 400, 60, 0); clickMap(controller, 402, 61, 0);
-        clickMap(controller, 480, 160, 0); doubleClickMap(controller, 620, 320, 0);
+        clickMap(controller, 480, 160, 0); doubleClickMap(controller, 480, 160, 0);
         require(selection.geometry().equals(polygon) && selection.phase() == SelectionState.Phase.SELECTED,
-                "Ordinary editing clicks replaced a saved polygon with a small rectangle");
+                "Clicks on a vertex or inside replaced a saved polygon with a small rectangle");
         call(controller, "applyFields");
         require(selection.geometry().equals(polygon) && !((Button) get(controller, "apply")).active,
                 "Applying rectangle coordinates destroyed a polygon");
@@ -728,6 +728,11 @@ public final class ManagementUiCheck {
         controller.mouseReleased(left(431, 270, GLFW.GLFW_MOD_SHIFT));
         require(selection.geometry().equals(polygon.translated(21, 0)),
                 "Rectangle chunk snapping leaked into polygon movement");
+        // Outside a loaded polygon a click starts a new selection, which no longer edits the saved area.
+        selection.load(polygon, "loaded-area");
+        clickMap(controller, 600, 350, 0); clickMap(controller, 640, 390, 0);
+        require(selection.phase() == SelectionState.Phase.SELECTED && selection.geometry() instanceof RectangleGeometry
+                && selection.source() == null, "A click outside a loaded polygon did not start a new selection: " + selection.snapshot());
 
         set(controller, "sizeFromCenter", true);
         set(controller, "moveInChunks", true);

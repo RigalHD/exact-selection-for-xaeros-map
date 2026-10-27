@@ -3199,8 +3199,7 @@ public final class ExactSelectionController {
                     if (twice) insertPolygonPoint(frame, polygon, edge, event.x(), event.y());
                     return true;
                 }
-                if (hitVertex(frame, polygon.vertices(), event.x(), event.y()) >= 0
-                        || !polygonMode && !insideBounds(frame, event.x(), event.y())) {
+                if (hitVertex(frame, polygon.vertices(), event.x(), event.y()) >= 0) {
                     message = tr("polygon_edit_controls").getString();
                     return true;
                 }
@@ -3224,7 +3223,6 @@ public final class ExactSelectionController {
                             frame, event.x(), event.y());
                     return true;
                 }
-                if (state.geometry() instanceof PolygonGeometry && !polygonMode) return true;
                 boolean finishing = state.phase() == SelectionState.Phase.PREVIEW;
                 SelectionState.Snapshot before = historyBase();
                 if (finishing && chunks) {

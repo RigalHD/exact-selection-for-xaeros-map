@@ -35,8 +35,10 @@ public final class SelectionState {
             geometry = new RectangleGeometry(bounds);
             phase = Phase.SELECTED;
         } else {
+            // A new selection no longer edits the saved area that was loaded.
             bounds = new SelectionBounds(x, z, x, z);
             geometry = new RectangleGeometry(bounds);
+            source = null;
             phase = Phase.PREVIEW;
         }
     }

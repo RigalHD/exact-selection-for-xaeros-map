@@ -410,7 +410,7 @@ public final class ExactSelectionController {
         panelHeight = Math.min(contentHeight(), screen.height - PANEL_Y - 8);
         panelScroll = Math.max(0, Math.min(panelScroll, maxPanelScroll()));
         int x = PANEL_X + 8, top = PANEL_Y - (compact ? 0 : panelScroll), y = top + metricsShift, w = panelWidth - 16;
-        place(panelModeButton, PANEL_X + panelWidth - 24, PANEL_Y + 4, 16, 16);
+        place(panelModeButton, PANEL_X + panelWidth - 30, PANEL_Y + 3, 22, 18);
         if (compact) {
             // Groups open from the Areas window; Esc or the right-click menu clears the selection.
             arrowRow(new Button[]{polygonModeButton, areasButton}, x, y + 74, w);
@@ -2356,25 +2356,33 @@ public final class ExactSelectionController {
 
     /** Double chevrons: down to expand the panel, up to make it compact. */
     private static final String[] EXPAND = {
-            "#.....#",
-            ".#...#.",
-            "..#.#..",
-            "...#...",
-            "#.....#",
-            ".#...#.",
-            "..#.#..",
-            "...#...",
+            "##.......##",
+            ".##.....##.",
+            "..##...##..",
+            "...##.##...",
+            "....###....",
+            ".....#.....",
+            "##.......##",
+            ".##.....##.",
+            "..##...##..",
+            "...##.##...",
+            "....###....",
+            ".....#.....",
     };
 
     private static final String[] COLLAPSE = {
-            "...#...",
-            "..#.#..",
-            ".#...#.",
-            "#.....#",
-            "...#...",
-            "..#.#..",
-            ".#...#.",
-            "#.....#",
+            ".....#.....",
+            "....###....",
+            "...##.##...",
+            "..##...##..",
+            ".##.....##.",
+            "##.......##",
+            ".....#.....",
+            "....###....",
+            "...##.##...",
+            "..##...##..",
+            ".##.....##.",
+            "##.......##",
     };
 
     private static final String[] FOLDER = {
@@ -2711,7 +2719,7 @@ public final class ExactSelectionController {
                 && !holding() && !loadFailed && (editing == null || !editing.geometry().equals(state.geometry()));
         // Compact: in the header beside the mode icon; expanded: under Apply, beside the second coordinate row.
         int saveWidth = Math.max(40, mc.font.width(quickSave.getMessage()) + 10);
-        if (compact) place(quickSave, panelModeButton.getX() - 3 - saveWidth, PANEL_Y + 4, saveWidth, 16);
+        if (compact) place(quickSave, panelModeButton.getX() - 3 - saveWidth, PANEL_Y + 3, saveWidth, 18);
         else place(quickSave, apply.getX(), apply.getY() + 24, apply.getWidth(), 18);
         panelModeButton.setMessage(Component.empty());
         panelModeButton.setTooltip(Tooltip.create(tr(compact ? "panel_expand_tooltip" : "panel_compact_tooltip")));

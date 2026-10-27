@@ -62,7 +62,8 @@ public final class ExactSelectionController {
     private Button centerCopy, centerCreate, areaSave, areaLoad, areaDelete;
     private Button areaSelectAll, areaClearSelection, areaSaveChanges, autosaveButton, autosaveToggle, autosaveClose;
     /** Name, corner A or polygon vertices, area, perimeter, length, width, corner B. */
-    private final Button[] areaCopies = new Button[7];
+    /** Name, NW corner (or all polygon vertices), area, perimeter, length, width, SE, NE and SW corners. */
+    private final Button[] areaCopies = new Button[9];
     /** List order of the Areas window; DATE is the order areas were added, oldest first. */
     private enum AreaSort { DATE, NAME, GROUP, VISIBILITY }
     private AreaSort areaSort = AreaSort.DATE;
@@ -294,14 +295,19 @@ public final class ExactSelectionController {
         areaImport.setTooltip(Tooltip.create(tr("areas_import_tooltip")));
         groupExport.setTooltip(Tooltip.create(tr("group_export_tooltip")));
         autosaveClose = button("autosave_close", 0, 0, 120, () -> { autosaveOpen = false; focus(null); updateVisibility(); });
-        String[] copies = {"copy_name_tooltip", "copy_corner_a_tooltip", "copy_area_tooltip", "copy_perimeter_tooltip",
-                "copy_length_tooltip", "copy_width_tooltip", "copy_corner_b_tooltip"};
+        String[] copies = {"copy_name_tooltip", "copy_corner_nw_tooltip", "copy_area_tooltip", "copy_perimeter_tooltip",
+                "copy_length_tooltip", "copy_width_tooltip", "copy_corner_se_tooltip", "copy_corner_ne_tooltip",
+                "copy_corner_sw_tooltip"};
         for (int i = 0; i < areaCopies.length; i++) {
             int kind = i - 1;
+            // Rectangle corners by direction: 0 NW, 1 NE, 2 SW, 3 SE.
+            int corner = switch (i) { case 1 -> 0; case 7 -> 1; case 8 -> 2; case 6 -> 3; default -> -1; };
             areaCopies[i] = copyButton(copies[i], () -> {
                 SavedAreaStore.Area area = selectedAreas().size() == 1 ? selectedArea() : null;
                 if (area == null) return;
                 if (kind < 0) copyToClipboard(area.name());
+                else if (corner >= 0 && !(area.geometry() instanceof PolygonGeometry))
+                    copyToClipboard(compassCorner(area.bounds(), corner)[1]);
                 else copyMetric(kind, area.geometry(), area.bounds());
             });
         }
@@ -2847,7 +2853,7 @@ public final class ExactSelectionController {
         areaSaveChanges.active = !areaDraft.isEmpty() && selectedCount > 0 && !loadFailed;
         for (Button copy : areaCopies) copy.active = singleArea;
         areaCopies[1].setTooltip(Tooltip.create(tr(area != null && area.geometry() instanceof PolygonGeometry
-                ? "copy_coordinates_tooltip" : "copy_corner_a_tooltip")));
+                ? "copy_coordinates_tooltip" : "copy_corner_nw_tooltip")));
         autosaveToggle.setMessage(tr(autosave.enabled() ? "autosave_on" : "autosave_off"));
         autosaveFields.forEach((field, button) -> {
             button.setMessage(tr("autosave_field", tr("autosave_field_" + field.name().toLowerCase(Locale.ROOT)),
@@ -3047,13 +3053,27 @@ public final class ExactSelectionController {
         SelectionBounds b = area.bounds();
         if (area.geometry() instanceof PolygonGeometry polygon)
             info.add(new MetricLine(List.of(tr("vertices_count", polygon.vertices().size()).getString()), List.of(areaCopies[1])));
-        else info.add(new MetricLine(List.of(coordinateLine(b, true), coordinateLine(b, false)),
-                List.of(areaCopies[1], areaCopies[6])));
+        else {
+            // North is -Z and west is -X, as in Minecraft.
+            info.add(new MetricLine(List.of(cornerText(b, 0), cornerText(b, 1)), List.of(areaCopies[1], areaCopies[7])));
+            info.add(new MetricLine(List.of(cornerText(b, 2), cornerText(b, 3)), List.of(areaCopies[8], areaCopies[6])));
+        }
         if (area.geometry() instanceof RectangleGeometry)
             info.add(new MetricLine(dimensionParts(b, false), List.of(areaCopies[5], areaCopies[4])));
         info.add(new MetricLine(List.of(tr("area", formatMetric(area.geometry().area())).getString()), List.of(areaCopies[2])));
         info.add(new MetricLine(List.of(tr("perimeter", formatLength(area.geometry().perimeter())).getString()), List.of(areaCopies[3])));
         return info;
+    }
+
+    /** The label key and "X Z" of a rectangle corner: 0 north-west, 1 north-east, 2 south-west, 3 south-east. */
+    private static String[] compassCorner(SelectionBounds b, int corner) {
+        int x = corner % 2 == 0 ? b.minX() : b.maxX(), z = corner < 2 ? b.minZ() : b.maxZ();
+        return new String[]{new String[]{"corner_nw", "corner_ne", "corner_sw", "corner_se"}[corner], x + " " + z};
+    }
+
+    private String cornerText(SelectionBounds b, int corner) {
+        String[] c = compassCorner(b, corner);
+        return tr(c[0], c[1]).getString();
     }
 
     /** Lays out (g == null) or draws the area details. */

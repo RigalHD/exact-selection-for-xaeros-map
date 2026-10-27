@@ -3,6 +3,7 @@
 ## 1.3.1+1.21.11
 
 - Like a photo editor: dragging inside a finished selection moves it (handles and edges still resize, Shift still moves from anywhere). Size, Move and Center wait for a finished selection. The territory being edited is named above its frame on the map. A right click inside the selection opens quick actions: Save… and Clear selection, or Color…, Fill and Delete zone for an edited territory, each applied at once and undoable. A click outside a polygon starts a new selection, as it does for a rectangle.
+- The Areas window lists all four corners of a rectangle by direction (NW, NE, SW, SE), each with a copy button, instead of A and B.
 - Clicking the color preview in the save window or in a zone's color window opens a full color picker (saturation and brightness square, hue bar); in the zone's color window Apply recolors it at once.
 - The yellow frame around waypoints inside the selection now surrounds Xaero's icon above the point, following its waypoint scale and the window size, instead of a small square under it.
 - The expanded panel is narrower and shorter: half-width coordinate fields with Apply and Save beside them, and the buttons in three rows. The compact panel drops the corner rows and Clear. Expand / Compact is an icon; the Groups button left the panel (Manage groups… in the Areas window). Applying an edited territory is labelled Save.

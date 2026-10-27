@@ -1482,7 +1482,7 @@ public final class ManagementUiCheck {
                     .equals(List.of("alpha", "Delta", "Bravo", "Charlie")), "Group order must list grouped areas by group, then the rest");
             press(controller, "areaSortButton"); press(controller, "areaSortButton");
             require(get(controller, "areaSort").toString().equals("DATE"), "Sort did not cycle back to date order");
-            require(((Button[]) get(controller, "areaCopies")).length == 7, "Area copy buttons lack a name or corner action");
+            require(((Button[]) get(controller, "areaCopies")).length == 9, "Area copy buttons lack a name or one of the four corners");
 
             press(controller, "areaClearSelection");
             call(controller, "layoutDialog");
@@ -1654,21 +1654,27 @@ public final class ManagementUiCheck {
             store.replace(new SavedAreaStore.State(List.of(area), List.of(), true, true));
             press(controller, "areasButton"); pick(controller, store, area.id()); call(controller, "layoutDialog");
             Button[] copies = (Button[]) get(controller, "areaCopies");
-            require(copies[1].visible && copies[6].visible && copies[1].getY() == copies[6].getY()
-                    && copies[1].getX() < copies[6].getX(), "Saved rectangle lacks separate corner buttons");
+            // Four corners by direction (north is -Z, west is -X): NW and NE on one line, SW and SE below.
+            require(copies[1].visible && copies[7].visible && copies[8].visible && copies[6].visible
+                    && copies[1].getY() == copies[7].getY() && copies[8].getY() == copies[6].getY()
+                    && copies[1].getY() < copies[8].getY() && copies[1].getX() < copies[7].getX(),
+                    "Saved rectangle lacks its four corner buttons");
             checkLayout(controller);
-            copies[1].onPress(new KeyEvent(GLFW.GLFW_KEY_ENTER, 0, 0));
-            require("-120 340".equals(keyboard.copied), "Saved corner A clipboard format is wrong");
-            copies[6].onPress(new KeyEvent(GLFW.GLFW_KEY_ENTER, 0, 0));
-            require("56 -78".equals(keyboard.copied), "Saved corner B clipboard format is wrong");
+            String[] expected = {"-120 -78", "56 -78", "-120 340", "56 340"};
+            int[] order = {1, 7, 8, 6};
+            for (int i = 0; i < 4; i++) {
+                copies[order[i]].onPress(new KeyEvent(GLFW.GLFW_KEY_ENTER, 0, 0));
+                require(expected[i].equals(keyboard.copied), "Saved corner " + i + " copied " + keyboard.copied);
+            }
             var polygon = SavedAreaStore.create("Polygon", new PolygonGeometry(List.of(new GridPoint(0, 0),
                     new GridPoint(3, 0), new GridPoint(0, 4))), AreaPalette.DEFAULT, 25, null);
             store.replace(new SavedAreaStore.State(List.of(polygon), List.of(), true, true));
             pick(controller, store, polygon.id()); call(controller, "layoutDialog");
-            require(copies[1].visible && !copies[6].visible, "Polygon vertex copy exposed an unrelated second corner");
+            require(copies[1].visible && !copies[6].visible && !copies[7].visible && !copies[8].visible,
+                    "Polygon vertex copy exposed rectangle corners");
             copies[1].onPress(new KeyEvent(GLFW.GLFW_KEY_ENTER, 0, 0));
             require("0 0; 3 0; 0 4".equals(keyboard.copied), "Polygon vertex coordinate pairs must use spaces");
-            System.out.println("PASS: separate A/B corner copying in the expanded panel and saved areas, none in the compact panel, space-separated coordinates, polygon vertices preserved");
+            System.out.println("PASS: separate A/B corner copying in the expanded panel, four compass corners for saved areas, none in the compact panel, space-separated coordinates, polygon vertices preserved");
         } finally {
             set(minecraft, "keyboardHandler", previousKeyboard); store.replace(saved); selection.restore(before);
             ((Set<?>) get(controller, "selectedAreaIds")).clear(); set(controller, "areaId", null);

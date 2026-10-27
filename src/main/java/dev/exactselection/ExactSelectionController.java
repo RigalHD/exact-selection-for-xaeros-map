@@ -87,7 +87,7 @@ public final class ExactSelectionController {
     private Path lastExport;
     private boolean exportRunning;
     private String exportNotice = "";
-    private Button areaMapVisibility, areaMinimapVisibility;
+    private Button areaMapVisibility, areaMinimapVisibility, areaNames;
     private Button pointVisibility, pointColor, pointScope, pointRename, pointRecolor;
     private Button quickSave, zonesButton, newAreaGroup, newAreaOpacityButton, colorHexApply;
     private Dialog areaNameReturn = Dialog.AREAS, colorReturn = Dialog.AREAS;
@@ -298,6 +298,8 @@ public final class ExactSelectionController {
         areaColor = button("area_color", 0, 0, 100, () -> openColorDialog(Dialog.AREAS));
         areaOpacity = button("area_fill", 0, 0, 100, this::cycleAreaOpacity);
         areaMapVisibility = button("area_map_on", 0, 0, 120, this::toggleAreaMapVisibility);
+        areaNames = button("area_names_on", 0, 0, 120, this::toggleAreaNames);
+        areaNames.setTooltip(Tooltip.create(tr("area_names_tooltip")));
         areaMinimapVisibility = button("area_minimap_on", 0, 0, 120, this::toggleAreaMinimapVisibility);
         manageGroups = button("groups_manage", 0, 0, 120,
                 () -> openGroupsWindow(dialog == Dialog.ASSIGN_GROUP ? Dialog.ASSIGN_GROUP : Dialog.AREAS));
@@ -764,8 +766,10 @@ public final class ExactSelectionController {
                 place(areaSelectAll, x + 12, y + h - 72, half, 18);
                 place(areaClearSelection, x + 15 + half, y + h - 72, col - half - 3, 18);
                 place(areaSave, x + 12, y + h - 52, col, 18);
-                place(areaMapVisibility, x + 12, y + h - 32, half, 18);
-                place(areaMinimapVisibility, x + 15 + half, y + h - 32, col - half - 3, 18);
+                int third = (col - 6) / 3;
+                place(areaMapVisibility, x + 12, y + h - 32, third, 18);
+                place(areaMinimapVisibility, x + 15 + third, y + h - 32, third, 18);
+                place(areaNames, x + 18 + 2 * third, y + h - 32, col - 6 - 2 * third, 18);
             }
             case GROUPS -> {
                 if (groupDeleteConfirmation) {
@@ -1560,17 +1564,25 @@ public final class ExactSelectionController {
 
     private SavedAreaStore.State areaState(List<SavedAreaStore.Area> areas, List<SavedAreaStore.Group> groups) {
         SavedAreaStore.State current = areaStore.state();
-        return new SavedAreaStore.State(areas, groups, current.showOnMap(), current.showOnMinimap());
+        return new SavedAreaStore.State(areas, groups, current.showOnMap(), current.showOnMinimap(), current.showNames());
     }
 
     private void toggleAreaMapVisibility() {
         SavedAreaStore.State current = areaStore.state();
-        changeAreas(new SavedAreaStore.State(current.areas(), current.groups(), !current.showOnMap(), current.showOnMinimap()), "area_map_visibility");
+        changeAreas(new SavedAreaStore.State(current.areas(), current.groups(), !current.showOnMap(), current.showOnMinimap(),
+                current.showNames()), "area_map_visibility");
     }
 
     private void toggleAreaMinimapVisibility() {
         SavedAreaStore.State current = areaStore.state();
-        changeAreas(new SavedAreaStore.State(current.areas(), current.groups(), current.showOnMap(), !current.showOnMinimap()), "area_minimap_visibility");
+        changeAreas(new SavedAreaStore.State(current.areas(), current.groups(), current.showOnMap(), !current.showOnMinimap(),
+                current.showNames()), "area_minimap_visibility");
+    }
+
+    private void toggleAreaNames() {
+        SavedAreaStore.State current = areaStore.state();
+        changeAreas(new SavedAreaStore.State(current.areas(), current.groups(), current.showOnMap(), current.showOnMinimap(),
+                !current.showNames()), "area_names_visibility");
     }
 
     private void cycleVisibilityFilter() {
@@ -2191,6 +2203,7 @@ public final class ExactSelectionController {
     private void renderSavedAreas(GuiGraphics g, MapBridge.Frame frame, List<MapLabel> mapLabels) {
         Map<String, SavedAreaStore.Group> groups = new HashMap<>();
         for (SavedAreaStore.Group group : areaStore.state().groups()) groups.put(group.id(), group);
+        boolean names = areaStore.state().showNames();
         for (SavedAreaStore.Area area : areaStore.state().areas()) {
             if (!area.visible()) continue;
             SavedAreaStore.Group group = groups.get(area.groupId());
@@ -2211,7 +2224,7 @@ public final class ExactSelectionController {
             if (area.vertices().size() > 0) {
                 GeometryScreenRenderer.draw(g, frame, geometry, screen.width, screen.height, fill, outline, superseded ? 1.0 : 1.5);
                 ScreenPoint anchor = polygonLabelAnchor(frame, (PolygonGeometry) geometry, geometryBounds);
-                if (anchor != null) mapLabels.add(new MapLabel(Component.literal(area.name()),
+                if (anchor != null && names) mapLabels.add(new MapLabel(Component.literal(area.name()),
                         clamp(anchor.x(), 0, screen.width - 1), clamp(anchor.y(), 0, screen.height - 1), labelColor));
                 continue;
             }
@@ -2221,7 +2234,7 @@ public final class ExactSelectionController {
             int x1 = clamp(left, 0, screen.width), y1 = clamp(top, 0, screen.height);
             int x2 = clamp(right, 0, screen.width), y2 = clamp(bottom, 0, screen.height);
             GeometryScreenRenderer.draw(g, frame, geometry, screen.width, screen.height, fill, outline, 1.0);
-            if ((x2 - x1) > 50 && (y2 - y1) > 14)
+            if (names && (x2 - x1) > 50 && (y2 - y1) > 14)
                 mapLabels.add(new MapLabel(Component.literal(area.name()), (x1 + x2) / 2, y1 + 3, labelColor));
         }
     }
@@ -2524,7 +2537,7 @@ public final class ExactSelectionController {
             else {
                 show(true, managementClose, manageGroups, managementUndo, managementRedo, areaSave, areaExportFile, areaImport,
                         transferFolderButton, areaSortButton,
-                        areaSelectAll, areaClearSelection, areaMapVisibility, areaMinimapVisibility, autosaveButton);
+                        areaSelectAll, areaClearSelection, areaMapVisibility, areaMinimapVisibility, areaNames, autosaveButton);
                 if (autosaveOpen) {
                     show(true, autosaveToggle, autosaveClose);
                     show(true, autosaveFields.values().toArray(AbstractWidget[]::new));
@@ -2637,7 +2650,8 @@ public final class ExactSelectionController {
         areaColor.setMessage(Component.literal(tr("area_color").getString() + (areaDraft.color != null ? " *" : "")));
         areaMapVisibility.setMessage(tr(areaStore.state().showOnMap() ? "area_map_on" : "area_map_off"));
         areaMinimapVisibility.setMessage(tr(areaStore.state().showOnMinimap() ? "area_minimap_on" : "area_minimap_off"));
-        areaMapVisibility.active = areaMinimapVisibility.active = !loadFailed;
+        areaNames.setMessage(tr(areaStore.state().showNames() ? "area_names_on" : "area_names_off"));
+        areaMapVisibility.active = areaMinimapVisibility.active = areaNames.active = !loadFailed;
         areaDelete.setMessage(tr("area_delete_count", selectedCount));
         areaSelectAll.active = !loadFailed && selectedCount < areaStore.state().areas().size();
         areaClearSelection.active = selectedCount > 0;

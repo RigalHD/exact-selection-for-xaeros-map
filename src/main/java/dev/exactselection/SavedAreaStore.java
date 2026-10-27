@@ -98,8 +98,12 @@ public final class SavedAreaStore {
         }
     }
     public record Group(String id, String name, boolean visible) {}
-    public record State(List<Area> areas, List<Group> groups, boolean showOnMap, boolean showOnMinimap) {
+    /** {@code showNames}: names of saved areas on the World Map; files written before it existed show them. */
+    public record State(List<Area> areas, List<Group> groups, boolean showOnMap, boolean showOnMinimap, boolean showNames) {
         public State { areas = List.copyOf(areas); groups = List.copyOf(groups); }
+        public State(List<Area> areas, List<Group> groups, boolean showOnMap, boolean showOnMinimap) {
+            this(areas, groups, showOnMap, showOnMinimap, true);
+        }
         public State(List<Area> areas, List<Group> groups) { this(areas, groups, false, false); }
         public static State empty() { return new State(List.of(), List.of()); }
     }
@@ -189,6 +193,7 @@ public final class SavedAreaStore {
         root.addProperty("schema", 3);
         root.addProperty("showOnMap", state.showOnMap());
         root.addProperty("showOnMinimap", state.showOnMinimap());
+        root.addProperty("showNames", state.showNames());
         JsonArray areas = new JsonArray();
         for (Area a : state.areas()) {
             JsonObject o = new JsonObject();
@@ -271,7 +276,8 @@ public final class SavedAreaStore {
         }
         State state = new State(areas, groups,
                 schema >= 2 && root.has("showOnMap") && root.get("showOnMap").getAsBoolean(),
-                schema >= 2 && root.has("showOnMinimap") && root.get("showOnMinimap").getAsBoolean());
+                schema >= 2 && root.has("showOnMinimap") && root.get("showOnMinimap").getAsBoolean(),
+                !root.has("showNames") || root.get("showNames").getAsBoolean());
         try { validate(state); }
         catch (IOException e) { throw new IllegalArgumentException(e.getMessage(), e); }
         return state;

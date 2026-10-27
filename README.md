@@ -62,7 +62,7 @@ Areas and Groups have separate windows. The Areas window opens with nothing chec
 - Create, rename, hide or delete groups in the Groups window.
 - Individual visibility and group visibility are independent. A hidden group suppresses its areas without changing their individual settings.
 - Delete checked areas after confirmation; deletion supports undo.
-- World map and Minimap switches independently control persistent overlays when the selection tool is off.
+- World map and Minimap switches independently control persistent overlays when the selection tool is off; Names hides area names on the world map while the areas stay drawn. All three are saved per world and can be undone.
 
 Settings and areas are stored per world/server, dimension and subworld in `config/xaero-exact-selection/`. The technical mod ID `xaero_exact_selection` and the legacy storage directory are retained for compatibility with existing installations. The existing schema 3 format is unchanged. Writes use a temporary file and atomic replacement where supported. An unreadable existing file is kept and is not overwritten with empty data.
 

@@ -616,6 +616,17 @@ public final class ManagementUiCheck {
                 }
                 require(selection.snapshot().equals(before), "Rendering labels changed the active selection");
             }
+            // Names off: the areas are still drawn, without a single label.
+            store.replace(new SavedAreaStore.State(List.of(area, overlapping), List.of(), true, true, false));
+            RecordingGraphics graphics = (RecordingGraphics) unsafe.allocateInstance(RecordingGraphics.class);
+            graphics.events = new ArrayList<>();
+            graphics.transform = new Matrix3x2fStack(16);
+            graphics.state = new GuiRenderState();
+            controller.renderMapOverlays(graphics, 600, 330);
+            List<GuiElementRenderState> draws = new ArrayList<>();
+            graphics.state.forEachElement(draws::add, GuiRenderState.TraverseRange.ALL);
+            require(draws.size() == 4 && graphics.events.stream().noneMatch(event -> event.text() != null),
+                    "Hidden area names were still drawn, or the areas vanished with them");
         }
         selection.disable();
         for (SavedAreaStore.Area area : List.of(
@@ -1117,6 +1128,11 @@ public final class ManagementUiCheck {
             autosave.setEnabled(false);
             press(controller, "areasButton");
             require(((Set<?>) get(controller, "selectedAreaIds")).isEmpty(), "Areas window opened with an area checked");
+            press(controller, "areaNames");
+            require(!store.state().showNames() && store.state().showOnMap(), "Names switch did not hide only the names");
+            call(controller, "updateVisibility");
+            press(controller, "managementUndo");
+            require(store.state().showNames(), "Undo did not bring the area names back");
             pick(controller, store, a.id());
             text(controller, 4).setValue("Draft name");
             press(controller, "areaOpacity");

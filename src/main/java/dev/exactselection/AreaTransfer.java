@@ -40,7 +40,7 @@ final class AreaTransfer {
                 groups.stream().filter(group -> used.contains(group.id())).toList());
         JsonObject json = SavedAreaStore.encode(state);
         json.addProperty("format", FORMAT);
-        json.remove("showOnMap"); json.remove("showOnMinimap");
+        json.remove("showOnMap"); json.remove("showOnMinimap"); json.remove("showNames");
         String stamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss", Locale.ROOT));
         Path file = unique(folder, safe(label) + "-" + stamp);
         SavedAreaStore.writeAtomically(file, json.toString());
@@ -106,7 +106,7 @@ final class AreaTransfer {
                     area.x2(), area.z2(), area.color(), area.opacity(), groupId, area.visible(), area.vertices()));
             added++;
         }
-        return new Merge(new SavedAreaStore.State(areas, groups, current.showOnMap(), current.showOnMinimap()),
+        return new Merge(new SavedAreaStore.State(areas, groups, current.showOnMap(), current.showOnMinimap(), current.showNames()),
                 added, skipped, groupsAdded);
     }
 

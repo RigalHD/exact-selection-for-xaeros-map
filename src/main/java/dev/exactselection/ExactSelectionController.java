@@ -2415,15 +2415,31 @@ public final class ExactSelectionController {
             label(g, tr("editing_area", editing.name()), (x1 + x2) / 2, y1 >= 16 ? y1 - 14 : y1 + 16, 0xFFFFCF62);
         if (selected != null) {
             g.enableScissor(0, 0, screen.width, screen.height);
+            // Xaero draws the icon above its point, 30 (43 for longer symbols) by 43 units, in window pixels scaled
+            // by its waypoint scale and by the window size above 1080; the frame goes around that icon.
+            double unit = Math.max(1, Math.min(frame.pixelWidth(), frame.pixelHeight()) / 1080.0)
+                    * waypointIconScale() / frame.guiScale();
             for (WaypointAccess.Point point : selected.points()) {
                 double scale = waypoints.dimensionScale();
                 double px = frame.screenX(WaypointAccess.mapBlock(point.x(), scale) + 0.5);
                 double py = frame.screenY(WaypointAccess.mapBlock(point.z(), scale) + 0.5);
-                if (px < -6 || px > screen.width + 6 || py < -6 || py > screen.height + 6) continue;
-                int x = (int) Math.floor(px), y = (int) Math.floor(py);
-                g.renderOutline(x - 5, y - 5, 11, 11, 0xFFFFCF62);
+                double half = (point.symbol() != null && point.symbol().length() > 1 ? 43 : 30) / 2.0 * unit;
+                int iconLeft = (int) Math.floor(px - half) - 1, iconRight = (int) Math.ceil(px + half) + 1;
+                int iconTop = (int) Math.floor(py - 42 * unit) - 1, iconBottom = (int) Math.ceil(py + unit) + 1;
+                if (iconRight < 0 || iconLeft > screen.width || iconBottom < 0 || iconTop > screen.height) continue;
+                g.renderOutline(iconLeft, iconTop, iconRight - iconLeft, iconBottom - iconTop, 0xFFFFCF62);
             }
             g.disableScissor();
+        }
+    }
+
+    /** Xaero's world map waypoint scale setting; 1 when it cannot be read. */
+    private static double waypointIconScale() {
+        try {
+            return ((Number) xaero.map.WorldMap.INSTANCE.getConfigs().getClientConfigManager()
+                    .getEffective(xaero.map.common.config.option.WorldMapProfiledConfigOptions.WAYPOINT_SCALE)).doubleValue();
+        } catch (Throwable unavailable) {
+            return 1;
         }
     }
 

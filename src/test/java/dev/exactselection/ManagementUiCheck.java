@@ -1248,6 +1248,36 @@ public final class ManagementUiCheck {
         System.out.println("PASS: color picker from the save and zone color previews: HSV conversion, hue bar, square with clamping, Esc and Apply");
     }
 
+    private static void checkContourOverLoadedArea(ExactSelectionController controller, SavedAreaStore store) throws Exception {
+        SelectionState selection = (SelectionState) get(controller, "state");
+        SelectionState.Snapshot initial = selection.snapshot();
+        SavedAreaStore.State saved = store.state();
+        AutosaveSettings autosave = (AutosaveSettings) get(controller, "autosave");
+        boolean autosaveWas = autosave.enabled();
+        try {
+            var area = SavedAreaStore.create("Loaded", new SelectionBounds(80, 80, 239, 239), 0x123456, 25, null);
+            store.replace(new SavedAreaStore.State(List.of(area), List.of(), true, true));
+            selection.enable();
+            selection.load(area.geometry(), area.id()); call(controller, "updateVisibility");
+            autosave.setEnabled(true);
+            press(controller, "polygonModeButton");
+            clickMap(controller, 400, 60, 0); clickMap(controller, 600, 60, 0); clickMap(controller, 600, 330, 0);
+            key(controller, GLFW.GLFW_KEY_ENTER, 0);
+            require(selection.geometry() instanceof PolygonGeometry && selection.source() == null
+                    && store.state().areas().get(0).geometry().equals(area.geometry()),
+                    "A contour finished over a loaded area wrote into it: " + selection.snapshot());
+            key(controller, GLFW.GLFW_KEY_Z, GLFW.GLFW_MOD_CONTROL);
+            require(area.id().equals(selection.source()), "Undo did not return to editing the loaded area");
+        } finally {
+            autosave.setEnabled(autosaveWas);
+            set(controller, "polygonMode", false);
+            store.replace(saved); selection.restore(initial);
+            ((SelectionHistory) get(controller, "history")).clear();
+            call(controller, "syncFields"); call(controller, "updateVisibility");
+        }
+        System.out.println("PASS: a new contour over a loaded area is a new selection and never edits that area");
+    }
+
     private static void checkQuickMenu(ExactSelectionController controller, SavedAreaStore store) throws Exception {
         SelectionState selection = (SelectionState) get(controller, "state");
         SelectionState.Snapshot initial = selection.snapshot();
@@ -1798,6 +1828,7 @@ public final class ManagementUiCheck {
             checkWaypointRows(controller);
             checkReleaseFeatures(controller, map, store);
             checkQuickMenu(controller, store);
+            checkContourOverLoadedArea(controller, store);
             checkColorPicker(controller);
             checkWaypointManagement(map, bridge, minecraft, store, context);
             controller.init();

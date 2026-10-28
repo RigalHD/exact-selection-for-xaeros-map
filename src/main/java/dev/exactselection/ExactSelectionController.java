@@ -1959,7 +1959,8 @@ public final class ExactSelectionController {
         try {
             PolygonGeometry polygon = new PolygonGeometry(polygonDraft);
             SelectionState.Snapshot before = polygonBefore == null ? state.snapshot() : polygonBefore;
-            state.setGeometry(polygon);
+            // A new contour is a new selection: it no longer edits the area that was loaded.
+            state.load(polygon, null);
             gesture = null;
             polygonDraft.clear();
             polygonDraftUndo.clear(); polygonDraftRedo.clear();

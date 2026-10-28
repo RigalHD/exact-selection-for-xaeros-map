@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.3.1+1.21.11
+## 1.3.2+1.21.11
 
 - Like a photo editor: dragging inside a finished selection moves it (handles and edges still resize, Shift still moves from anywhere). Size, Move and Center wait for a finished selection. The territory being edited is named above its frame on the map. A right click inside the selection opens quick actions: Save… and Clear selection, or Color…, Fill and Delete zone for an edited territory, each applied at once and undoable. A click outside a polygon starts a new selection, as it does for a rectangle.
 - Area and perimeter are copied rounded down to whole blocks; Exact copying in the Areas window's gear settings keeps the fractions.
@@ -20,8 +20,12 @@
 - Map export of a saved area can leave out that area's own fill (This area's fill: off); its outline, name and other areas stay.
 - Names: ON/OFF in the Areas window hides area names on the world map while the areas stay drawn; saved per world and undoable, older files keep names shown.
 - Drop the separate XaeroLib requirement: World Map already requires its own XaeroLib, and every XaeroLib for 1.21.11 (1.0.44 and newer) has what the addon uses.
+- Fix: a new selection started while a saved area was loaded kept editing that area, so Save or autosave could write the new frame over it.
+
+## 1.3.1+1.21.11
+
 - Internal: the PNG export window moved to its own class, one atomic file writer replaces four copies, the Areas window sort is cached instead of recomputed every frame, and unused code was removed.
-- Fixes: a new selection started while a saved area was loaded kept editing that area, so Save or autosave could write the new frame over it; an undo or redo step that fails is dropped instead of blocking every older step; showing, hiding or switching layers no longer silently discards an unsaved name, group, color or fill; a large export lowers only that window's scale, not the remembered one; nothing is checked after deleting areas; import refuses files over 16 MB.
+- Fixes: an undo or redo step that fails is dropped instead of blocking every older step; showing, hiding or switching layers no longer silently discards an unsaved name, group, color or fill; a large export lowers only that window's scale, not the remembered one; nothing is checked after deleting areas; import refuses files over 16 MB.
 - A folder button beside Import in the Areas window and beside Export group in the Groups window opens the folder with exported areas.
 - Support Xaero’s World Map 1.40.4–1.47.x and Xaero’s Minimap 25.3.5 and newer instead of only 1.41.0 / 26.1.0. Every current release for 1.21.11 was checked for the classes, methods and fields the addon uses and loaded through Fabric. If a future Minimap changes them, the minimap overlay and waypoint features turn off instead of crashing the game.
 - Rename the addon to Exact Selection for Xaero's map across metadata, documentation, release artifacts and logs. Keep existing mod IDs, storage paths and exchange files compatible.

@@ -109,9 +109,11 @@ public final class ExactSelectionController {
     private double pressX, pressY;
     /** The pointer of a move or resize has left the CLICK_SLOP zone around its press. */
     private boolean dragMoved;
-    /** When and where the last click on a vertex was released, for a double click Minecraft did not report. */
-    private long vertexClickAt;
-    private double vertexClickX, vertexClickY;
+    /** When and where the last click that a double click acts on (a side or a vertex) was made, for one Minecraft missed. */
+    private long clickAt;
+    private double clickX, clickY;
+    /** The left press landed on a side of the finished polygon: a click there does not start a contour. */
+    private boolean sidePress;
     private Button pointVisibility, pointColor, pointScope, pointRename, pointRecolor;
     private Button quickSave, zonesButton, newAreaGroup, newAreaOpacityButton, colorHexApply;
     private Dialog areaNameReturn = Dialog.AREAS, colorReturn = Dialog.AREAS;
@@ -2088,6 +2090,11 @@ public final class ExactSelectionController {
 
     private boolean holding() { return gesture instanceof MapGesture.Held; }
 
+    private void rememberClick(MouseButtonEvent event) {
+        clickAt = net.minecraft.util.Util.getMillis();
+        clickX = event.x(); clickY = event.y();
+    }
+
     /** A gesture that is still a click until the pointer leaves the click zone. */
     private static boolean clickable(MapGesture gesture) {
         return gesture instanceof MapGesture.Drag || gesture instanceof MapGesture.VertexDrag;
@@ -2183,6 +2190,8 @@ public final class ExactSelectionController {
                     && Objects.equals(after.source(), edited.id()) && !edited.geometry().equals(after.geometry()))
                 action = withGeometryAutosave(action, edited, after.geometry());
             history.recordApplied(action);
+            // A new change ends redoing an undone contour, which would otherwise keep blocking undo.
+            if (polygonDraft.isEmpty()) polygonDraftRedo.clear();
         }
         refreshSelectionState();
     }
@@ -3503,11 +3512,12 @@ public final class ExactSelectionController {
             pressX = event.x(); pressY = event.y();
             dragMoved = false;
             boolean ctrl = (event.modifiers() & (GLFW.GLFW_MOD_CONTROL | GLFW.GLFW_MOD_SUPER)) != 0;
-            // Minecraft reports a double click only when both presses are handled within 250 ms, which a slow frame
-            // between them breaks; a second Ctrl/Cmd press right after a click on the same vertex deletes it too.
-            if (ctrl && !twice && net.minecraft.util.Util.getMillis() - vertexClickAt < 500
-                    && Math.hypot(event.x() - vertexClickX, event.y() - vertexClickY) < CLICK_SLOP * 2) twice = true;
-            vertexClickAt = 0;
+            // Minecraft reports a double click only within 250 ms, shorter than the system's double-click time; a
+            // second press within 500 ms on the side or vertex just clicked is a double click too.
+            if (!twice && net.minecraft.util.Util.getMillis() - clickAt < 500
+                    && Math.hypot(event.x() - clickX, event.y() - clickY) < CLICK_SLOP * 2) twice = true;
+            clickAt = 0;
+            sidePress = false;
             if (!ctrl && !twice && (polygonMode && !polygonDraft.isEmpty() || state.geometry() instanceof PolygonGeometry)) {
                 // Holding the button on a contour or polygon vertex drags it; without movement it stays a click, which
                 // closes a contour on its first vertex, or on a finished shape in contour mode starts a new one.
@@ -3530,18 +3540,22 @@ public final class ExactSelectionController {
                 if (edge >= 0 && (twice || (hitHandle(frame, event.x(), event.y()) == null
                         && !insideBounds(frame, event.x(), event.y())))) {
                     if (twice) insertPolygonPoint(frame, new PolygonGeometry(rectangle.vertices()), edge, event.x(), event.y());
-                    else message = tr("rectangle_edit_controls").getString();
+                    else { message = tr("rectangle_edit_controls").getString(); rememberClick(event); }
                     return true;
                 }
             }
             if (polygonDraft.isEmpty() && state.geometry() instanceof PolygonGeometry polygon) {
-                // Just outside the sides a click only shows controls; in contour mode it adds a vertex as anywhere else.
-                boolean nearOutside = !insideBounds(frame, event.x(), event.y()) && !polygonMode;
+                // On a side a click only shows the controls and a double click adds a vertex, also with the Polygon tool
+                // on (a contour just closed): it does not start a new contour there. Just inside, a drag still moves it.
+                boolean nearOutside = !insideBounds(frame, event.x(), event.y());
                 int edge = hitPolygonEdge(frame, polygon.vertices(), event.x(), event.y());
+                sidePress = edge >= 0;
                 if (edge >= 0 && (twice || nearOutside)) {
                     if (twice) insertPolygonPoint(frame, polygon, edge, event.x(), event.y());
+                    else { message = tr("polygon_edit_controls").getString(); rememberClick(event); }
                     return true;
                 }
+                nearOutside &= !polygonMode;
                 if (hitVertex(frame, polygon.vertices(), event.x(), event.y()) >= 0 && nearOutside) {
                     message = tr("polygon_edit_controls").getString();
                     return true;
@@ -3553,7 +3567,7 @@ public final class ExactSelectionController {
                 int edge = hitPolygonEdge(frame, polygonDraft, event.x(), event.y(), false);
                 if (edge >= 0) {
                     if (twice) insertDraftPoint(frame, edge, event.x(), event.y());
-                    else message = tr("polygon_draft_controls").getString();
+                    else { message = tr("polygon_draft_controls").getString(); rememberClick(event); }
                     return true;
                 }
             }
@@ -3563,7 +3577,7 @@ public final class ExactSelectionController {
                 addPolygonPoint(frame, event.x(), event.y());
                 return true;
             }
-            vertexOnClick = polygonMode;
+            vertexOnClick = polygonMode && !sidePress;
             try {
                 MapGesture.Handle handle = hitHandle(frame, event.x(), event.y());
                 int worldX = SelectionBounds.block(frame.worldX(event.x()));
@@ -3632,10 +3646,13 @@ public final class ExactSelectionController {
             vertexOnClick = false;
             if (click && frame != null) {
                 cancelGesture();
+                if (sidePress) {
+                    message = tr("polygon_edit_controls").getString();
+                    rememberClick(event);
+                }
                 if (held instanceof MapGesture.VertexDrag drag) {
                     message = "";
-                    vertexClickAt = net.minecraft.util.Util.getMillis();
-                    vertexClickX = event.x(); vertexClickY = event.y();
+                    rememberClick(event);
                     // On a contour vertex a click only closes the contour on its first one.
                     if (vertex && !polygonDraft.isEmpty()) {
                         if (drag.index == 0 && polygonDraft.size() >= 3) finishPolygon();

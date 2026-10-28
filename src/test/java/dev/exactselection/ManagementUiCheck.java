@@ -434,6 +434,10 @@ public final class ManagementUiCheck {
         clickMap(controller, 480, 260, GLFW.GLFW_MOD_SUPER);
         clickMap(controller, 480, 260, GLFW.GLFW_MOD_SUPER);
         require(draft.equals(beforeCancel), "Two quick Cmd clicks on a contour vertex did not delete it: " + draft);
+        clickMap(controller, 480, 260, 0);
+        clickMap(controller, 480, 260, 0);
+        require(draft.size() == 5 && draft.get(3).equals(new GridPoint(160, 80)), "Two quick clicks on a contour side added no vertex: " + draft);
+        key(controller, GLFW.GLFW_KEY_Z, GLFW.GLFW_MOD_CONTROL);
         // The left button alone drags a vertex; a click on one without movement leaves it.
         controller.mouseClicked(left(560, 260, 0), false);
         controller.beforeRender(570, 270);
@@ -503,7 +507,8 @@ public final class ManagementUiCheck {
         key(controller, GLFW.GLFW_KEY_Z, GLFW.GLFW_MOD_CONTROL);
         require(((List<?>) get(controller, "polygonDraft")).isEmpty() && selection.geometry().equals(moved),
                 "Undo did not drop the new contour and bring the polygon back");
-        // Just outside a side, contour mode adds a vertex too, as anywhere else on the map.
+        // As when editing, with the Polygon tool on a click on a side of the closed contour (outside or just inside)
+        // keeps it and starts nothing, and a double click adds a vertex on that side.
         MapBridge.Frame frame = (MapBridge.Frame) call(controller, "checkedFrame");
         Method inside = ExactSelectionController.class.getDeclaredMethod("insideBounds", MapBridge.Frame.class, double.class, double.class);
         inside.setAccessible(true);
@@ -511,9 +516,18 @@ public final class ManagementUiCheck {
         int mx = (int) Math.round((frame.screenX(sideStart.x()) + frame.screenX(sideEnd.x())) / 2);
         int my = (int) Math.round((frame.screenY(sideStart.z()) + frame.screenY(sideEnd.z())) / 2);
         int[] outside = (Boolean) inside.invoke(controller, frame, mx, my - 4.0) ? new int[]{mx, my + 4} : new int[]{mx, my - 4};
-        clickMap(controller, outside[0], outside[1], 0);
-        require(((List<?>) get(controller, "polygonDraft")).size() == 1, "A contour click just outside a side added no vertex");
+        int[] insideSide = {outside[0], 2 * my - outside[1]};
+        for (int[] at : new int[][]{outside, insideSide}) {
+            clickMap(controller, at[0], at[1], 0);
+            require(draft.isEmpty() && selection.geometry().equals(moved), "A click on a side of the closed contour started a new one");
+            set(controller, "clickAt", 0L);
+        }
+        clickMap(controller, insideSide[0], insideSide[1], 0);
+        clickMap(controller, insideSide[0], insideSide[1], 0);
+        require(draft.isEmpty() && selection.geometry().vertices().size() == moved.vertices().size() + 1,
+                "A double click on a side of the closed contour added no vertex");
         key(controller, GLFW.GLFW_KEY_Z, GLFW.GLFW_MOD_CONTROL);
+        require(selection.geometry().equals(moved), "Undo did not remove the vertex added on the side: " + selection.geometry());
         controller.mouseClicked(left(590, 90, GLFW.GLFW_MOD_CONTROL), false);
         controller.beforeRender(620, 110);
         key(controller, GLFW.GLFW_KEY_ESCAPE, 0);

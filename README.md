@@ -56,7 +56,7 @@ Area and perimeter are copied rounded to whole blocks: **Rounding: down** (the d
 Enable the Polygon tool, click vertices and finish by clicking the first vertex or pressing Enter. Backspace removes the last draft vertex. Shift aligns new vertices horizontally or vertically. Simple, non-intersecting polygons with 3–256 vertices are supported and have a fill.
 
 - Drag a vertex to move it, in both drafts and completed polygons (Ctrl/Cmd + drag works too). A click on a vertex without movement keeps it in place; in a draft a click on the first vertex still closes the contour.
-- While drawing, a click on a side of the contour does nothing and shows these controls; a double click there adds a vertex on that side. Ctrl/Cmd + click away from the vertices adds a vertex as a plain click does.
+- While drawing, and on a contour just closed with the Polygon tool still on, a click on a side does nothing and shows these controls; a double click there adds a vertex on that side. Ctrl/Cmd + click away from the vertices adds a vertex as a plain click does.
 - Double click an edge to insert a vertex on that edge.
 - Ctrl/Cmd + double click a vertex to delete it, in both drafts and completed polygons. A completed shape must keep at least three vertices.
 - Ctrl/Cmd + drag a rectangle corner to turn it into an editable polygon. A click without movement keeps the rectangle.

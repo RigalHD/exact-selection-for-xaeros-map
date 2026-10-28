@@ -6,6 +6,12 @@
   "description": "Precise rectangular and polygon selections, saved map areas, groups, and area export for Xaero's World Map.",
   "environment": "client",
   "license": "MIT",
+  "icon": "assets/xaero_exact_selection/icon.png",
+  "entrypoints": {
+    "modmenu": [
+      "dev.exactselection.ModMenuIntegration"
+    ]
+  },
   "mixins": [
     "xaero-exact-selection.mixins.json",
     "xaero-exact-selection-minimap.mixins.json"

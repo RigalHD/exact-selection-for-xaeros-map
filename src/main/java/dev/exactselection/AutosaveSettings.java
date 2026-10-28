@@ -14,14 +14,16 @@ import org.slf4j.LoggerFactory;
 
 /**
  * The Areas window's settings, shared by all worlds: which saved-area changes are written immediately instead of
- * waiting for Save, and whether area and perimeter are copied exactly instead of rounded down.
+ * waiting for Save, and how copied area and perimeter are rounded.
  */
 public final class AutosaveSettings {
     public enum Field { NAME, GROUP, COLOR, OPACITY, GEOMETRY }
+    /** How copied area and perimeter are rounded to whole blocks; EXACT keeps their fractions. */
+    public enum Rounding { DOWN, UP, EXACT }
 
     private final Path file;
     private boolean enabled;
-    private boolean exactCopy;
+    private Rounding rounding = Rounding.DOWN;
     private final EnumSet<Field> fields = EnumSet.allOf(Field.class);
 
     private AutosaveSettings(Path file) { this.file = file; }
@@ -32,7 +34,12 @@ public final class AutosaveSettings {
         if (!Files.exists(settings.file)) return settings;
         try {
             JsonObject stored = JsonParser.parseString(Files.readString(settings.file, StandardCharsets.UTF_8)).getAsJsonObject();
-            settings.exactCopy = stored.has("exactCopy") && stored.get("exactCopy").getAsBoolean();
+            if (stored.has("copyRounding")) {
+                try { settings.rounding = Rounding.valueOf(stored.get("copyRounding").getAsString().toUpperCase(Locale.ROOT)); }
+                catch (IllegalArgumentException unknown) { /* written by a newer version */ }
+            } else if (stored.has("exactCopy") && stored.get("exactCopy").getAsBoolean()) {
+                settings.rounding = Rounding.EXACT; // 1.3.2 stored only an exact-copy switch
+            }
             JsonObject json = stored.getAsJsonObject("autosave");
             settings.enabled = json.get("enabled").getAsBoolean();
             settings.fields.clear();
@@ -56,10 +63,12 @@ public final class AutosaveSettings {
 
     public void setEnabled(boolean enabled) { this.enabled = enabled; save(); }
 
-    /** Whether copied area and perimeter keep their fractions; off rounds them down to whole blocks. */
-    public boolean exactCopy() { return exactCopy; }
+    public Rounding rounding() { return rounding; }
 
-    public void setExactCopy(boolean exactCopy) { this.exactCopy = exactCopy; save(); }
+    public void setRounding(Rounding rounding) { this.rounding = rounding; save(); }
+
+    /** Steps through down, up and exact. */
+    public void cycleRounding() { setRounding(Rounding.values()[(rounding.ordinal() + 1) % Rounding.values().length]); }
 
     public void toggle(Field field) {
         if (!fields.remove(field)) fields.add(field);
@@ -74,7 +83,7 @@ public final class AutosaveSettings {
         autosave.add("fields", list);
         JsonObject root = new JsonObject();
         root.add("autosave", autosave);
-        root.addProperty("exactCopy", exactCopy);
+        root.addProperty("copyRounding", rounding.name().toLowerCase(Locale.ROOT));
         try {
             SavedAreaStore.writeAtomically(file, root.toString());
         } catch (IOException e) {

@@ -1,10 +1,26 @@
+<img src="src/main/resources/assets/xaero_exact_selection/icon.png" alt="" width="96" align="right">
+
 # Exact Selection for Xaero's map
 
 **English** | [Русский](README.ru.md)
 
-A client-side Fabric addon for Minecraft **1.21.11**. Create precise rectangles and polygons on Xaero’s World Map, save colored areas and groups, show them on the world map and minimap, and export selected map regions as PNG images.
+A client-side Fabric addon for Minecraft **1.21.11** that adds precise area selection, saved zones, groups, and PNG map exports to Xaero’s World Map.
+
+Create rectangles or custom polygons, edit their boundaries, and display your saved areas on both the world map and minimap.
 
 **This is an unofficial addon, not affiliated with or endorsed by Xaero.**
+
+## Features
+
+- **Precise selection:** select rectangles using the map or enter exact coordinates.
+- **Custom polygons:** build areas vertex by vertex, with filled interiors and editable outlines.
+- **Saved areas and groups:** name, organize, color, and hide your zones.
+- **Persistent overlays:** control area visibility on the world map and minimap separately.
+- **Measurements:** view dimensions, area, and perimeter.
+- **Quick copying:** copy each rectangle corner separately as `X Z`, along with other measurements; area and perimeter are rounded down, up, or not at all.
+- **PNG export:** save a selection or a saved area as an image that looks like the in-game map.
+- **Waypoint tools:** manage Xaero waypoints inside the selection or across the whole set.
+- **Settings in Mod Menu:** autosave and copy rounding, also available from the Areas window.
 
 ## Installation and compatibility
 
@@ -33,7 +49,7 @@ The compact panel is enabled by default and shows dimensions, area, copy buttons
 
 Blocks are the default unit. Both endpoint blocks are included: `(0, 0)` to `(15, 15)` is **16 × 16 = 256 blocks²**. Chunk mode snaps rectangle edges to the 16-block grid, including negative coordinates. Coordinate input stays exact. Width is the X extent and length is the Z extent. Polygon dimensions describe its bounding box; area and perimeter follow its actual shape.
 
-Area and perimeter are copied rounded down to whole blocks; Exact copying: ON in the gear settings of the Areas window copies their fractions. Small copy-icon buttons sit immediately after the coordinates, width, length, area and perimeter values in both panel modes. Each coordinate row has its own button: A and B are copied separately as `X Z`, with a space between the numbers. In the Areas window a saved rectangle lists all four corners by direction — NW, NE, SW, SE (north is -Z, west is -X) — each with its own copy button; polygon vertex copying keeps every vertex, with space-separated coordinate pairs. The Center dialog copies the bounding-box center or creates a waypoint there at the player’s current Y level. A 3×6 rectangle has a perimeter of 18 blocks. Non-integer lengths are displayed to two decimal places.
+Area and perimeter are copied rounded to whole blocks: **Rounding: down** (the default), **up** or **none** (keeps their fractions) in the gear settings of the Areas window or in Mod Menu. Small copy-icon buttons sit immediately after the coordinates, width, length, area and perimeter values in both panel modes. Each coordinate row has its own button: A and B are copied separately as `X Z`, with a space between the numbers. In the Areas window a saved rectangle lists all four corners by direction — NW, NE, SW, SE (north is -Z, west is -X) — each with its own copy button; polygon vertex copying keeps every vertex, with space-separated coordinate pairs. The Center dialog copies the bounding-box center or creates a waypoint there at the player’s current Y level. A 3×6 rectangle has a perimeter of 18 blocks. Non-integer lengths are displayed to two decimal places.
 
 ### Polygons
 
@@ -58,7 +74,7 @@ Areas opens the Areas window, and Manage groups… there opens the separate Grou
 **Export** writes the checked areas — or every area of the world when none is checked — to a JSON exchange file in `config/xaero-exact-selection/exports/`; **Export group** in the Groups window writes one group. The folder button beside **Import…** and beside **Export group** opens that folder. **Import…** lists the files in that folder (**Open folder** to drop in files from others) and adds the clicked file's areas to the current world as one undoable step: groups are matched by name or created, and areas identical to existing ones are skipped. **Areas in selection: N** in the expanded panel opens the list with the saved areas that overlap the current selection checked (areas that only touch its edge are not included). **Areas** is available in both panel modes.
 
 - Name, **Group**, **Color…** (24 colors, custom `#RRGGBB` / `#RGB`, or the full picker from the preview beside the field) and fill are edited in the form and marked with `*` until **Save** (below Edit territory and Export map) writes them to every checked area in one undoable step. Checking other areas or closing the window discards unsaved changes.
-- The gear button at the bottom opens its settings in the same window: a main switch and separate switches for name, group, color, fill and territory shape. Enabled changes are written immediately and Save disappears unless a change outside autosave is waiting; a "● Autosave" indicator shows that it is on. With territory-shape autosave, each edit of a loaded area is written together with the selection change and undone in one step. The settings are shared by all worlds.
+- The gear button at the bottom opens its settings in the same window: a main switch and separate switches for name, group, color, fill and territory shape. Enabled changes are written immediately and Save disappears unless a change outside autosave is waiting; a "● Autosave" indicator shows that it is on. With territory-shape autosave, each edit of a loaded area is written together with the selection change and undone in one step. The settings are shared by all worlds and are also available from Mod Menu (the mod's settings button), together with copy rounding.
 - The **Selected** section at the bottom of the column, apart from the area's own controls, shows or hides and deletes the checked areas. Small copy icons follow the name and each coordinate or metric value of a single checked area. Rectangles show width and length; polygons show their vertex count. Both show area and perimeter.
 - Create, rename, hide or delete groups in the Groups window.
 - Individual visibility and group visibility are independent. A hidden group suppresses its areas without changing their individual settings.

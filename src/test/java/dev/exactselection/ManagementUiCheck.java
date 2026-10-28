@@ -777,6 +777,19 @@ public final class ManagementUiCheck {
         controller.mouseReleased(left(431, 270, GLFW.GLFW_MOD_SHIFT));
         require(selection.geometry().equals(polygon.translated(21, 0)),
                 "Rectangle chunk snapping leaked into polygon movement");
+        // A press just inside an edge moves the shape too; only double clicks and presses outside act on the side.
+        MapBridge.Frame frame = (MapBridge.Frame) call(controller, "checkedFrame");
+        for (String source : new String[]{null, "edited-rectangle"}) {
+            AreaGeometry shape = source == null ? polygon : new RectangleGeometry(new SelectionBounds(80, 80, 119, 119));
+            selection.load(shape, source);
+            int px = (int) Math.round(frame.screenX(80)) + 3, py = (int) Math.round(frame.screenY(100));
+            controller.mouseClicked(left(px, py, 0), false);
+            controller.beforeRender(px + 20, py);
+            controller.mouseReleased(left(px + 20, py, 0));
+            require(!selection.geometry().equals(shape) && selection.geometry().bounds().minX() > 80,
+                    "A press near the edge did not move " + shape + ": " + selection.geometry());
+        }
+        selection.load(polygon, null);
         // Outside a loaded polygon a click starts a new selection, which no longer edits the saved area.
         selection.load(polygon, "loaded-area");
         clickMap(controller, 600, 350, 0); clickMap(controller, 640, 390, 0);

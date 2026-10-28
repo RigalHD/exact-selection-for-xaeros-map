@@ -3437,19 +3437,22 @@ public final class ExactSelectionController {
             if (state.source() != null && state.geometry() instanceof RectangleGeometry rectangle
                     && state.phase() == SelectionState.Phase.SELECTED && polygonDraft.isEmpty() && !polygonMode) {
                 int edge = hitPolygonEdge(frame, rectangle.vertices(), event.x(), event.y());
-                if (edge >= 0 && (twice || hitHandle(frame, event.x(), event.y()) == null)) {
+                // A press inside moves the territory; only a double click or a press just outside acts on the side.
+                if (edge >= 0 && (twice || hitHandle(frame, event.x(), event.y()) == null
+                        && !insideBounds(frame, event.x(), event.y()))) {
                     if (twice) insertPolygonPoint(frame, new PolygonGeometry(rectangle.vertices()), edge, event.x(), event.y());
                     else message = tr("rectangle_edit_controls").getString();
                     return true;
                 }
             }
             if (polygonDraft.isEmpty() && state.geometry() instanceof PolygonGeometry polygon) {
+                boolean inside = insideBounds(frame, event.x(), event.y());
                 int edge = hitPolygonEdge(frame, polygon.vertices(), event.x(), event.y());
-                if (edge >= 0) {
+                if (edge >= 0 && (twice || !inside)) {
                     if (twice) insertPolygonPoint(frame, polygon, edge, event.x(), event.y());
                     return true;
                 }
-                if (hitVertex(frame, polygon.vertices(), event.x(), event.y()) >= 0) {
+                if (hitVertex(frame, polygon.vertices(), event.x(), event.y()) >= 0 && !inside) {
                     message = tr("polygon_edit_controls").getString();
                     return true;
                 }

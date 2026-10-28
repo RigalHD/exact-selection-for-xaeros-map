@@ -98,12 +98,14 @@ public final class ExactSelectionController {
     private double rightPressX, rightPressY;
     /** The message shown at the bottom of the screen and when it appeared; it fades out after TOAST_MILLIS. */
     private static final long TOAST_MILLIS = 6000;
+    /** A press whose pointer moves less than this many GUI pixels is a click, not a move or resize. */
+    private static final double CLICK_SLOP = 3;
     private String toastText = "";
     private long toastShownAt;
     /** A contour-mode press inside a finished shape: a release without movement adds a vertex there instead of moving. */
     private boolean vertexOnClick;
     private double pressX, pressY;
-    /** The pointer of a move or resize has left the 3-pixel click zone around its press. */
+    /** The pointer of a move or resize has left the CLICK_SLOP zone around its press. */
     private boolean dragMoved;
     private Button pointVisibility, pointColor, pointScope, pointRename, pointRecolor;
     private Button quickSave, zonesButton, newAreaGroup, newAreaOpacityButton, colorHexApply;
@@ -1087,7 +1089,8 @@ public final class ExactSelectionController {
             List<SavedAreaStore.Area> shown = displayedAreas();
             int index = shown.indexOf(area);
             // Scroll so the new row is visible; a row the search hides leaves the list where it was.
-            if (index >= 0) areaScroll = Math.max(0, Math.min(index, shown.size() - visibleAreaDialogRows(dialogRect()[3])));
+            if (index >= 0)
+                areaScroll = Math.max(0, Math.min(index, shown.size() - visibleAreaDialogRows(dialogRect()[3])));
         }
         // The saved shape now lives in the list; clearing it (its own undo step) frees the map for the next area.
         reset();
@@ -2260,7 +2263,8 @@ public final class ExactSelectionController {
         if (frame != null && enabled() && dragging && pending == null && dialog == Dialog.NONE)
             bridge.exactselection$pan(mouseX - lastMouseX, mouseY - lastMouseY);
         // A move or resize follows the pointer only once it leaves the click zone, so a jittery click does not jump.
-        if (gesture instanceof MapGesture.Drag && !dragMoved && Math.hypot(mouseX - pressX, mouseY - pressY) >= 3) dragMoved = true;
+        if (gesture instanceof MapGesture.Drag && !dragMoved
+                && Math.hypot(mouseX - pressX, mouseY - pressY) >= CLICK_SLOP) dragMoved = true;
         if (frame != null && gesture instanceof MapGesture.Held held && dialog == Dialog.NONE
                 && (dragMoved || !(held instanceof MapGesture.Drag)))
             held.update(gestureHost, frame, mouseX, mouseY);
@@ -2960,7 +2964,8 @@ public final class ExactSelectionController {
         areaNames.setMessage(tr(areaStore.state().showNames() ? "area_names_on" : "area_names_off"));
         areaMapVisibility.active = areaMinimapVisibility.active = areaNames.active = !loadFailed;
         areaDelete.setMessage(tr("area_delete_count", selectedCount));
-        areaSelectAll.active = !loadFailed && displayedAreas().stream().anyMatch(a -> !selectedAreaIds.contains(a.id()));
+        areaSelectAll.active = !loadFailed
+                && displayedAreas().stream().anyMatch(a -> !selectedAreaIds.contains(a.id()));
         areaClearSelection.active = selectedCount > 0;
         areaSave.setTooltip(Tooltip.create(tr(loadFailed ? "area_load_failed" : "area_save_tooltip")));
     }
@@ -3451,21 +3456,22 @@ public final class ExactSelectionController {
                     && state.phase() == SelectionState.Phase.SELECTED && polygonDraft.isEmpty() && !polygonMode) {
                 int edge = hitPolygonEdge(frame, rectangle.vertices(), event.x(), event.y());
                 // A press inside moves the territory; only a double click or a press just outside acts on the side.
-                if (edge >= 0 && (twice || hitHandle(frame, event.x(), event.y()) == null
-                        && !insideBounds(frame, event.x(), event.y()))) {
+                if (edge >= 0 && (twice || (hitHandle(frame, event.x(), event.y()) == null
+                        && !insideBounds(frame, event.x(), event.y())))) {
                     if (twice) insertPolygonPoint(frame, new PolygonGeometry(rectangle.vertices()), edge, event.x(), event.y());
                     else message = tr("rectangle_edit_controls").getString();
                     return true;
                 }
             }
             if (polygonDraft.isEmpty() && state.geometry() instanceof PolygonGeometry polygon) {
-                boolean inside = insideBounds(frame, event.x(), event.y());
+                // Just outside the sides a click only shows controls; in contour mode it adds a vertex as anywhere else.
+                boolean nearOutside = !insideBounds(frame, event.x(), event.y()) && !polygonMode;
                 int edge = hitPolygonEdge(frame, polygon.vertices(), event.x(), event.y());
-                if (edge >= 0 && (twice || !inside)) {
+                if (edge >= 0 && (twice || nearOutside)) {
                     if (twice) insertPolygonPoint(frame, polygon, edge, event.x(), event.y());
                     return true;
                 }
-                if (hitVertex(frame, polygon.vertices(), event.x(), event.y()) >= 0 && !inside) {
+                if (hitVertex(frame, polygon.vertices(), event.x(), event.y()) >= 0 && nearOutside) {
                     message = tr("polygon_edit_controls").getString();
                     return true;
                 }
@@ -3541,7 +3547,8 @@ public final class ExactSelectionController {
             MapBridge.Frame frame = checkedFrame();
             // A move or resize that barely left its press point is a click: the shape stays as it was (zoomed out, a
             // jitter of a pixel is many blocks), and in contour mode the click adds a vertex there.
-            boolean click = held instanceof MapGesture.Drag && !dragMoved && Math.hypot(event.x() - pressX, event.y() - pressY) < 3;
+            boolean click = held instanceof MapGesture.Drag && !dragMoved
+                    && Math.hypot(event.x() - pressX, event.y() - pressY) < CLICK_SLOP;
             boolean vertex = click && vertexOnClick && polygonMode;
             vertexOnClick = false;
             if (click && frame != null) {

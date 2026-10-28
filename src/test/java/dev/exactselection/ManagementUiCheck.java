@@ -478,6 +478,17 @@ public final class ManagementUiCheck {
         key(controller, GLFW.GLFW_KEY_Z, GLFW.GLFW_MOD_CONTROL);
         require(((List<?>) get(controller, "polygonDraft")).isEmpty() && selection.geometry().equals(moved),
                 "Undo did not drop the new contour and bring the polygon back");
+        // Just outside a side, contour mode adds a vertex too, as anywhere else on the map.
+        MapBridge.Frame frame = (MapBridge.Frame) call(controller, "checkedFrame");
+        Method inside = ExactSelectionController.class.getDeclaredMethod("insideBounds", MapBridge.Frame.class, double.class, double.class);
+        inside.setAccessible(true);
+        GridPoint sideStart = moved.vertices().get(0), sideEnd = moved.vertices().get(1);
+        int mx = (int) Math.round((frame.screenX(sideStart.x()) + frame.screenX(sideEnd.x())) / 2);
+        int my = (int) Math.round((frame.screenY(sideStart.z()) + frame.screenY(sideEnd.z())) / 2);
+        int[] outside = (Boolean) inside.invoke(controller, frame, mx, my - 4.0) ? new int[]{mx, my + 4} : new int[]{mx, my - 4};
+        clickMap(controller, outside[0], outside[1], 0);
+        require(((List<?>) get(controller, "polygonDraft")).size() == 1, "A contour click just outside a side added no vertex");
+        key(controller, GLFW.GLFW_KEY_Z, GLFW.GLFW_MOD_CONTROL);
         controller.mouseClicked(left(590, 90, GLFW.GLFW_MOD_CONTROL), false);
         controller.beforeRender(620, 110);
         key(controller, GLFW.GLFW_KEY_ESCAPE, 0);

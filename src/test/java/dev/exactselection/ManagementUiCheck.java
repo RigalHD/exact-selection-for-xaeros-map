@@ -302,6 +302,20 @@ public final class ManagementUiCheck {
         Files.write(first, new byte[]{1});
         completed.invoke(controller, new AreaExportService.Result(first, 100, 200));
         require(open.visible && open.active, "Successful export did not show the file button");
+        // The bottom toast hides after a while, but the file button stays until another message replaces the notice.
+        Method toast = ExactSelectionController.class.getDeclaredMethod("renderToast", net.minecraft.client.gui.GuiGraphics.class);
+        toast.setAccessible(true);
+        set(controller, "toastText", get(controller, "message"));
+        set(controller, "toastShownAt", net.minecraft.util.Util.getMillis() - 7000);
+        toast.invoke(controller, (Object) null);
+        call(controller, "updateVisibility");
+        require(open.visible, "The file button disappeared with the toast");
+        Object notice = get(controller, "message");
+        set(controller, "message", "x"); set(controller, "toastText", "x");
+        set(controller, "toastShownAt", net.minecraft.util.Util.getMillis() - 7000);
+        toast.invoke(controller, (Object) null);
+        require(get(controller, "message").equals(""), "An expired ordinary message was kept");
+        set(controller, "message", notice); call(controller, "updateVisibility");
         require(get(controller, "lastExport").equals(first.toAbsolutePath()), "Wrong file attached to the export button");
         require(!get(controller, "message").toString().contains(directory.toString()), "Full export path leaked into panel text");
         checkMainLayout(controller, map);

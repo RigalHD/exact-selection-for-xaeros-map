@@ -2367,7 +2367,11 @@ public final class ExactSelectionController {
         long now = net.minecraft.util.Util.getMillis();
         if (!message.equals(toastText)) { toastText = message; toastShownAt = now; }
         if (message.isEmpty()) return;
-        if (now - toastShownAt > TOAST_MILLIS) { message = ""; toastText = ""; return; }
+        if (now - toastShownAt > TOAST_MILLIS) {
+            // The export notice also keeps the panel's "Show file" button; only the toast hides.
+            if (!hasExportNotice()) { message = ""; toastText = ""; }
+            return;
+        }
         List<net.minecraft.util.FormattedCharSequence> lines = mc.font.split(Component.literal(message), Math.min(360, screen.width - 40));
         if (lines.size() > 3) lines = lines.subList(0, 3);
         int w = 0;

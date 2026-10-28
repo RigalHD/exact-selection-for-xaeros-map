@@ -735,6 +735,7 @@ public final class ManagementUiCheck {
         // A click whose pointer jitters a pixel or two is still a click (zoomed out, a pixel is many blocks).
         controller.mouseClicked(left(450, 300, 0), false);
         controller.beforeRender(452, 301);
+        require(selection.bounds().equals(new SelectionBounds(110, 80, 269, 239)), "A held jittery click moved the selection");
         controller.mouseReleased(left(452, 301, 0));
         require(selection.bounds().equals(new SelectionBounds(110, 80, 269, 239)), "A 2-pixel jitter moved the selection: " + selection.bounds());
         controller.mouseClicked(left(586, 340, 0), false);

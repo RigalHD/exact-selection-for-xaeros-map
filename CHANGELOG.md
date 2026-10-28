@@ -14,7 +14,7 @@
 - Fix: a polygon or an open saved rectangle can be dragged from just inside its edges and corners; small ones on a zoomed-out map could not be moved at all.
 - Fix: Show file in folder no longer disappears with the bottom message a few seconds after an export.
 - Fix: a contour finished while a saved area was open kept editing that area, so Save or shape autosave wrote the new contour over it.
-- Fix: a click inside the selection or on a handle whose pointer moved a pixel or two no longer moves or resizes it (zoomed out, a pixel is many blocks); with the Polygon tool on, such a click only adds the vertex. In the Areas window, All with a search that finds nothing no longer leaves the previous area active, and the checked count stays visible when the search field has no room.
+- Fix: a click inside the selection or on a handle whose pointer moved a pixel or two no longer moves or resizes it, not even while the button is held (zoomed out, a pixel is many blocks); with the Polygon tool on, such a click only adds the vertex. In the Areas window, All with a search that finds nothing no longer leaves the previous area active, and the checked count stays visible when the search field has no room.
 - Fix: with the Polygon tool on, pressing inside a finished shape hid it as a new contour; a drag now moves it and a click still starts a contour.
 - Size, Move and Center moved from the expanded panel to the selection's right-click menu (Size is left out for polygons).
 - Map export of a saved area can leave out that area's own fill (This area's fill: off); its outline, name and other areas stay.

@@ -103,6 +103,8 @@ public final class ExactSelectionController {
     /** A contour-mode press inside a finished shape: a release without movement adds a vertex there instead of moving. */
     private boolean vertexOnClick;
     private double pressX, pressY;
+    /** The pointer of a move or resize has left the 3-pixel click zone around its press. */
+    private boolean dragMoved;
     private Button pointVisibility, pointColor, pointScope, pointRename, pointRecolor;
     private Button quickSave, zonesButton, newAreaGroup, newAreaOpacityButton, colorHexApply;
     private Dialog areaNameReturn = Dialog.AREAS, colorReturn = Dialog.AREAS;
@@ -2257,7 +2259,10 @@ public final class ExactSelectionController {
         MapBridge.Frame frame = checkedFrame();
         if (frame != null && enabled() && dragging && pending == null && dialog == Dialog.NONE)
             bridge.exactselection$pan(mouseX - lastMouseX, mouseY - lastMouseY);
-        if (frame != null && gesture instanceof MapGesture.Held held && dialog == Dialog.NONE)
+        // A move or resize follows the pointer only once it leaves the click zone, so a jittery click does not jump.
+        if (gesture instanceof MapGesture.Drag && !dragMoved && Math.hypot(mouseX - pressX, mouseY - pressY) >= 3) dragMoved = true;
+        if (frame != null && gesture instanceof MapGesture.Held held && dialog == Dialog.NONE
+                && (dragMoved || !(held instanceof MapGesture.Drag)))
             held.update(gestureHost, frame, mouseX, mouseY);
         if (frame != null && polygonMode && !(gesture instanceof MapGesture.VertexDrag) && !overPanel(mouseX, mouseY)) {
             try { polygonCursor = polygonPoint(frame, mouseX, mouseY, polygonDraft.isEmpty() ? null : polygonDraft.getLast()); }
@@ -3473,6 +3478,7 @@ public final class ExactSelectionController {
             }
             vertexOnClick = polygonMode;
             pressX = event.x(); pressY = event.y();
+            dragMoved = false;
             try {
                 MapGesture.Handle handle = hitHandle(frame, event.x(), event.y());
                 int worldX = SelectionBounds.block(frame.worldX(event.x()));
@@ -3535,7 +3541,7 @@ public final class ExactSelectionController {
             MapBridge.Frame frame = checkedFrame();
             // A move or resize that barely left its press point is a click: the shape stays as it was (zoomed out, a
             // jitter of a pixel is many blocks), and in contour mode the click adds a vertex there.
-            boolean click = held instanceof MapGesture.Drag && Math.hypot(event.x() - pressX, event.y() - pressY) < 3;
+            boolean click = held instanceof MapGesture.Drag && !dragMoved && Math.hypot(event.x() - pressX, event.y() - pressY) < 3;
             boolean vertex = click && vertexOnClick && polygonMode;
             vertexOnClick = false;
             if (click && frame != null) {

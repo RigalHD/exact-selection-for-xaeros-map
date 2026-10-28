@@ -6,6 +6,8 @@
 - Area and perimeter are copied rounded to whole blocks: down by default, or up or not at all (Rounding in the Areas window's gear settings).
 - Mod Menu opens the mod's settings: autosave and copy rounding. The mod has an icon.
 - Vertices of a contour or polygon are dragged with the left button alone (Ctrl/Cmd still works). While drawing a contour, a click on its side does nothing and shows the vertex controls, a double click there adds a vertex, and Ctrl/Cmd + click away from the vertices adds one instead of doing nothing. The vertex controls are shown when a contour starts.
+- Area outlines on the world map and minimap are smoothed: their sides fade out over a pixel instead of showing steps on diagonals.
+- Fix: Ctrl/Cmd + double click on a contour vertex deletes it even when a slow frame between the clicks kept Minecraft from reporting a double click.
 - The right-click menu looks like Xaero's own: a white frame, a title row and compact rows. In the expanded panel Save is above Apply; the expand/collapse chevrons are slightly smaller.
 - Search by name in the Areas window filters the list (case-insensitive); All checks only the found areas.
 - The Areas window lists all four corners of a rectangle by direction (NW, NE, SW, SE), each with a copy button, instead of A and B.

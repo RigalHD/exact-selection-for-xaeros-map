@@ -4,6 +4,7 @@ import com.mojang.blaze3d.pipeline.RenderPipeline;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import java.util.ArrayList;
 import java.util.List;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.navigation.ScreenRectangle;
 import net.minecraft.client.gui.render.TextureSetup;
@@ -14,78 +15,111 @@ import org.joml.Matrix3x2fc;
 
 public final class GeometryScreenRenderer {
     private record Point(double x, double y) {}
+    private record Vertex(Point point, int color) {}
+    /** Width of the smoothed outline edge when the GUI scale is unknown, in GUI units. */
+    private static final double DEFAULT_FRINGE = 0.5;
 
     private GeometryScreenRenderer() {}
 
     public static void draw(GuiGraphics graphics, MapBridge.Frame frame, AreaGeometry geometry,
                             int width, int height, int fillColor, int outlineColor, double outlineWidth) {
         draw(((GuiGraphicsBridge) graphics).exactselection$renderState(), graphics.pose(), frame, geometry,
-                width, height, fillColor, outlineColor, outlineWidth);
+                width, height, fillColor, outlineColor, outlineWidth, fringe());
     }
 
     static void draw(GuiRenderState state, Matrix3x2fc transform, MapBridge.Frame frame, AreaGeometry geometry,
                      int width, int height, int fillColor, int outlineColor, double outlineWidth) {
+        draw(state, transform, frame, geometry, width, height, fillColor, outlineColor, outlineWidth, DEFAULT_FRINGE);
+    }
+
+    /** One physical pixel in GUI units: the outline fades out over it so diagonal sides do not show steps. */
+    private static double fringe() {
+        Minecraft mc = Minecraft.getInstance();
+        double scale = mc == null || mc.getWindow() == null ? 0 : mc.getWindow().getGuiScale();
+        return scale > 0 ? 1.0 / scale : DEFAULT_FRINGE;
+    }
+
+    private static void draw(GuiRenderState state, Matrix3x2fc transform, MapBridge.Frame frame, AreaGeometry geometry,
+                             int width, int height, int fillColor, int outlineColor, double outlineWidth, double fringe) {
         List<Point> viewport = List.of(new Point(0, 0), new Point(width, 0),
                 new Point(width, height), new Point(0, height));
-        List<Point> fill = new ArrayList<>();
-        for (List<GridPoint> triangle : geometry.triangulate()) {
-            List<Point> points = triangle.stream().map(p -> project(p, frame, transform)).toList();
-            List<Point> clipped = clipPolygon(points, viewport);
-            if (clipped.size() < 3) continue;
-            for (int i = 1; i < clipped.size() - 1; i++) {
-                triangle(fill, clipped.get(0), clipped.get(i), clipped.get(i + 1));
+        List<Vertex> fill = new ArrayList<>();
+        if (fillColor >>> 24 != 0) {
+            for (List<GridPoint> triangle : geometry.triangulate()) {
+                List<Point> points = triangle.stream().map(p -> project(p, frame, transform)).toList();
+                List<Point> clipped = clipPolygon(points, viewport);
+                if (clipped.size() < 3) continue;
+                for (int i = 1; i < clipped.size() - 1; i++) {
+                    triangle(fill, new Vertex(clipped.get(0), fillColor), new Vertex(clipped.get(i), fillColor),
+                            new Vertex(clipped.get(i + 1), fillColor));
+                }
             }
         }
-        submit(state, fill, fillColor, width, height);
+        submit(state, fill, width, height);
 
-        List<Point> outline = new ArrayList<>();
-        List<GridPoint> vertices = geometry.vertices();
-        for (int i = 0; i < vertices.size(); i++) {
-            Point[] line = clipSegment(project(vertices.get(i), frame, transform),
-                    project(vertices.get((i + 1) % vertices.size()), frame, transform), width, height);
-            if (line == null) continue;
-            double dx = line[1].x() - line[0].x(), dy = line[1].y() - line[0].y();
-            double length = Math.hypot(dx, dy);
-            if (length < 0.01) continue;
-            double nx = -dy / length * outlineWidth / 2.0, ny = dx / length * outlineWidth / 2.0;
-            Point a = new Point(line[0].x() + nx, line[0].y() + ny);
-            Point b = new Point(line[0].x() - nx, line[0].y() - ny);
-            Point c = new Point(line[1].x() - nx, line[1].y() - ny);
-            Point d = new Point(line[1].x() + nx, line[1].y() + ny);
-            triangle(outline, a, b, c);
-            triangle(outline, a, c, d);
+        List<Vertex> outline = new ArrayList<>();
+        if (outlineColor >>> 24 != 0) {
+            List<GridPoint> vertices = geometry.vertices();
+            for (int i = 0; i < vertices.size(); i++) {
+                Point[] line = clipSegment(project(vertices.get(i), frame, transform),
+                        project(vertices.get((i + 1) % vertices.size()), frame, transform), width, height);
+                if (line != null) stroke(outline, line[0], line[1], outlineWidth / 2.0, fringe, outlineColor);
+            }
         }
-        submit(state, outline, outlineColor, width, height);
+        submit(state, outline, width, height);
+    }
+
+    /**
+     * A segment {@code 2 * half} wide whose sides fade to transparent over {@code fringe}, so a diagonal side is
+     * smooth instead of stepped; the solid core is narrower by the fringe so the line keeps its weight.
+     */
+    private static void stroke(List<Vertex> vertices, Point start, Point end, double half, double fringe, int color) {
+        double dx = end.x() - start.x(), dy = end.y() - start.y();
+        double length = Math.hypot(dx, dy);
+        if (length < 0.01) return;
+        double nx = -dy / length, ny = dx / length;
+        double core = Math.max(0, half - fringe / 2), outer = core + fringe;
+        int clear = color & 0x00FFFFFF;
+        band(vertices, start, end, nx, ny, -core, core, color, color);
+        band(vertices, start, end, nx, ny, core, outer, color, clear);
+        band(vertices, start, end, nx, ny, -outer, -core, clear, color);
+    }
+
+    /** The part of a segment between offsets {@code from} and {@code to} along its normal, colored across it. */
+    private static void band(List<Vertex> vertices, Point start, Point end, double nx, double ny,
+                             double from, double to, int fromColor, int toColor) {
+        Vertex a = new Vertex(new Point(start.x() + nx * from, start.y() + ny * from), fromColor);
+        Vertex b = new Vertex(new Point(start.x() + nx * to, start.y() + ny * to), toColor);
+        Vertex c = new Vertex(new Point(end.x() + nx * to, end.y() + ny * to), toColor);
+        Vertex d = new Vertex(new Point(end.x() + nx * from, end.y() + ny * from), fromColor);
+        triangle(vertices, a, b, c);
+        triangle(vertices, a, c, d);
     }
 
     public static void drawPolyline(GuiGraphics graphics, MapBridge.Frame frame, List<GridPoint> points,
                                     GridPoint cursor, int width, int height, int color) {
         drawPolyline(((GuiGraphicsBridge) graphics).exactselection$renderState(), graphics.pose(), frame,
-                points, cursor, width, height, color);
+                points, cursor, width, height, color, fringe());
     }
 
     static void drawPolyline(GuiRenderState state, Matrix3x2fc transform, MapBridge.Frame frame, List<GridPoint> points,
                              GridPoint cursor, int width, int height, int color) {
-        if (points.isEmpty()) return;
-        List<Point> builder = new ArrayList<>();
+        drawPolyline(state, transform, frame, points, cursor, width, height, color, DEFAULT_FRINGE);
+    }
+
+    private static void drawPolyline(GuiRenderState state, Matrix3x2fc transform, MapBridge.Frame frame,
+                                     List<GridPoint> points, GridPoint cursor, int width, int height, int color,
+                                     double fringe) {
+        if (points.isEmpty() || color >>> 24 == 0) return;
+        List<Vertex> builder = new ArrayList<>();
         for (int i = 0; i < points.size() - 1 + (cursor == null ? 0 : 1); i++) {
             GridPoint start = points.get(i % points.size());
             GridPoint end = i < points.size() - 1 ? points.get(i + 1) : cursor;
             if (end == null) break;
             Point[] line = clipSegment(project(start, frame, transform), project(end, frame, transform), width, height);
-            if (line == null) continue;
-            double dx = line[1].x() - line[0].x(), dy = line[1].y() - line[0].y();
-            double length = Math.hypot(dx, dy);
-            if (length < 0.01) continue;
-            double nx = -dy / length * 0.75, ny = dx / length * 0.75;
-            Point a = new Point(line[0].x() + nx, line[0].y() + ny);
-            Point b = new Point(line[0].x() - nx, line[0].y() - ny);
-            Point c = new Point(line[1].x() - nx, line[1].y() - ny);
-            Point d = new Point(line[1].x() + nx, line[1].y() + ny);
-            triangle(builder, a, b, c);
-            triangle(builder, a, c, d);
+            if (line != null) stroke(builder, line[0], line[1], 0.75, fringe, color);
         }
-        submit(state, builder, color, width, height);
+        submit(state, builder, width, height);
     }
 
     private static Point project(GridPoint point, MapBridge.Frame frame, Matrix3x2fc matrix) {
@@ -139,18 +173,19 @@ public final class GeometryScreenRenderer {
         return (b.x() - a.x()) * (p.y() - a.y()) - (b.y() - a.y()) * (p.x() - a.x());
     }
 
-    private static void triangle(List<Point> vertices, Point a, Point b, Point c) {
-        double winding = cross(a, b, c);
+    private static void triangle(List<Vertex> vertices, Vertex a, Vertex b, Vertex c) {
+        double winding = cross(a.point(), b.point(), c.point());
         if (Math.abs(winding) < 1.0E-8) return;
-        if (winding > 0) { Point swap = b; b = c; c = swap; }
+        if (winding > 0) { Vertex swap = b; b = c; c = swap; }
         vertices.add(a); vertices.add(b); vertices.add(c); vertices.add(c);
     }
 
-    private static void submit(GuiRenderState state, List<Point> vertices, int color, int width, int height) {
-        if (vertices.isEmpty() || color >>> 24 == 0) return;
+    private static void submit(GuiRenderState state, List<Vertex> vertices, int width, int height) {
+        if (vertices.isEmpty()) return;
         double minX = Double.POSITIVE_INFINITY, minY = Double.POSITIVE_INFINITY;
         double maxX = Double.NEGATIVE_INFINITY, maxY = Double.NEGATIVE_INFINITY;
-        for (Point point : vertices) {
+        for (Vertex vertex : vertices) {
+            Point point = vertex.point();
             minX = Math.min(minX, point.x()); minY = Math.min(minY, point.y());
             maxX = Math.max(maxX, point.x()); maxY = Math.max(maxY, point.y());
         }
@@ -158,15 +193,16 @@ public final class GeometryScreenRenderer {
         ScreenRectangle bounds = new ScreenRectangle((int) Math.floor(minX), (int) Math.floor(minY),
                 (int) Math.ceil(maxX) - (int) Math.floor(minX),
                 (int) Math.ceil(maxY) - (int) Math.floor(minY)).intersection(viewport);
-        if (bounds != null) state.submitGuiElement(new GeometryState(List.copyOf(vertices), color, viewport, bounds));
+        if (bounds != null) state.submitGuiElement(new GeometryState(List.copyOf(vertices), viewport, bounds));
     }
 
-    private record GeometryState(List<Point> vertices, int color, ScreenRectangle scissorArea, ScreenRectangle bounds)
+    private record GeometryState(List<Vertex> vertices, ScreenRectangle scissorArea, ScreenRectangle bounds)
             implements GuiElementRenderState {
         @Override public RenderPipeline pipeline() { return RenderPipelines.GUI; }
         @Override public TextureSetup textureSetup() { return TextureSetup.noTexture(); }
         @Override public void buildVertices(VertexConsumer consumer) {
-            for (Point point : vertices) consumer.addVertex((float) point.x(), (float) point.y(), 0).setColor(color);
+            for (Vertex vertex : vertices)
+                consumer.addVertex((float) vertex.point().x(), (float) vertex.point().y(), 0).setColor(vertex.color());
         }
     }
 }

@@ -109,6 +109,9 @@ public final class ExactSelectionController {
     private double pressX, pressY;
     /** The pointer of a move or resize has left the CLICK_SLOP zone around its press. */
     private boolean dragMoved;
+    /** When and where the last click on a vertex was released, for a double click Minecraft did not report. */
+    private long vertexClickAt;
+    private double vertexClickX, vertexClickY;
     private Button pointVisibility, pointColor, pointScope, pointRename, pointRecolor;
     private Button quickSave, zonesButton, newAreaGroup, newAreaOpacityButton, colorHexApply;
     private Dialog areaNameReturn = Dialog.AREAS, colorReturn = Dialog.AREAS;
@@ -3500,6 +3503,11 @@ public final class ExactSelectionController {
             pressX = event.x(); pressY = event.y();
             dragMoved = false;
             boolean ctrl = (event.modifiers() & (GLFW.GLFW_MOD_CONTROL | GLFW.GLFW_MOD_SUPER)) != 0;
+            // Minecraft reports a double click only when both presses are handled within 250 ms, which a slow frame
+            // between them breaks; a second Ctrl/Cmd press right after a click on the same vertex deletes it too.
+            if (ctrl && !twice && net.minecraft.util.Util.getMillis() - vertexClickAt < 500
+                    && Math.hypot(event.x() - vertexClickX, event.y() - vertexClickY) < CLICK_SLOP * 2) twice = true;
+            vertexClickAt = 0;
             if (!ctrl && !twice && (polygonMode && !polygonDraft.isEmpty() || state.geometry() instanceof PolygonGeometry)) {
                 // Holding the button on a contour or polygon vertex drags it; without movement it stays a click, which
                 // closes a contour on its first vertex, or on a finished shape in contour mode starts a new one.
@@ -3626,6 +3634,8 @@ public final class ExactSelectionController {
                 cancelGesture();
                 if (held instanceof MapGesture.VertexDrag drag) {
                     message = "";
+                    vertexClickAt = net.minecraft.util.Util.getMillis();
+                    vertexClickX = event.x(); vertexClickY = event.y();
                     // On a contour vertex a click only closes the contour on its first one.
                     if (vertex && !polygonDraft.isEmpty()) {
                         if (drag.index == 0 && polygonDraft.size() >= 3) finishPolygon();

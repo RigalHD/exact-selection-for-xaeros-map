@@ -100,6 +100,9 @@ public final class PolygonRenderingCheck {
         require(preview.getRGB(195, 140) >>> 24 == 64, "Polygon interior is invisible or has incorrect opacity");
         require(preview.getRGB(380, 280) == 0, "Polygon paints outside its boundary");
         require(preview.getRGB(150, 40) >>> 24 > 200, "Polygon edge is invisible");
+        List<Vertex> edge = capture(elements(state).get(1)).vertices;
+        require(edge.stream().anyMatch(v -> v.color() == 0xFF59E3CE) && edge.stream().anyMatch(v -> v.color() == 0x0059E3CE),
+                "Outline has no solid core or no fringe fading out for smooth diagonal sides");
         List<GridPoint> reversed = new ArrayList<>(points); Collections.reverse(reversed);
         GuiRenderState reverse = new GuiRenderState();
         GeometryScreenRenderer.draw(reverse, new Matrix3x2f(), frame, new PolygonGeometry(reversed), 400, 300, 0x4059E3CE, 0xFF59E3CE, 2);

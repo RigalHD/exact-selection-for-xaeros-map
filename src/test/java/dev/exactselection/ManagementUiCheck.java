@@ -428,6 +428,12 @@ public final class ManagementUiCheck {
         clickMap(controller, 480, 260, GLFW.GLFW_MOD_SUPER);
         controller.mouseClicked(left(480, 260, GLFW.GLFW_MOD_SUPER), true); controller.mouseReleased(left(480, 260, GLFW.GLFW_MOD_SUPER));
         require(draft.equals(beforeCancel), "Cmd+double click did not delete the contour vertex: " + draft);
+        // A double click Minecraft did not report (a slow frame between the presses) still deletes the vertex.
+        clickMap(controller, 480, 260, 0);
+        controller.mouseClicked(left(480, 260, 0), true); controller.mouseReleased(left(480, 260, 0));
+        clickMap(controller, 480, 260, GLFW.GLFW_MOD_SUPER);
+        clickMap(controller, 480, 260, GLFW.GLFW_MOD_SUPER);
+        require(draft.equals(beforeCancel), "Two quick Cmd clicks on a contour vertex did not delete it: " + draft);
         // The left button alone drags a vertex; a click on one without movement leaves it.
         controller.mouseClicked(left(560, 260, 0), false);
         controller.beforeRender(570, 270);
@@ -1508,9 +1514,15 @@ public final class ManagementUiCheck {
             List<Integer> colors = new ArrayList<>();
             graphics.state.forEachElement(element -> {
                 try {
-                    Method color = element.getClass().getDeclaredMethod("color");
-                    color.setAccessible(true);
-                    colors.add((Integer) color.invoke(element));
+                    // Vertex colors; the outline's smoothed fringe fades to transparent and is left out.
+                    Method vertices = element.getClass().getDeclaredMethod("vertices");
+                    vertices.setAccessible(true);
+                    for (Object vertex : (List<?>) vertices.invoke(element)) {
+                        Method color = vertex.getClass().getDeclaredMethod("color");
+                        color.setAccessible(true);
+                        int value = (Integer) color.invoke(vertex);
+                        if (value >>> 24 != 0) colors.add(value);
+                    }
                 } catch (ReflectiveOperationException e) { throw new AssertionError(e); }
             }, GuiRenderState.TraverseRange.ALL);
             int alpha = store.state().areas().get(0).color();

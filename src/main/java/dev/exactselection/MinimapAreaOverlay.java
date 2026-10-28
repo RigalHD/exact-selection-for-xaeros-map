@@ -179,18 +179,25 @@ public final class MinimapAreaOverlay {
                 double dy = clipped[1].y() - clipped[0].y();
                 double length = Math.hypot(dx, dy);
                 if (length < 0.01) continue;
-                addQuad(vertices, clipped[0], clipped[1], -dy / length * 0.75, dx / length * 0.75, color);
+                // A solid core with sides fading out over a minimap pixel, so diagonal sides are smooth, not stepped.
+                double nx = -dy / length, ny = dx / length;
+                int clear = color & 0x00FFFFFF;
+                band(vertices, clipped[0], clipped[1], nx, ny, -0.25, 0.25, color, color);
+                band(vertices, clipped[0], clipped[1], nx, ny, 0.25, 1.25, color, clear);
+                band(vertices, clipped[0], clipped[1], nx, ny, -1.25, -0.25, clear, color);
             }
         }
         draw(matrix, vertices);
     }
 
-    private static void addQuad(List<Vertex> vertices, Point a, Point b, double nx, double ny, int color) {
-        Point a1 = new Point(a.x() + nx, a.y() + ny);
-        Point a2 = new Point(a.x() - nx, a.y() - ny);
-        Point b1 = new Point(b.x() + nx, b.y() + ny);
-        Point b2 = new Point(b.x() - nx, b.y() - ny);
-        for (Point point : List.of(a1, a2, b2, a1, b2, b1)) vertices.add(new Vertex(point, color));
+    /** The part of segment a–b between offsets {@code from} and {@code to} along its normal, colored across it. */
+    private static void band(List<Vertex> vertices, Point a, Point b, double nx, double ny,
+                             double from, double to, int fromColor, int toColor) {
+        Vertex a1 = new Vertex(new Point(a.x() + nx * from, a.y() + ny * from), fromColor);
+        Vertex a2 = new Vertex(new Point(a.x() + nx * to, a.y() + ny * to), toColor);
+        Vertex b1 = new Vertex(new Point(b.x() + nx * from, b.y() + ny * from), fromColor);
+        Vertex b2 = new Vertex(new Point(b.x() + nx * to, b.y() + ny * to), toColor);
+        vertices.addAll(List.of(a1, a2, b2, a1, b2, b1));
     }
 
     static List<Point> clipPolygon(List<Point> subject, List<Point> clip) {

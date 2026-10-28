@@ -10,6 +10,7 @@
 - The yellow frame around waypoints inside the selection now surrounds Xaero's icon above the point, following its waypoint scale and the window size, instead of a small square under it.
 - The expanded panel is narrower and shorter: half-width coordinate fields with Apply and Save beside them, and the buttons in three rows. The compact panel drops the corner rows and Clear. Expand / Compact is an icon; the Groups button left the panel (Manage groups… in the Areas window). Applying an edited territory is labelled Save.
 - Messages and warnings appear for a few seconds near the bottom centre of the screen instead of being cut short in the panel.
+- Fix: the compact panel keeps the warning when saved areas could not be loaded; All in the Areas window is unavailable when every found area is checked; a new area saved from the Areas window is scrolled into view in any order; an error drawing areas on the minimap skips that frame instead of breaking the minimap.
 - Fix: a polygon or an open saved rectangle can be dragged from just inside its edges and corners; small ones on a zoomed-out map could not be moved at all.
 - Fix: Show file in folder no longer disappears with the bottom message a few seconds after an export.
 - Fix: a contour finished while a saved area was open kept editing that area, so Save or shape autosave wrote the new contour over it.

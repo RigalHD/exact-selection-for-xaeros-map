@@ -28,7 +28,7 @@ public final class MinimapAreaOverlay {
     private static final class StoreHolder {
         private static final SavedAreaStore STORE = new SavedAreaStore(FabricLoader.getInstance().getConfigDir());
     }
-    private static boolean loadErrorLogged;
+    private static boolean loadErrorLogged, drawErrorLogged;
 
     record Point(double x, double y) {}
     private record Projected(SavedAreaStore.Area area, List<Point> corners, List<List<Point>> triangles) {}
@@ -47,6 +47,12 @@ public final class MinimapAreaOverlay {
             unsupported = true;
             LoggerFactory.getLogger("Exact Selection for Xaero's map")
                     .warn("This Xaero's Minimap version is not supported; areas are not drawn on the minimap", error);
+        } catch (RuntimeException error) {
+            // Skip this frame rather than break the minimap; the error may be passing, so the overlay stays on.
+            if (!drawErrorLogged) {
+                drawErrorLogged = true;
+                LoggerFactory.getLogger("Exact Selection for Xaero's map").warn("Could not draw saved areas on the minimap", error);
+            }
         }
     }
 

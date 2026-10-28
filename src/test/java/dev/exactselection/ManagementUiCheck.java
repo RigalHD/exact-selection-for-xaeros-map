@@ -1566,8 +1566,14 @@ public final class ManagementUiCheck {
             search.setValue("RAV");
             require(((List<?>) call(controller, "displayedAreas")).stream().map(area -> ((SavedAreaStore.Area) area).name()).toList()
                     .equals(List.of("Bravo")), "Search did not find Bravo by part of its name");
+            press(controller, "areaClearSelection");
             press(controller, "areaSelectAll");
             require(checkedNames(controller, store).equals(Set.of("Bravo")), "All checked areas the search hides");
+            call(controller, "updateVisibility");
+            require(!((Button) get(controller, "areaSelectAll")).active, "All stays active with every found area checked");
+            search.setValue(""); call(controller, "updateVisibility");
+            require(((Button) get(controller, "areaSelectAll")).active, "All is unavailable with unchecked areas shown");
+            search.setValue("RAV");
             search.setValue("nothing like it");
             require(((List<?>) call(controller, "displayedAreas")).isEmpty(), "Search kept areas that do not match");
             search.setValue("");

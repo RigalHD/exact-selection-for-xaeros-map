@@ -1081,7 +1081,12 @@ public final class ExactSelectionController {
         selectedAreaIds.clear(); selectedAreaIds.add(area.id()); areaId = area.id();
         setDialogValue(4, area.name());
         dialog = areaNameReturn;
-        if (dialog == Dialog.AREAS) areaScroll = Math.max(0, areas.size() - visibleAreaDialogRows(dialogRect()[3]));
+        if (dialog == Dialog.AREAS) {
+            List<SavedAreaStore.Area> shown = displayedAreas();
+            int index = shown.indexOf(area);
+            // Scroll so the new row is visible; a row the search hides leaves the list where it was.
+            if (index >= 0) areaScroll = Math.max(0, Math.min(index, shown.size() - visibleAreaDialogRows(dialogRect()[3])));
+        }
         // The saved shape now lives in the list; clearing it (its own undo step) frees the map for the next area.
         reset();
         message = tr(areaNameReturn == Dialog.NONE ? "area_saved_named" : "area_created", name).getString();
@@ -2706,8 +2711,11 @@ public final class ExactSelectionController {
         }
         SavedAreaStore.Area editing = editedArea();
         // Messages go to the bottom of the screen (renderToast); the panel keeps the controls or the edited area.
-        Component status = editing == null ? tr("controls") : tr("editing_area", editing.name());
-        if (!hasExportNotice()) line(g, status, (compact ? 96 : 221) + sh, 0xFF9BAAB7);
+        // The compact panel has no scope line, so it keeps the load failure in the status line.
+        boolean loadWarning = compact && loadFailed;
+        Component status = loadWarning ? tr("area_load_failed")
+                : editing == null ? tr("controls") : tr("editing_area", editing.name());
+        if (!hasExportNotice()) line(g, status, (compact ? 96 : 221) + sh, loadWarning ? 0xFFFFCF62 : 0xFF9BAAB7);
         g.disableScissor();
         if (maxPanelScroll() > 0)
             g.drawString(mc.font, tr("panel_scroll"), PANEL_X + 8, PANEL_Y + panelHeight - 12, 0xFF9BAAB7);
@@ -2947,7 +2955,7 @@ public final class ExactSelectionController {
         areaNames.setMessage(tr(areaStore.state().showNames() ? "area_names_on" : "area_names_off"));
         areaMapVisibility.active = areaMinimapVisibility.active = areaNames.active = !loadFailed;
         areaDelete.setMessage(tr("area_delete_count", selectedCount));
-        areaSelectAll.active = !loadFailed && selectedCount < areaStore.state().areas().size();
+        areaSelectAll.active = !loadFailed && displayedAreas().stream().anyMatch(a -> !selectedAreaIds.contains(a.id()));
         areaClearSelection.active = selectedCount > 0;
         areaSave.setTooltip(Tooltip.create(tr(loadFailed ? "area_load_failed" : "area_save_tooltip")));
     }

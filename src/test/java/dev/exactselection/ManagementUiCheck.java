@@ -418,7 +418,26 @@ public final class ManagementUiCheck {
         key(controller, GLFW.GLFW_KEY_Z, GLFW.GLFW_MOD_SUPER);
         require(draft.equals(beforeCancel), "Undo did not restore the removed vertex");
         clickMap(controller, 620, 320, GLFW.GLFW_MOD_CONTROL);
-        require(draft.equals(beforeCancel), "Ctrl click away from a vertex added an unintended point");
+        require(draft.size() == 5 && draft.getLast().equals(new GridPoint(300, 140)), "Ctrl click away from a vertex added no point");
+        key(controller, GLFW.GLFW_KEY_Z, GLFW.GLFW_MOD_CONTROL);
+        // As on a finished shape: a click on a side only shows the controls, a double click adds a vertex on it.
+        clickMap(controller, 480, 260, 0);
+        require(draft.equals(beforeCancel), "A click on a contour side added a vertex");
+        controller.mouseClicked(left(480, 260, 0), true); controller.mouseReleased(left(480, 260, 0));
+        require(draft.size() == 5 && draft.get(3).equals(new GridPoint(160, 80)), "A double click on a contour side added no vertex on it: " + draft);
+        clickMap(controller, 480, 260, GLFW.GLFW_MOD_SUPER);
+        controller.mouseClicked(left(480, 260, GLFW.GLFW_MOD_SUPER), true); controller.mouseReleased(left(480, 260, GLFW.GLFW_MOD_SUPER));
+        require(draft.equals(beforeCancel), "Cmd+double click did not delete the contour vertex: " + draft);
+        // The left button alone drags a vertex; a click on one without movement leaves it.
+        controller.mouseClicked(left(560, 260, 0), false);
+        controller.beforeRender(570, 270);
+        controller.mouseReleased(left(570, 270, 0));
+        require(draft.size() == 4 && draft.get(2).equals(new GridPoint(250, 90)), "A plain drag did not move the contour vertex: " + draft);
+        key(controller, GLFW.GLFW_KEY_Z, GLFW.GLFW_MOD_CONTROL);
+        controller.mouseClicked(left(560, 260, 0), false);
+        controller.beforeRender(561, 261);
+        controller.mouseReleased(left(561, 261, 0));
+        require(draft.equals(beforeCancel), "A jittery click on a contour vertex moved it or added a point: " + draft);
         clickMap(controller, 420, 80, 0);
         require(selection.phase() == SelectionState.Phase.SELECTED && selection.geometry() instanceof PolygonGeometry,
                 "Clicking the first vertex did not create a complete polygon area");
@@ -794,7 +813,8 @@ public final class ManagementUiCheck {
         for (String source : new String[]{null, "edited-rectangle"}) {
             AreaGeometry shape = source == null ? polygon : new RectangleGeometry(new SelectionBounds(80, 80, 119, 119));
             selection.load(shape, source);
-            int px = (int) Math.round(frame.screenX(80)) + 3, py = (int) Math.round(frame.screenY(100));
+            // Mid-side: a press on a polygon vertex drags that vertex instead.
+            int px = (int) Math.round(frame.screenX(80)) + 3, py = (int) Math.round(frame.screenY(90));
             controller.mouseClicked(left(px, py, 0), false);
             controller.beforeRender(px + 20, py);
             controller.mouseReleased(left(px + 20, py, 0));

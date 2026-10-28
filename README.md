@@ -38,7 +38,7 @@ The addon uses Xaero internals. Other World Map or Minecraft versions need separ
 | Left click, then left click | Set the two corners of a rectangle |
 | Drag a handle | Resize the rectangle |
 | Drag inside the finished selection (or Shift + drag, also from a handle) | Move the whole rectangle or polygon, also with the Polygon tool on; a click inside without moving keeps it, or with the Polygon tool starts a new contour there |
-| Right click inside the selection | Quick actions: Size (not for polygons), Move, Center and Clear selection; plus Save… for a new selection, or Color…, Fill and Delete zone for the territory being edited |
+| Right click inside the selection | A menu styled like Xaero's own with quick actions: Size (not for polygons), Move, Center and Clear selection; plus Save… for a new selection, or Color…, Fill and Delete zone for the territory being edited |
 | Right mouse drag | Pan the map |
 | Scroll outside the panel | Zoom around the cursor |
 | Coordinates / Size / Move | Enter exact coordinates, dimensions or offsets |
@@ -55,7 +55,8 @@ Area and perimeter are copied rounded to whole blocks: **Rounding: down** (the d
 
 Enable the Polygon tool, click vertices and finish by clicking the first vertex or pressing Enter. Backspace removes the last draft vertex. Shift aligns new vertices horizontally or vertically. Simple, non-intersecting polygons with 3–256 vertices are supported and have a fill.
 
-- Ctrl/Cmd + drag a vertex to move it.
+- Drag a vertex to move it, in both drafts and completed polygons (Ctrl/Cmd + drag works too). A click on a vertex without movement keeps it in place; in a draft a click on the first vertex still closes the contour.
+- While drawing, a click on a side of the contour does nothing and shows these controls; a double click there adds a vertex on that side. Ctrl/Cmd + click away from the vertices adds a vertex as a plain click does.
 - Double click an edge to insert a vertex on that edge.
 - Ctrl/Cmd + double click a vertex to delete it, in both drafts and completed polygons. A completed shape must keep at least three vertices.
 - Ctrl/Cmd + drag a rectangle corner to turn it into an editable polygon. A click without movement keeps the rectangle.
@@ -65,7 +66,7 @@ Invalid intersecting or duplicate-vertex edits are rejected. Polygon geometry an
 
 ## Saved areas and groups
 
-**Save** sits in the header next to the expand icon in the compact panel, and under Apply beside the coordinate fields in the expanded one; for a territory being edited it saves its shape. Enter a name, use the Group button to cycle through existing groups (the default is no group), set the fill with the Fill button (0, 25, 50, 75 or 100%) and pick one of 24 colors right below or type your own `#RRGGBB` under the palette, with a preview beside it. Clicking the preview opens a full color picker: a saturation and brightness square with a hue bar beside it; Apply hands the color back. Color and fill are remembered for the next area. After saving, the selection is cleared so the next area can be drawn; the first undo brings the selection back, the second removes the saved area. Saving a new area does not enter editing mode.
+**Save** sits in the header next to the expand icon in the compact panel, and above Apply beside the coordinate fields in the expanded one; for a territory being edited it saves its shape. Enter a name, use the Group button to cycle through existing groups (the default is no group), set the fill with the Fill button (0, 25, 50, 75 or 100%) and pick one of 24 colors right below or type your own `#RRGGBB` under the palette, with a preview beside it. Clicking the preview opens a full color picker: a saturation and brightness square with a hue bar beside it; Apply hands the color back. Color and fill are remembered for the next area. After saving, the selection is cleared so the next area can be drawn; the first undo brings the selection back, the second removes the saved area. Saving a new area does not enter editing mode.
 
 To change an existing area's shape, select it in **Areas** and choose **Edit territory** (it then reads **Territory being edited**). Change the shape and choose **Apply** on the selection panel. While editing, the stored shape is drawn faded behind the live bounds. This association survives moves, coordinate edits, redraws and undo/redo. Clear the selection or turn the tool off to end editing. **Save selection…** in the Areas window can save a separate copy while editing.
 

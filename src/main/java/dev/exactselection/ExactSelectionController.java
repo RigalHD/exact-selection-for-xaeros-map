@@ -34,6 +34,8 @@ import xaero.map.gui.GuiMap;
 public final class ExactSelectionController {
     private static final int PANEL_X = 34, PANEL_Y = 26;
     private static final int COMPACT_HEIGHT = 111, EXPANDED_HEIGHT = 238, COPY_SIZE = 10;
+    /** Row height of the right-click menu, as in Xaero's. */
+    private static final int MENU_ROW = 11;
     /** -12 while the perimeter shares the area line: everything below moves up one line and the panel gets shorter. */
     private int metricsShift;
     private static final int RENAME_FIELD = 9, HEX_FIELD = 10;
@@ -430,7 +432,7 @@ public final class ExactSelectionController {
             // Groups open from the Areas window; Esc or the right-click menu clears the selection.
             arrowRow(new Button[]{polygonModeButton, areasButton}, x, y + 74, w);
         } else {
-            // Narrow coordinate fields; Apply and Save stand beside them (Save is placed in updateVisibility).
+            // Narrow coordinate fields; Save and, below it, Apply stand beside them (Save is placed in updateVisibility).
             // Size, Move and Center live in the right-click menu, Groups in the Areas window.
             int applyWidth = mc.font.width(apply.getMessage());
             for (String key : List.of("quick_save", "quick_apply", "quick_autosaved")) applyWidth = Math.max(applyWidth, mc.font.width(tr(key)));
@@ -443,7 +445,7 @@ public final class ExactSelectionController {
                 place(fields[i], i % 2 == 0 ? xField : zField, top + 34 + i / 2 * 24, fieldWidth, 18);
             place(copyCoordinates, zField + fieldWidth + 3, top + 38, COPY_SIZE, COPY_SIZE);
             place(copyCornerB, zField + fieldWidth + 3, top + 62, COPY_SIZE, COPY_SIZE);
-            place(apply, x + w - applyWidth, top + 34, applyWidth, 18);
+            place(apply, x + w - applyWidth, top + 58, applyWidth, 18);
             arrowRow(new Button[]{chunkMode, polygonModeButton, clear}, x, y + 126, w);
             mainRow(new Button[]{areasButton, zonesButton, pointsButton}, x, y + 148, w, 18);
             place(selectionExportButton, x, y + 170, w, 18);
@@ -1902,10 +1904,15 @@ public final class ExactSelectionController {
     }
 
     private int hitPolygonEdge(MapBridge.Frame frame, List<GridPoint> vertices, double x, double y) {
+        return hitPolygonEdge(frame, vertices, x, y, true);
+    }
+
+    /** The side under the pointer; an open contour has no side from its last vertex back to the first. */
+    private int hitPolygonEdge(MapBridge.Frame frame, List<GridPoint> vertices, double x, double y, boolean closed) {
         if (hitVertex(frame, vertices, x, y) >= 0) return -1;
         int nearest = -1;
         double distance = 64;
-        for (int i = 0; i < vertices.size(); i++) {
+        for (int i = 0; i < (closed ? vertices.size() : vertices.size() - 1); i++) {
             GridPoint a = vertices.get(i), b = vertices.get((i + 1) % vertices.size());
             double ax = frame.screenX(a.x()), ay = frame.screenY(a.z());
             double dx = frame.screenX(b.x()) - ax, dy = frame.screenY(b.z()) - ay;
@@ -1919,19 +1926,39 @@ public final class ExactSelectionController {
         return nearest;
     }
 
+    /** Adds a contour vertex on side {@code edge}, as a double click does on a finished shape. */
+    private void insertDraftPoint(MapBridge.Frame frame, int edge, double x, double y) {
+        if (polygonDraft.size() >= PolygonGeometry.MAX_VERTICES) { message = tr("polygon_too_many_points").getString(); return; }
+        GridPoint point;
+        try { point = onSide(frame, polygonDraft.get(edge), polygonDraft.get(edge + 1), x, y); }
+        catch (IllegalArgumentException e) { message = tr("invalid_coordinates").getString(); return; }
+        if (polygonDraft.contains(point)) { message = tr("polygon_duplicate_point").getString(); return; }
+        recordDraftChange(List.copyOf(polygonDraft));
+        polygonDraft.add(edge + 1, point);
+        updateSelection();
+        message = tr("polygon_draft_vertex_inserted").getString();
+        updateVisibility();
+    }
+
+    /**
+     * The block on side a–b nearest the pointer. The hit tolerance is in screen pixels, which can span many blocks
+     * when zoomed out; placing the vertex under the cursor would bend the side.
+     */
+    private static GridPoint onSide(MapBridge.Frame frame, GridPoint a, GridPoint b, double x, double y) {
+        double ex = b.x() - a.x(), ez = b.z() - a.z();
+        double t = ((frame.worldX(x) - a.x()) * ex + (frame.worldZ(y) - a.z()) * ez) / (ex * ex + ez * ez);
+        t = Math.max(0, Math.min(1, t));
+        return new GridPoint(Math.round(a.x() + t * ex), Math.round(a.z() + t * ez));
+    }
+
     private void insertPolygonPoint(MapBridge.Frame frame, PolygonGeometry polygon, int edge, double x, double y) {
         if (polygon.vertices().size() >= PolygonGeometry.MAX_VERTICES) {
             message = tr("polygon_too_many_points").getString(); return;
         }
         try {
             List<GridPoint> points = new ArrayList<>(polygon.vertices());
-            // The hit tolerance is in screen pixels, which can span many blocks when zoomed out; placing the vertex
-            // under the cursor would bend the side. Insert on the side itself; Ctrl/Cmd-drag moves it afterwards.
-            GridPoint a = points.get(edge), b = points.get((edge + 1) % points.size());
-            double ex = b.x() - a.x(), ez = b.z() - a.z();
-            double t = ((frame.worldX(x) - a.x()) * ex + (frame.worldZ(y) - a.z()) * ez) / (ex * ex + ez * ez);
-            t = Math.max(0, Math.min(1, t));
-            GridPoint point = new GridPoint(Math.round(a.x() + t * ex), Math.round(a.z() + t * ez));
+            // Inserted on the side itself; Ctrl/Cmd-drag moves it afterwards.
+            GridPoint point = onSide(frame, points.get(edge), points.get((edge + 1) % points.size()), x, y);
             if (points.contains(point)) { message = tr("polygon_duplicate_point").getString(); return; }
             points.add(edge + 1, point);
             PolygonGeometry next = new PolygonGeometry(points);
@@ -1963,7 +1990,8 @@ public final class ExactSelectionController {
         recordDraftChange(List.copyOf(polygonDraft));
         polygonDraft.add(point);
         updateSelection();
-        message = tr("polygon_point_count", polygonDraft.size()).getString();
+        message = polygonDraft.size() == 1 ? tr("polygon_draft_controls").getString()
+                : tr("polygon_point_count", polygonDraft.size()).getString();
         updateVisibility();
     }
 
@@ -2056,6 +2084,11 @@ public final class ExactSelectionController {
     }
 
     private boolean holding() { return gesture instanceof MapGesture.Held; }
+
+    /** A gesture that is still a click until the pointer leaves the click zone. */
+    private static boolean clickable(MapGesture gesture) {
+        return gesture instanceof MapGesture.Drag || gesture instanceof MapGesture.VertexDrag;
+    }
 
     /** A change made while a two-click selection is open is recorded from before its first click. */
     private SelectionState.Snapshot historyBase() {
@@ -2266,10 +2299,10 @@ public final class ExactSelectionController {
         if (frame != null && enabled() && dragging && pending == null && dialog == Dialog.NONE)
             bridge.exactselection$pan(mouseX - lastMouseX, mouseY - lastMouseY);
         // A move or resize follows the pointer only once it leaves the click zone, so a jittery click does not jump.
-        if (gesture instanceof MapGesture.Drag && !dragMoved
+        if (clickable(gesture) && !dragMoved
                 && Math.hypot(mouseX - pressX, mouseY - pressY) >= CLICK_SLOP) dragMoved = true;
         if (frame != null && gesture instanceof MapGesture.Held held && dialog == Dialog.NONE
-                && (dragMoved || !(held instanceof MapGesture.Drag)))
+                && (dragMoved || !clickable(held)))
             held.update(gestureHost, frame, mouseX, mouseY);
         if (frame != null && polygonMode && !(gesture instanceof MapGesture.VertexDrag) && !overPanel(mouseX, mouseY)) {
             try { polygonCursor = polygonPoint(frame, mouseX, mouseY, polygonDraft.isEmpty() ? null : polygonDraft.getLast()); }
@@ -2358,15 +2391,9 @@ public final class ExactSelectionController {
         toggle.active = enabled() || frame != null;
         toggle.setMessage(Component.literal(enabled() ? "■" : "□"));
         if (dialog != Dialog.NONE) renderDialog(g);
-        if (quickMenu) {
-            Button first = quickMenuButtons().get(0);
-            int count = quickMenuButtons().size();
-            g.nextStratum();
-            g.fill(first.getX() - 2, first.getY() - 2, first.getX() + 122, first.getY() + count * 18, 0xEE101922);
-            g.renderOutline(first.getX() - 2, first.getY() - 2, 124, count * 18 + 2, 0xFF42636D);
-        }
+        List<Button> menu = quickMenu ? quickMenuButtons() : List.of();
         for (AbstractWidget widget : widgets) {
-            if (widget.visible) widget.render(g, mouseX, mouseY, delta);
+            if (widget.visible && !menu.contains(widget)) widget.render(g, mouseX, mouseY, delta);
         }
         g.nextStratum();
         if (panelModeButton.visible) renderIcon(g, compact ? EXPAND : COLLAPSE, panelModeButton, 0xFFE0E0E0);
@@ -2376,7 +2403,28 @@ public final class ExactSelectionController {
             if (copy.visible) renderIcon(g, COPY, copy, copy.active ? 0xFFE0E0E0 : 0xFF8A8A8A);
         for (Button copy : areaCopies) if (copy.visible) renderIcon(g, COPY, copy, copy.active ? 0xFFE0E0E0 : 0xFF8A8A8A);
         exportWindow.renderPlaceholder(g, screen.getFocused() == exportWindow.folder);
+        if (quickMenu) renderQuickMenu(g, menu, mouseX, mouseY);
         if (enabled() && frame != null && dialog == Dialog.NONE) renderToast(g);
+    }
+
+    /**
+     * Drawn like Xaero's own right-click menu (XaeroLib's drop-down): a white frame, a grey title row and 11-pixel
+     * rows that turn grey under the pointer. The row buttons only take the clicks.
+     */
+    private void renderQuickMenu(GuiGraphics g, List<Button> items, int mouseX, int mouseY) {
+        Button first = items.get(0);
+        int x = first.getX(), w = first.getWidth(), top = first.getY() - MENU_ROW;
+        g.nextStratum();
+        g.fill(x, top, x + w, top + MENU_ROW, 0xFF606060);
+        g.drawCenteredString(mc.font, tr("quick_menu_title"), x + w / 2, top + 2, 0xFFFFFFFF);
+        for (Button item : items) {
+            int y = item.getY();
+            boolean hovered = item.active && mouseX >= x && mouseX < x + w && mouseY >= y && mouseY < y + MENU_ROW;
+            g.fill(x, y, x + w, y + MENU_ROW, hovered ? 0xFF323232 : 0xC8000000);
+            g.hLine(x, x + w - 1, y + MENU_ROW - 1, 0xFF323232);
+            g.drawCenteredString(mc.font, item.getMessage(), x + w / 2, y + 2, item.active ? 0xFFFFFFFF : 0xFF808080);
+        }
+        g.renderOutline(x - 1, top - 1, w + 2, (items.size() + 1) * MENU_ROW + 2, 0xFFFFFFFF);
     }
 
     /** The latest message, centred near the bottom of the screen for a few seconds instead of cut short in the panel. */
@@ -2413,33 +2461,29 @@ public final class ExactSelectionController {
 
     /** Double chevrons: down to expand the panel, up to make it compact. */
     private static final String[] EXPAND = {
-            "##.......##",
-            ".##.....##.",
-            "..##...##..",
-            "...##.##...",
-            "....###....",
-            ".....#.....",
-            "##.......##",
-            ".##.....##.",
-            "..##...##..",
-            "...##.##...",
-            "....###....",
-            ".....#.....",
+            "##.....##",
+            ".##...##.",
+            "..##.##..",
+            "...###...",
+            "....#....",
+            "##.....##",
+            ".##...##.",
+            "..##.##..",
+            "...###...",
+            "....#....",
     };
 
     private static final String[] COLLAPSE = {
-            ".....#.....",
-            "....###....",
-            "...##.##...",
-            "..##...##..",
-            ".##.....##.",
-            "##.......##",
-            ".....#.....",
-            "....###....",
-            "...##.##...",
-            "..##...##..",
-            ".##.....##.",
-            "##.......##",
+            "....#....",
+            "...###...",
+            "..##.##..",
+            ".##...##.",
+            "##.....##",
+            "....#....",
+            "...###...",
+            "..##.##..",
+            ".##...##.",
+            "##.....##",
     };
 
     private static final String[] FOLDER = {
@@ -2780,7 +2824,7 @@ public final class ExactSelectionController {
         // Compact: in the header beside the mode icon; expanded: under Apply, beside the second coordinate row.
         int saveWidth = Math.max(40, mc.font.width(quickSave.getMessage()) + 10);
         if (compact) place(quickSave, panelModeButton.getX() - 3 - saveWidth, PANEL_Y + 3, saveWidth, 18);
-        else place(quickSave, apply.getX(), apply.getY() + 24, apply.getWidth(), 18);
+        else place(quickSave, apply.getX(), apply.getY() - 24, apply.getWidth(), 18);
         panelModeButton.setMessage(Component.empty());
         panelModeButton.setTooltip(Tooltip.create(tr(compact ? "panel_expand_tooltip" : "panel_compact_tooltip")));
         if (main) placePanelCopies();
@@ -2794,13 +2838,18 @@ public final class ExactSelectionController {
         if (quickMenu && (!main || state.phase() != SelectionState.Phase.SELECTED || gesture != null)) quickMenu = false;
         if (quickMenu) {
             List<Button> items = quickMenuButtons();
-            int x = Math.max(2, Math.min(screen.width - 124, quickMenuX)), y = Math.max(2, Math.min(screen.height - 2 - items.size() * 18, quickMenuY));
-            for (int i = 0; i < items.size(); i++) {
-                place(items.get(i), x + 2, y + 2 + i * 18, 120, 16);
-                items.get(i).visible = true;
-            }
             SavedAreaStore.Area edited = editedArea();
             if (edited != null) quickMenuOpacity.setMessage(tr("area_new_opacity", edited.opacity() + "%"));
+            // As wide as its longest line, like Xaero's menu; the rows start under the title row.
+            int w = mc.font.width(tr("quick_menu_title"));
+            for (Button item : items) w = Math.max(w, mc.font.width(item.getMessage()));
+            w += 8;
+            int x = Math.max(3, Math.min(screen.width - w - 3, quickMenuX));
+            int y = Math.max(3, Math.min(screen.height - 3 - (items.size() + 1) * MENU_ROW, quickMenuY));
+            for (int i = 0; i < items.size(); i++) {
+                place(items.get(i), x, y + (i + 1) * MENU_ROW, w, MENU_ROW);
+                items.get(i).visible = true;
+            }
         }
         boolean contourDraft = !polygonDraft.isEmpty();
         boolean polygonSelection = state.geometry() instanceof PolygonGeometry;
@@ -3448,12 +3497,23 @@ public final class ExactSelectionController {
         } else if (event.button() == GLFW.GLFW_MOUSE_BUTTON_LEFT) {
             vertexOnClick = false;
             if (dirty || holding()) return true;
-            if ((event.modifiers() & (GLFW.GLFW_MOD_CONTROL | GLFW.GLFW_MOD_SUPER)) != 0
-                    && (polygonMode || state.geometry() instanceof PolygonGeometry
+            pressX = event.x(); pressY = event.y();
+            dragMoved = false;
+            boolean ctrl = (event.modifiers() & (GLFW.GLFW_MOD_CONTROL | GLFW.GLFW_MOD_SUPER)) != 0;
+            if (!ctrl && !twice && (polygonMode && !polygonDraft.isEmpty() || state.geometry() instanceof PolygonGeometry)) {
+                // Holding the button on a contour or polygon vertex drags it; without movement it stays a click, which
+                // closes a contour on its first vertex, or on a finished shape in contour mode starts a new one.
+                vertexOnClick = polygonMode;
+                beginVertexDrag(frame, event.x(), event.y());
+                if (holding()) return true;
+                vertexOnClick = false;
+            }
+            if (ctrl && (polygonMode || state.geometry() instanceof PolygonGeometry
                             || state.geometry() instanceof RectangleGeometry && state.phase() == SelectionState.Phase.SELECTED)) {
                 if (twice) deleteVertex(frame, event.x(), event.y());
                 else beginVertexDrag(frame, event.x(), event.y());
-                if (holding() || !(state.geometry() instanceof RectangleGeometry) || twice) return true;
+                // Away from a vertex the Polygon tool still adds one, Ctrl/Cmd held or not.
+                if (holding() || twice || !polygonMode && !(state.geometry() instanceof RectangleGeometry)) return true;
             }
             if (state.source() != null && state.geometry() instanceof RectangleGeometry rectangle
                     && state.phase() == SelectionState.Phase.SELECTED && polygonDraft.isEmpty() && !polygonMode) {
@@ -3479,6 +3539,16 @@ public final class ExactSelectionController {
                     return true;
                 }
             }
+            if (polygonMode && !polygonDraft.isEmpty() && !ctrl) {
+                // As on a finished shape: a click on a side of the contour only shows the controls, a double click
+                // adds a vertex there.
+                int edge = hitPolygonEdge(frame, polygonDraft, event.x(), event.y(), false);
+                if (edge >= 0) {
+                    if (twice) insertDraftPoint(frame, edge, event.x(), event.y());
+                    else message = tr("polygon_draft_controls").getString();
+                    return true;
+                }
+            }
             // In contour mode a press inside a finished shape may become a move; a click without movement still
             // adds the first vertex when the button is released.
             if (polygonMode && (!polygonDraft.isEmpty() || !insideBounds(frame, event.x(), event.y()))) {
@@ -3486,8 +3556,6 @@ public final class ExactSelectionController {
                 return true;
             }
             vertexOnClick = polygonMode;
-            pressX = event.x(); pressY = event.y();
-            dragMoved = false;
             try {
                 MapGesture.Handle handle = hitHandle(frame, event.x(), event.y());
                 int worldX = SelectionBounds.block(frame.worldX(event.x()));
@@ -3550,12 +3618,20 @@ public final class ExactSelectionController {
             MapBridge.Frame frame = checkedFrame();
             // A move or resize that barely left its press point is a click: the shape stays as it was (zoomed out, a
             // jitter of a pixel is many blocks), and in contour mode the click adds a vertex there.
-            boolean click = held instanceof MapGesture.Drag && !dragMoved
+            boolean click = clickable(held) && !dragMoved
                     && Math.hypot(event.x() - pressX, event.y() - pressY) < CLICK_SLOP;
             boolean vertex = click && vertexOnClick && polygonMode;
             vertexOnClick = false;
             if (click && frame != null) {
                 cancelGesture();
+                if (held instanceof MapGesture.VertexDrag drag) {
+                    message = "";
+                    // On a contour vertex a click only closes the contour on its first one.
+                    if (vertex && !polygonDraft.isEmpty()) {
+                        if (drag.index == 0 && polygonDraft.size() >= 3) finishPolygon();
+                        return true;
+                    }
+                }
                 if (vertex) addPolygonPoint(frame, event.x(), event.y());
                 return true;
             }

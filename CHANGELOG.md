@@ -5,6 +5,8 @@
 - Like a photo editor: dragging inside a finished selection moves it (handles and edges still resize, Shift still moves from anywhere). Size, Move and Center wait for a finished selection. The territory being edited is named above its frame on the map. A right click inside the selection opens quick actions: Save… and Clear selection, or Color…, Fill and Delete zone for an edited territory, each applied at once and undoable. A click outside a polygon starts a new selection, as it does for a rectangle.
 - Area and perimeter are copied rounded to whole blocks: down by default, or up or not at all (Rounding in the Areas window's gear settings).
 - Mod Menu opens the mod's settings: autosave and copy rounding. The mod has an icon.
+- Vertices of a contour or polygon are dragged with the left button alone (Ctrl/Cmd still works). While drawing a contour, a click on its side does nothing and shows the vertex controls, a double click there adds a vertex, and Ctrl/Cmd + click away from the vertices adds one instead of doing nothing. The vertex controls are shown when a contour starts.
+- The right-click menu looks like Xaero's own: a white frame, a title row and compact rows. In the expanded panel Save is above Apply; the expand/collapse chevrons are slightly smaller.
 - Search by name in the Areas window filters the list (case-insensitive); All checks only the found areas.
 - The Areas window lists all four corners of a rectangle by direction (NW, NE, SW, SE), each with a copy button, instead of A and B.
 - Clicking the color preview in the save window or in a zone's color window opens a full color picker (saturation and brightness square, hue bar); in the zone's color window Apply recolors it at once.

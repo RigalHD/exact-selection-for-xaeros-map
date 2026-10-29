@@ -79,7 +79,7 @@ def main():
     libs.mkdir(parents=True, exist_ok=True)
     dev_jar = build / 'named.jar'
     run(['jar', '--create', '--file', dev_jar, '-C', classes, '.'])
-    artifact = libs / f'xaero-exact-selection-{VERSION}.jar'
+    artifact = libs / f'exact-selection-for-xaeros-map-{VERSION}.jar'
     artifact.unlink(missing_ok=True)
     run([*remapper, '--mixin', dev_jar, artifact, mapping, 'named', 'intermediary', mc, *named.glob('*.jar'), *libraries])
     with zipfile.ZipFile(artifact) as z:

@@ -21,4 +21,22 @@ public final class AreaPalette {
     }
 
     public static String format(int color) { return String.format(Locale.ROOT, "#%06X", color & 0xFFFFFF); }
+
+    /** RGB from hue, saturation and brightness, each 0..1. */
+    public static int hsv(double h, double s, double v) {
+        double c = v * s, x = c * (1 - Math.abs(h * 6 % 2 - 1)), m = v - c;
+        int sector = (int) (h * 6) % 6;
+        double r = sector == 0 || sector == 5 ? c : sector == 1 || sector == 4 ? x : 0;
+        double g = sector == 1 || sector == 2 ? c : sector == 0 || sector == 3 ? x : 0;
+        double b = sector == 3 || sector == 4 ? c : sector == 2 || sector == 5 ? x : 0;
+        return (int) Math.round((r + m) * 255) << 16 | (int) Math.round((g + m) * 255) << 8 | (int) Math.round((b + m) * 255);
+    }
+
+    /** Hue, saturation and brightness (each 0..1) of an RGB color; grey has hue 0. */
+    public static double[] toHsv(int color) {
+        double r = (color >> 16 & 255) / 255.0, g = (color >> 8 & 255) / 255.0, b = (color & 255) / 255.0;
+        double max = Math.max(r, Math.max(g, b)), d = max - Math.min(r, Math.min(g, b));
+        double h = d == 0 ? 0 : max == r ? ((g - b) / d % 6 + 6) % 6 : max == g ? (b - r) / d + 2 : (r - g) / d + 4;
+        return new double[]{h / 6, max == 0 ? 0 : d / max, max};
+    }
 }

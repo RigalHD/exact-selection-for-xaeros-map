@@ -41,7 +41,18 @@ public final class SavedAreaStoreCheck {
             SavedAreaStore reloaded = new SavedAreaStore(directory);
             reloaded.useContext(context);
             require(reloaded.state().equals(saved), "Saved areas did not survive the failed write");
-            System.out.println("PASS: failed area writes keep the saved file and leave no temporary file");
+            // The names switch is saved; files written before it existed keep names shown.
+            SavedAreaStore.State hidden = new SavedAreaStore.State(saved.areas(), saved.groups(), true, false, false);
+            require(!SavedAreaStore.decode(SavedAreaStore.encode(hidden)).showNames(), "Hidden area names were not saved");
+            com.google.gson.JsonObject old = SavedAreaStore.encode(hidden);
+            old.remove("showNames");
+            require(SavedAreaStore.decode(old).showNames(), "An older area file lost its area names");
+            // An oversized exchange file is refused before it is read into memory (a sparse file, so nothing is written).
+            Path huge = directory.resolve("huge.json");
+            try (var sparse = new java.io.RandomAccessFile(huge.toFile(), "rw")) { sparse.setLength(AreaTransfer.MAX_FILE_BYTES + 1); }
+            try { AreaTransfer.read(huge); throw new AssertionError("An oversized area file was read"); }
+            catch (IOException expected) { require(expected.getMessage().contains("too large"), "Oversized file failed for another reason: " + expected); }
+            System.out.println("PASS: failed area writes keep the saved file and leave no temporary file; oversized imports are refused");
         } finally {
             try (var paths = Files.walk(directory)) {
                 for (Path path : paths.sorted(Comparator.reverseOrder()).toList()) Files.delete(path);

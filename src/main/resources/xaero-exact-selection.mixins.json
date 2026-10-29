@@ -5,7 +5,6 @@
   "client": [
     "GuiGraphicsMixin",
     "GuiMapMixin",
-    "MinimapOverlayMixin",
     "MapSaveLoadAccessor",
     "PNGExporterAccessor",
     "PNGExporterConfigMixin"

@@ -79,7 +79,11 @@ public final class IntegrationSmokeCheck {
     public static void main(String[] args) throws Exception {
         ClassLoader loader = new Knot(EnvType.CLIENT).init(new String[]{"--gameDir", args[0], "--version", "1.21.11"});
         Class<?> gui = Class.forName("xaero.map.gui.GuiMap", false, loader);
-        Class.forName("xaero.hud.minimap.element.render.over.MinimapElementOverMapRendererHandler", false, loader);
+        Class<?> minimapHandler = Class.forName("xaero.hud.minimap.element.render.over.MinimapElementOverMapRendererHandler", false, loader);
+        // The minimap mixin config is optional, so a failed injection would otherwise go unnoticed.
+        if (java.util.Arrays.stream(minimapHandler.getDeclaredMethods()).noneMatch(m -> m.getName().contains("exactselection$renderAreas")))
+            throw new AssertionError("Minimap area overlay was not injected");
+        System.out.println("PASS: minimap area overlay injected into the installed Xaero's Minimap");
         boolean bridge = java.util.Arrays.stream(gui.getInterfaces()).anyMatch(c -> c.getName().equals("dev.exactselection.MapBridge"));
         if (!bridge) throw new AssertionError("Selection mixin was not applied");
         Class<?> controller = Class.forName("dev.exactselection.ExactSelectionController", false, loader);
@@ -111,8 +115,9 @@ public final class IntegrationSmokeCheck {
             throw new AssertionError("Native Xaero export destination was not restored correctly");
         Class<?> exportService = Class.forName("dev.exactselection.AreaExportService", false, loader);
         if (java.util.Arrays.stream(exportService.getDeclaredMethods())
-                .noneMatch(m -> m.getName().equals("export") && m.getParameterCount() == 5))
-            throw new AssertionError("Map export still requires an independent output directory");
+                .noneMatch(m -> m.getName().equals("export") && m.getParameterCount() == 6
+                        && m.getParameterTypes()[5].getSimpleName().equals("Options")))
+            throw new AssertionError("Map export does not take the export window's options");
         System.out.println("PASS: native Xaero export destination access and restoration, including paths with spaces");
         Class.forName("dev.exactselection.AreaRenderPipelines", true, loader);
         checkGuiGeometry(loader);

@@ -98,8 +98,12 @@ public final class SavedAreaStore {
         }
     }
     public record Group(String id, String name, boolean visible) {}
-    public record State(List<Area> areas, List<Group> groups, boolean showOnMap, boolean showOnMinimap) {
+    /** {@code showNames}: names of saved areas on the World Map; files written before it existed show them. */
+    public record State(List<Area> areas, List<Group> groups, boolean showOnMap, boolean showOnMinimap, boolean showNames) {
         public State { areas = List.copyOf(areas); groups = List.copyOf(groups); }
+        public State(List<Area> areas, List<Group> groups, boolean showOnMap, boolean showOnMinimap) {
+            this(areas, groups, showOnMap, showOnMinimap, true);
+        }
         public State(List<Area> areas, List<Group> groups) { this(areas, groups, false, false); }
         public static State empty() { return new State(List.of(), List.of()); }
     }
@@ -113,6 +117,8 @@ public final class SavedAreaStore {
     private long loadedGeneration = -1;
 
     public SavedAreaStore(Path root) { this.root = root; }
+    /** The config directory the per-world area files live under. */
+    public Path root() { return root; }
     public State state() { return state; }
     public boolean loadFailed() { return loadFailed; }
 
@@ -140,11 +146,17 @@ public final class SavedAreaStore {
         if (file == null) throw new IOException("No active map context");
         if (loadFailed) throw new IOException("Saved areas were not loaded; refusing to overwrite them");
         validate(next);
-        JsonObject json = encode(next);
+        writeAtomically(file, encode(next).toString());
+        state = next;
+        loadedGeneration = GENERATIONS.merge(file, 1L, Long::sum);
+    }
+
+    /** Writes through a temporary file and a rename, so a failed write never leaves a half-written file. */
+    static void writeAtomically(Path file, String text) throws IOException {
         Files.createDirectories(file.getParent());
         Path temp = file.resolveSibling(file.getFileName() + ".tmp");
         try {
-            Files.writeString(temp, json.toString(), StandardCharsets.UTF_8);
+            Files.writeString(temp, text, StandardCharsets.UTF_8);
             try {
                 Files.move(temp, file, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
             } catch (AtomicMoveNotSupportedException e) {
@@ -153,8 +165,6 @@ public final class SavedAreaStore {
         } finally {
             Files.deleteIfExists(temp);
         }
-        state = next;
-        loadedGeneration = GENERATIONS.merge(file, 1L, Long::sum);
     }
 
     public static Area create(String name, SelectionBounds bounds, int color, int opacity, String groupId) {
@@ -178,11 +188,12 @@ public final class SavedAreaStore {
         catch (NoSuchAlgorithmException e) { throw new IllegalStateException(e); }
     }
 
-    private static JsonObject encode(State state) {
+    static JsonObject encode(State state) {
         JsonObject root = new JsonObject();
         root.addProperty("schema", 3);
         root.addProperty("showOnMap", state.showOnMap());
         root.addProperty("showOnMinimap", state.showOnMinimap());
+        root.addProperty("showNames", state.showNames());
         JsonArray areas = new JsonArray();
         for (Area a : state.areas()) {
             JsonObject o = new JsonObject();
@@ -217,7 +228,7 @@ public final class SavedAreaStore {
         return root;
     }
 
-    private static State decode(JsonObject root) {
+    static State decode(JsonObject root) {
         int schema = root.get("schema").getAsInt();
         if (schema < 1 || schema > 3) throw new IllegalArgumentException("Unsupported area file schema");
         List<Area> areas = new ArrayList<>();
@@ -265,7 +276,8 @@ public final class SavedAreaStore {
         }
         State state = new State(areas, groups,
                 schema >= 2 && root.has("showOnMap") && root.get("showOnMap").getAsBoolean(),
-                schema >= 2 && root.has("showOnMinimap") && root.get("showOnMinimap").getAsBoolean());
+                schema >= 2 && root.has("showOnMinimap") && root.get("showOnMinimap").getAsBoolean(),
+                !root.has("showNames") || root.get("showNames").getAsBoolean());
         try { validate(state); }
         catch (IOException e) { throw new IllegalArgumentException(e.getMessage(), e); }
         return state;

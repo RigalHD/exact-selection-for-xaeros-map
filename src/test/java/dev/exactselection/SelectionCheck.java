@@ -75,6 +75,28 @@ public final class SelectionCheck {
         state.reset(); assert state.source() == null;
         state.restore(linked); assert state.source().equals("saved-area");
         state.disable(); assert state.source() == null;
-        System.out.println("PASS: inclusive bounds, negative coordinates, long area, state transitions, map transforms");
+        // Xaero draws a waypoint in floor(coordinate / dimDiv), e.g. Overworld waypoints on a Nether map (dimDiv 8).
+        assert WaypointAccess.mapBlock(15, 1) == 15 && WaypointAccess.mapBlock(15, 8) == 1;
+        assert WaypointAccess.mapBlock(-1, 8) == -1 && WaypointAccess.mapBlock(-9, 8) == -2 && WaypointAccess.mapBlock(4, 0.125) == 32;
+        // A step that can no longer be undone (a waypoint removed elsewhere) must not block the older steps.
+        var history = new SelectionHistory();
+        int[] olderUndone = {0};
+        history.recordApplied(step(() -> olderUndone[0]++));
+        history.recordApplied(step(() -> { throw new IllegalStateException("Waypoint changed"); }));
+        try { history.undo(); throw new AssertionError("Failed undo was reported as done"); }
+        catch (Exception expected) { }
+        try { history.undo(); } catch (Exception e) { throw new AssertionError("Older step is blocked", e); }
+        assert olderUndone[0] == 1 && !history.canUndo() && history.canRedo();
+        System.out.println("PASS: inclusive bounds, negative coordinates, long area, state transitions, map transforms, failed history steps");
+    }
+
+    private interface Body { void run() throws Exception; }
+
+    private static SelectionHistory.Action step(Body undo) {
+        return new SelectionHistory.Action() {
+            @Override public void undo() throws Exception { undo.run(); }
+            @Override public void redo() { }
+            @Override public String label() { return "step"; }
+        };
     }
 }

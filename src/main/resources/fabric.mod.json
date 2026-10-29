@@ -2,29 +2,29 @@
   "schemaVersion": 1,
   "id": "xaero_exact_selection",
   "version": "${version}",
-  "name": "Xaero Exact Selection",
+  "name": "Exact Selection for Xaero's map",
   "description": "Precise rectangular and polygon selections, saved map areas, groups, and area export for Xaero's World Map.",
   "environment": "client",
   "license": "MIT",
+  "icon": "assets/xaero_exact_selection/icon.png",
+  "entrypoints": {
+    "modmenu": [
+      "dev.exactselection.ModMenuIntegration"
+    ]
+  },
   "mixins": [
-    "xaero-exact-selection.mixins.json"
+    "xaero-exact-selection.mixins.json",
+    "xaero-exact-selection-minimap.mixins.json"
   ],
   "depends": {
     "fabricloader": ">=0.17.3",
     "minecraft": "1.21.11",
     "java": ">=21",
     "fabric-api": ">=0.139.4",
-    "xaeroworldmap": "1.41.0",
-    "xaerolib": ">=1.1.15"
+    "xaeroworldmap": ">=1.40.4 <1.48.0"
   },
   "suggests": {
-    "xaerominimap": "26.1.0"
-  },
-  "breaks": {
-    "xaerominimap": [
-      "<26.1.0",
-      ">26.1.0"
-    ]
+    "xaerominimap": ">=25.3.5"
   },
   "authors": [
     "rigalshd"

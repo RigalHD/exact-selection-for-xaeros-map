@@ -28,15 +28,38 @@ public final class MinimapAreaOverlay {
     private static final class StoreHolder {
         private static final SavedAreaStore STORE = new SavedAreaStore(FabricLoader.getInstance().getConfigDir());
     }
-    private static boolean loadErrorLogged;
+    private static boolean loadErrorLogged, drawErrorLogged;
 
     record Point(double x, double y) {}
+    private record Vertex(Point point, int color) {}
     private record Projected(SavedAreaStore.Area area, List<Point> corners, List<List<Point>> triangles) {}
 
     private MinimapAreaOverlay() {}
 
+    private static boolean unsupported;
+
+    /** Draws saved areas on the minimap; an unsupported Minimap version turns the overlay off instead of crashing. */
     public static void render(Object handler, Object centerObject, Object dimensionObject, double zoom,
                               double ps, double pc, int halfViewW, int halfViewH, boolean circle) {
+        if (unsupported) return;
+        try {
+            renderAreas(handler, centerObject, dimensionObject, zoom, ps, pc, halfViewW, halfViewH, circle);
+        } catch (LinkageError error) {
+            unsupported = true;
+            LoggerFactory.getLogger("Exact Selection for Xaero's map")
+                    .warn("This Xaero's Minimap version is not supported; areas are not drawn on the minimap", error);
+        } catch (RuntimeException error) {
+            // Skip this frame rather than break the minimap; the error may be passing, so the overlay stays on.
+            if (!drawErrorLogged) {
+                drawErrorLogged = true;
+                LoggerFactory.getLogger("Exact Selection for Xaero's map")
+                        .warn("Could not draw saved areas on the minimap", error);
+            }
+        }
+    }
+
+    private static void renderAreas(Object handler, Object centerObject, Object dimensionObject, double zoom,
+                                    double ps, double pc, int halfViewW, int halfViewH, boolean circle) {
         if (!(centerObject instanceof Vec3 center) || !(dimensionObject instanceof ResourceKey<?> rawDimension)) return;
         WorldMapSession mapSession = WorldMapSession.getCurrentSession();
         if (mapSession == null) return;
@@ -54,7 +77,7 @@ public final class MinimapAreaOverlay {
             loadErrorLogged = false;
         } catch (IOException e) {
             if (!loadErrorLogged) {
-                LoggerFactory.getLogger("xaero-exact-selection").error("Could not load saved areas for the minimap", e);
+                LoggerFactory.getLogger("Exact Selection for Xaero's map").error("Could not load saved areas for the minimap", e);
                 loadErrorLogged = true;
             }
             return;
@@ -125,7 +148,7 @@ public final class MinimapAreaOverlay {
 
     private static void drawFills(MinimapElementGraphics graphics, Matrix4f matrix, List<Point> viewport,
                                   List<Projected> areas) {
-        BufferBuilder builder = null;
+        List<Vertex> vertices = new ArrayList<>();
         for (Projected projected : areas) {
             int alpha = projected.area().opacity() * 255 / 100;
             if (alpha == 0) continue;
@@ -133,21 +156,19 @@ public final class MinimapAreaOverlay {
             for (List<Point> triangle : projected.triangles()) {
                 List<Point> clipped = clipPolygon(triangle, viewport);
                 if (clipped.size() < 3) continue;
-                if (builder == null) builder = Tesselator.getInstance().begin(VertexFormat.Mode.TRIANGLES,
-                        DefaultVertexFormat.POSITION_COLOR);
                 Point origin = clipped.get(0);
                 for (int i = 1; i < clipped.size() - 1; i++) {
-                    vertex(builder, matrix, origin, color);
-                    vertex(builder, matrix, clipped.get(i), color);
-                    vertex(builder, matrix, clipped.get(i + 1), color);
+                    vertices.add(new Vertex(origin, color));
+                    vertices.add(new Vertex(clipped.get(i), color));
+                    vertices.add(new Vertex(clipped.get(i + 1), color));
                 }
             }
         }
-        draw(builder);
+        draw(matrix, vertices);
     }
 
     private static void drawOutlines(Matrix4f matrix, List<Point> viewport, List<Projected> areas) {
-        BufferBuilder builder = null;
+        List<Vertex> vertices = new ArrayList<>();
         for (Projected projected : areas) {
             int color = 0xFF000000 | (projected.area().color() & 0xFFFFFF);
             List<Point> corners = projected.corners();
@@ -158,24 +179,25 @@ public final class MinimapAreaOverlay {
                 double dy = clipped[1].y() - clipped[0].y();
                 double length = Math.hypot(dx, dy);
                 if (length < 0.01) continue;
-                double nx = -dy / length * 0.75;
-                double ny = dx / length * 0.75;
-                if (builder == null) builder = Tesselator.getInstance().begin(VertexFormat.Mode.TRIANGLES,
-                        DefaultVertexFormat.POSITION_COLOR);
-                addQuad(builder, matrix, clipped[0], clipped[1], nx, ny, color);
+                // A solid core with sides fading out over a minimap pixel, so diagonal sides are smooth, not stepped.
+                double nx = -dy / length, ny = dx / length;
+                int clear = color & 0x00FFFFFF;
+                band(vertices, clipped[0], clipped[1], nx, ny, -0.25, 0.25, color, color);
+                band(vertices, clipped[0], clipped[1], nx, ny, 0.25, 1.25, color, clear);
+                band(vertices, clipped[0], clipped[1], nx, ny, -1.25, -0.25, clear, color);
             }
         }
-        draw(builder);
+        draw(matrix, vertices);
     }
 
-    private static void addQuad(BufferBuilder builder, Matrix4f matrix, Point a, Point b,
-                                double nx, double ny, int color) {
-        Point a1 = new Point(a.x() + nx, a.y() + ny);
-        Point a2 = new Point(a.x() - nx, a.y() - ny);
-        Point b1 = new Point(b.x() + nx, b.y() + ny);
-        Point b2 = new Point(b.x() - nx, b.y() - ny);
-        vertex(builder, matrix, a1, color); vertex(builder, matrix, a2, color); vertex(builder, matrix, b2, color);
-        vertex(builder, matrix, a1, color); vertex(builder, matrix, b2, color); vertex(builder, matrix, b1, color);
+    /** The part of segment a–b between offsets {@code from} and {@code to} along its normal, colored across it. */
+    private static void band(List<Vertex> vertices, Point a, Point b, double nx, double ny,
+                             double from, double to, int fromColor, int toColor) {
+        Vertex a1 = new Vertex(new Point(a.x() + nx * from, a.y() + ny * from), fromColor);
+        Vertex a2 = new Vertex(new Point(a.x() + nx * to, a.y() + ny * to), toColor);
+        Vertex b1 = new Vertex(new Point(b.x() + nx * from, b.y() + ny * from), fromColor);
+        Vertex b2 = new Vertex(new Point(b.x() + nx * to, b.y() + ny * to), toColor);
+        vertices.addAll(List.of(a1, a2, b2, a1, b2, b1));
     }
 
     static List<Point> clipPolygon(List<Point> subject, List<Point> clip) {
@@ -239,12 +261,16 @@ public final class MinimapAreaOverlay {
         return area / 2.0;
     }
 
-    private static void vertex(BufferBuilder builder, Matrix4f matrix, Point point, int color) {
-        builder.addVertex(matrix, (float) point.x(), (float) point.y(), 0).setColor(color);
-    }
-
-    private static void draw(BufferBuilder builder) {
-        if (builder == null) return;
+    /**
+     * Writes the vertices into Minecraft's shared buffer and draws them in one step: everything that can fail is
+     * computed beforehand, so an error never leaves a half-written buffer for the next draw (the minimap's own).
+     */
+    private static void draw(Matrix4f matrix, List<Vertex> vertices) {
+        if (vertices.isEmpty()) return;
+        BufferBuilder builder = Tesselator.getInstance()
+                .begin(VertexFormat.Mode.TRIANGLES, DefaultVertexFormat.POSITION_COLOR);
+        for (Vertex vertex : vertices)
+            builder.addVertex(matrix, (float) vertex.point().x(), (float) vertex.point().y(), 0).setColor(vertex.color());
         MeshData mesh = builder.build();
         if (mesh != null) ImmediateRenderUtil.drawImmediateMeshData(mesh, AreaRenderPipelines.COLOR,
                 ImmediateRenderUtil.NO_TEXTURES);

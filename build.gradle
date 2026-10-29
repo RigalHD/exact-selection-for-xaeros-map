@@ -1,17 +1,19 @@
 plugins {
     id 'net.fabricmc.fabric-loom-remap' version '1.17.20'
 }
-version = '1.3.0+1.21.11'
+version = '1.3.3+1.21.11'
 group = 'dev.exactselection'
 repositories {
     mavenCentral()
     maven { url = 'https://chocolateminecraft.com/maven' }
+    maven { url = 'https://maven.terraformersmc.com/releases' }
 }
 dependencies {
     minecraft 'com.mojang:minecraft:1.21.11'
     mappings loom.officialMojangMappings()
     modImplementation 'net.fabricmc:fabric-loader:0.19.5'
     modImplementation 'net.fabricmc.fabric-api:fabric-api:0.141.6+1.21.11'
+    modCompileOnly 'com.terraformersmc:modmenu:17.0.1'
     if (project.hasProperty('xaeroDeps')) {
         modImplementation fileTree(dir: project.property('xaeroDeps'), include: '*.jar')
     } else {

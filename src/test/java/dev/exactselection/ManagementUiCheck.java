@@ -7,10 +7,13 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
+import java.util.Deque;
 import java.util.Set;
 import net.minecraft.SharedConstants;
 import com.mojang.blaze3d.platform.Window;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.KeyboardHandler;
 import net.minecraft.client.MouseHandler;
 import net.minecraft.client.StringSplitter;
 import net.minecraft.client.gui.Font;
@@ -45,6 +48,12 @@ public final class ManagementUiCheck {
             return backwards ? text.substring(text.length() - length) : text.substring(0, length);
         }
         @Override public StringSplitter getSplitter() { return widths; }
+    }
+
+    private static final class ClipboardKeyboard extends KeyboardHandler {
+        String copied;
+        private ClipboardKeyboard() { super(null); }
+        @Override public void setClipboard(String text) { copied = text; }
     }
 
     private record DrawEvent(String text, int stratum) {}
@@ -95,6 +104,18 @@ public final class ManagementUiCheck {
         return method.invoke(object);
     }
 
+    private static Object call(Object object, String name, int value) throws Exception {
+        Method method = object.getClass().getDeclaredMethod(name, int.class);
+        method.setAccessible(true);
+        return method.invoke(object, value);
+    }
+
+    private static Object call(Object object, String name, int a, int b, int c) throws Exception {
+        Method method = object.getClass().getDeclaredMethod(name, int.class, int.class, int.class);
+        method.setAccessible(true);
+        return method.invoke(object, a, b, c);
+    }
+
     private static Object call(Object object, String name, boolean value) throws Exception {
         Method method = object.getClass().getDeclaredMethod(name, boolean.class);
         method.setAccessible(true);
@@ -102,7 +123,10 @@ public final class ManagementUiCheck {
     }
 
     private static void press(ExactSelectionController controller, String name) throws Exception {
-        Button button = (Button) get(controller, name);
+        press(controller, (Button) get(controller, name), name);
+    }
+
+    private static void press(ExactSelectionController controller, Button button, String name) throws Exception {
         require(button.visible && button.active, "Button is unavailable: " + name + ", window=" + get(controller, "dialog"));
         button.onPress(new KeyEvent(GLFW.GLFW_KEY_ENTER, 0, 0));
         call(controller, "layoutDialog");
@@ -133,6 +157,20 @@ public final class ManagementUiCheck {
         controller.mouseClicked(new MouseButtonEvent(rect[0] + (checkbox ? 17 : 54), rect[1] + 54 + index * 20,
                 new MouseButtonInfo(GLFW.GLFW_MOUSE_BUTTON_LEFT, 0)), false);
         call(controller, "layoutDialog");
+    }
+
+    /** Checks only {@code id} in the open Areas window, as a click on its row name would. */
+    private static void pick(ExactSelectionController controller, SavedAreaStore store, String id) throws Exception {
+        List<SavedAreaStore.Area> areas = store.state().areas();
+        for (int i = 0; i < areas.size(); i++) if (areas.get(i).id().equals(id)) { row(controller, i, false); return; }
+        throw new AssertionError("No area " + id);
+    }
+
+    /** Legacy flows expect immediate writes: autosave every property except the territory shape. */
+    private static void autosaveProperties(ExactSelectionController controller) throws Exception {
+        AutosaveSettings autosave = (AutosaveSettings) get(controller, "autosave");
+        if (!autosave.enabled()) autosave.setEnabled(true);
+        if (autosave.includes(AutosaveSettings.Field.GEOMETRY)) autosave.toggle(AutosaveSettings.Field.GEOMETRY);
     }
 
     private static void checkLayout(ExactSelectionController controller) throws Exception {
@@ -172,7 +210,8 @@ public final class ManagementUiCheck {
                 require(widget.getX() >= other.getX() + other.getWidth()
                         || widget.getX() + widget.getWidth() <= other.getX()
                         || widget.getY() >= other.getY() + other.getHeight()
-                        || widget.getY() + widget.getHeight() <= other.getY(), "Main panel widgets overlap");
+                        || widget.getY() + widget.getHeight() <= other.getY(), "Main panel widgets overlap: "
+                        + widget.getMessage().getString() + " " + widget.getRectangle() + " / " + other.getMessage().getString() + " " + other.getRectangle());
             }
         }
     }
@@ -180,6 +219,23 @@ public final class ManagementUiCheck {
     private static Object uncheckedGet(Object object, String name) {
         try { return get(object, name); }
         catch (Exception e) { throw new AssertionError(e); }
+    }
+
+    private static void checkHintFitting(ExactSelectionController controller) throws Exception {
+        Method fit = ExactSelectionController.class.getDeclaredMethod("fitHint", String.class, int.class);
+        fit.setAccessible(true);
+        String hint = "Ctrl/Cmd: двигать вершины · Двойной ЛКМ по стороне: добавить · Ctrl/Cmd+двойной ЛКМ: удалить";
+        require(fit.invoke(controller, hint, 240).equals("Ctrl/Cmd: двигать вершины"), "Panel hint cut a word instead of dropping whole hints");
+        require(fit.invoke(controller, hint, 404).equals("Ctrl/Cmd: двигать вершины · Двойной ЛКМ по стороне: добавить"),
+                "Expanded panel hint did not keep every whole hint that fits");
+        String narrow = (String) fit.invoke(controller, hint, 60);
+        require(narrow.endsWith("…") && narrow.length() * 6 <= 60, "Overlong single hint is not shortened with an ellipsis");
+        Button save = (Button) get(controller, "quickSave"), mode = (Button) get(controller, "panelModeButton");
+        // The hint line is drawn at PANEL_Y + 22 with 9-pixel text; buttons must stay clear of it.
+        require(mode.getY() + mode.getHeight() <= 26 + 22 && save.getY() == mode.getY()
+                        && save.getY() + save.getHeight() <= 26 + 22 && save.getX() + save.getWidth() < mode.getX(),
+                "Save is not beside the mode button above the hint line");
+        System.out.println("PASS: panel hints keep whole phrases and stay clear of the header buttons");
     }
 
     private static void checkSelectionPanel(ExactSelectionController controller, GuiMap map) throws Exception {
@@ -246,6 +302,20 @@ public final class ManagementUiCheck {
         Files.write(first, new byte[]{1});
         completed.invoke(controller, new AreaExportService.Result(first, 100, 200));
         require(open.visible && open.active, "Successful export did not show the file button");
+        // The bottom toast hides after a while, but the file button stays until another message replaces the notice.
+        Method toast = ExactSelectionController.class.getDeclaredMethod("renderToast", net.minecraft.client.gui.GuiGraphics.class);
+        toast.setAccessible(true);
+        set(controller, "toastText", get(controller, "message"));
+        set(controller, "toastShownAt", net.minecraft.util.Util.getMillis() - 7000);
+        toast.invoke(controller, (Object) null);
+        call(controller, "updateVisibility");
+        require(open.visible, "The file button disappeared with the toast");
+        Object notice = get(controller, "message");
+        set(controller, "message", "x"); set(controller, "toastText", "x");
+        set(controller, "toastShownAt", net.minecraft.util.Util.getMillis() - 7000);
+        toast.invoke(controller, (Object) null);
+        require(get(controller, "message").equals(""), "An expired ordinary message was kept");
+        set(controller, "message", notice); call(controller, "updateVisibility");
         require(get(controller, "lastExport").equals(first.toAbsolutePath()), "Wrong file attached to the export button");
         require(!get(controller, "message").toString().contains(directory.toString()), "Full export path leaked into panel text");
         checkMainLayout(controller, map);
@@ -292,6 +362,10 @@ public final class ManagementUiCheck {
 
     private static MouseButtonEvent left(int x, int y, int modifiers) {
         return new MouseButtonEvent(x, y, new MouseButtonInfo(GLFW.GLFW_MOUSE_BUTTON_LEFT, modifiers));
+    }
+
+    private static MouseButtonEvent right(int x, int y) {
+        return new MouseButtonEvent(x, y, new MouseButtonInfo(GLFW.GLFW_MOUSE_BUTTON_RIGHT, 0));
     }
 
     private static void clickMap(ExactSelectionController controller, int x, int y, int modifiers) {
@@ -344,7 +418,36 @@ public final class ManagementUiCheck {
         key(controller, GLFW.GLFW_KEY_Z, GLFW.GLFW_MOD_SUPER);
         require(draft.equals(beforeCancel), "Undo did not restore the removed vertex");
         clickMap(controller, 620, 320, GLFW.GLFW_MOD_CONTROL);
-        require(draft.equals(beforeCancel), "Ctrl click away from a vertex added an unintended point");
+        require(draft.size() == 5 && draft.getLast().equals(new GridPoint(300, 140)), "Ctrl click away from a vertex added no point");
+        key(controller, GLFW.GLFW_KEY_Z, GLFW.GLFW_MOD_CONTROL);
+        // As on a finished shape: a click on a side only shows the controls, a double click adds a vertex on it.
+        clickMap(controller, 480, 260, 0);
+        require(draft.equals(beforeCancel), "A click on a contour side added a vertex");
+        controller.mouseClicked(left(480, 260, 0), true); controller.mouseReleased(left(480, 260, 0));
+        require(draft.size() == 5 && draft.get(3).equals(new GridPoint(160, 80)), "A double click on a contour side added no vertex on it: " + draft);
+        clickMap(controller, 480, 260, GLFW.GLFW_MOD_SUPER);
+        controller.mouseClicked(left(480, 260, GLFW.GLFW_MOD_SUPER), true); controller.mouseReleased(left(480, 260, GLFW.GLFW_MOD_SUPER));
+        require(draft.equals(beforeCancel), "Cmd+double click did not delete the contour vertex: " + draft);
+        // A double click Minecraft did not report (a slow frame between the presses) still deletes the vertex.
+        clickMap(controller, 480, 260, 0);
+        controller.mouseClicked(left(480, 260, 0), true); controller.mouseReleased(left(480, 260, 0));
+        clickMap(controller, 480, 260, GLFW.GLFW_MOD_SUPER);
+        clickMap(controller, 480, 260, GLFW.GLFW_MOD_SUPER);
+        require(draft.equals(beforeCancel), "Two quick Cmd clicks on a contour vertex did not delete it: " + draft);
+        clickMap(controller, 480, 260, 0);
+        clickMap(controller, 480, 260, 0);
+        require(draft.size() == 5 && draft.get(3).equals(new GridPoint(160, 80)), "Two quick clicks on a contour side added no vertex: " + draft);
+        key(controller, GLFW.GLFW_KEY_Z, GLFW.GLFW_MOD_CONTROL);
+        // The left button alone drags a vertex; a click on one without movement leaves it.
+        controller.mouseClicked(left(560, 260, 0), false);
+        controller.beforeRender(570, 270);
+        controller.mouseReleased(left(570, 270, 0));
+        require(draft.size() == 4 && draft.get(2).equals(new GridPoint(250, 90)), "A plain drag did not move the contour vertex: " + draft);
+        key(controller, GLFW.GLFW_KEY_Z, GLFW.GLFW_MOD_CONTROL);
+        controller.mouseClicked(left(560, 260, 0), false);
+        controller.beforeRender(561, 261);
+        controller.mouseReleased(left(561, 261, 0));
+        require(draft.equals(beforeCancel), "A jittery click on a contour vertex moved it or added a point: " + draft);
         clickMap(controller, 420, 80, 0);
         require(selection.phase() == SelectionState.Phase.SELECTED && selection.geometry() instanceof PolygonGeometry,
                 "Clicking the first vertex did not create a complete polygon area");
@@ -388,6 +491,43 @@ public final class ManagementUiCheck {
         key(controller, GLFW.GLFW_KEY_Z, GLFW.GLFW_MOD_SUPER | GLFW.GLFW_MOD_SHIFT);
         require(selection.geometry().equals(moved.translated(20, 20)), "Cmd+Shift+Z did not redo the whole-polygon move");
         key(controller, GLFW.GLFW_KEY_Z, GLFW.GLFW_MOD_SUPER);
+        // In contour mode a plain drag inside moves the shape too; a click without movement starts a new contour.
+        controller.mouseClicked(left(480, 160, 0), false);
+        controller.beforeRender(500, 180);
+        controller.mouseReleased(left(500, 180, 0));
+        require(selection.geometry().equals(moved.translated(20, 20)), "A plain drag inside a polygon in contour mode did not move it");
+        key(controller, GLFW.GLFW_KEY_Z, GLFW.GLFW_MOD_SUPER);
+        require(selection.geometry().equals(moved), "Undo did not restore the dragged polygon");
+        controller.mouseClicked(left(480, 160, 0), false);
+        controller.beforeRender(481, 161);
+        controller.mouseReleased(left(481, 161, 0));
+        require(((List<?>) get(controller, "polygonDraft")).size() == 1, "A click inside a polygon in contour mode did not add a vertex");
+        require(((SelectionState.Snapshot) get(controller, "polygonBefore")).geometry().equals(moved),
+                "A jittery click in contour mode also moved the polygon");
+        key(controller, GLFW.GLFW_KEY_Z, GLFW.GLFW_MOD_CONTROL);
+        require(((List<?>) get(controller, "polygonDraft")).isEmpty() && selection.geometry().equals(moved),
+                "Undo did not drop the new contour and bring the polygon back");
+        // As when editing, with the Polygon tool on a click on a side of the closed contour (outside or just inside)
+        // keeps it and starts nothing, and a double click adds a vertex on that side.
+        MapBridge.Frame frame = (MapBridge.Frame) call(controller, "checkedFrame");
+        Method inside = ExactSelectionController.class.getDeclaredMethod("insideBounds", MapBridge.Frame.class, double.class, double.class);
+        inside.setAccessible(true);
+        GridPoint sideStart = moved.vertices().get(0), sideEnd = moved.vertices().get(1);
+        int mx = (int) Math.round((frame.screenX(sideStart.x()) + frame.screenX(sideEnd.x())) / 2);
+        int my = (int) Math.round((frame.screenY(sideStart.z()) + frame.screenY(sideEnd.z())) / 2);
+        int[] outside = (Boolean) inside.invoke(controller, frame, mx, my - 4.0) ? new int[]{mx, my + 4} : new int[]{mx, my - 4};
+        int[] insideSide = {outside[0], 2 * my - outside[1]};
+        for (int[] at : new int[][]{outside, insideSide}) {
+            clickMap(controller, at[0], at[1], 0);
+            require(draft.isEmpty() && selection.geometry().equals(moved), "A click on a side of the closed contour started a new one");
+            set(controller, "clickAt", 0L);
+        }
+        clickMap(controller, insideSide[0], insideSide[1], 0);
+        clickMap(controller, insideSide[0], insideSide[1], 0);
+        require(draft.isEmpty() && selection.geometry().vertices().size() == moved.vertices().size() + 1,
+                "A double click on a side of the closed contour added no vertex");
+        key(controller, GLFW.GLFW_KEY_Z, GLFW.GLFW_MOD_CONTROL);
+        require(selection.geometry().equals(moved), "Undo did not remove the vertex added on the side: " + selection.geometry());
         controller.mouseClicked(left(590, 90, GLFW.GLFW_MOD_CONTROL), false);
         controller.beforeRender(620, 110);
         key(controller, GLFW.GLFW_KEY_ESCAPE, 0);
@@ -443,14 +583,13 @@ public final class ManagementUiCheck {
                 new GridPoint(240, 80), new GridPoint(80, 80)));
         SavedAreaStore.Area area = SavedAreaStore.create("Editable polygon", polygon, 0xAABBCC, 35, "polygon-group");
         store.replace(new SavedAreaStore.State(List.of(area), List.of(new SavedAreaStore.Group("polygon-group", "Group", false)), true, true));
-        set(controller, "areaId", area.id());
-        press(controller, "areasButton"); press(controller, "areaLoad");
+        press(controller, "areasButton"); pick(controller, store, area.id()); press(controller, "areaLoad");
         require(selection.geometry().equals(polygon) && !(Boolean) get(controller, "polygonMode"),
                 "Loading a polygon did not enter safe editing mode");
         clickMap(controller, 400, 60, 0); clickMap(controller, 402, 61, 0);
-        clickMap(controller, 480, 160, 0); doubleClickMap(controller, 620, 320, 0);
+        clickMap(controller, 480, 160, 0); doubleClickMap(controller, 480, 160, 0);
         require(selection.geometry().equals(polygon) && selection.phase() == SelectionState.Phase.SELECTED,
-                "Ordinary editing clicks replaced a saved polygon with a small rectangle");
+                "Clicks on a vertex or inside replaced a saved polygon with a small rectangle");
         call(controller, "applyFields");
         require(selection.geometry().equals(polygon) && !((Button) get(controller, "apply")).active,
                 "Applying rectangle coordinates destroyed a polygon");
@@ -478,21 +617,24 @@ public final class ManagementUiCheck {
         require(reload.state().equals(store.state()), "Updated vertices with unchanged bounds were not persisted");
         press(controller, "areasButton"); press(controller, "managementUndo");
         require(store.state().areas().get(0).equals(area), "Geometry update undo did not restore the saved polygon");
-        press(controller, "managementRedo"); press(controller, "areaLoad");
+        press(controller, "managementRedo"); pick(controller, store, area.id());
+        Button edit = (Button) get(controller, "areaLoad");
+        require(!edit.active && edit.getMessage().getString().equals(Component.translatable("exactselection.area_editing_now").getString()),
+                "The territory being edited can be loaded again instead of showing that it is being edited");
+        press(controller, "managementClose");
         controller.mouseClicked(left(480, 60, GLFW.GLFW_MOD_SUPER), false);
         controller.mouseReleased(left(480, 40, GLFW.GLFW_MOD_SUPER));
         PolygonGeometry moved = (PolygonGeometry) selection.geometry();
         require(moved.vertices().get(1).equals(new GridPoint(160, -140)), "Inserted vertex cannot be moved with Cmd");
         press(controller, "quickSave");
         require(store.state().areas().get(0).equals(area.withGeometry(moved)), "Moved inserted vertex did not update saved geometry");
-        press(controller, "areasButton"); press(controller, "areaLoad");
         doubleClickMap(controller, 400, 160, 0);
         PolygonGeometry closing = (PolygonGeometry) selection.geometry();
         require(closing.vertices().size() == 6 && closing.vertices().getLast().equals(new GridPoint(80, -20)),
                 "Double click did not insert into the closing side");
         doubleClickMap(controller, 400, 160, 0);
         require(selection.geometry().equals(closing), "Double click on an existing vertex created a duplicate");
-        press(controller, "clear"); press(controller, "polygonModeButton");
+        call(controller, "reset"); press(controller, "polygonModeButton");
         clickMap(controller, 400, 60, 0);
         key(controller, GLFW.GLFW_KEY_LEFT_SHIFT, GLFW.GLFW_MOD_SHIFT);
         controller.beforeRender(550, 85);
@@ -559,6 +701,17 @@ public final class ManagementUiCheck {
                 }
                 require(selection.snapshot().equals(before), "Rendering labels changed the active selection");
             }
+            // Names off: the areas are still drawn, without a single label.
+            store.replace(new SavedAreaStore.State(List.of(area, overlapping), List.of(), true, true, false));
+            RecordingGraphics graphics = (RecordingGraphics) unsafe.allocateInstance(RecordingGraphics.class);
+            graphics.events = new ArrayList<>();
+            graphics.transform = new Matrix3x2fStack(16);
+            graphics.state = new GuiRenderState();
+            controller.renderMapOverlays(graphics, 600, 330);
+            List<GuiElementRenderState> draws = new ArrayList<>();
+            graphics.state.forEachElement(draws::add, GuiRenderState.TraverseRange.ALL);
+            require(draws.size() == 4 && graphics.events.stream().noneMatch(event -> event.text() != null),
+                    "Hidden area names were still drawn, or the areas vanished with them");
         }
         selection.disable();
         for (SavedAreaStore.Area area : List.of(
@@ -620,6 +773,40 @@ public final class ManagementUiCheck {
         require(selection.bounds().equals(new SelectionBounds(80, 80, 249, 239)),
                 "The resize release coordinate was not applied");
 
+        // Like a photo editor: a plain drag inside moves the selection; a click inside without moving keeps it.
+        selection.set(new SelectionBounds(80, 80, 239, 239));
+        controller.mouseClicked(left(450, 300, 0), false);
+        controller.mouseReleased(left(480, 300, 0));
+        require(selection.bounds().equals(new SelectionBounds(110, 80, 269, 239)), "A plain drag inside did not move the selection");
+        controller.mouseClicked(left(450, 300, 0), false);
+        controller.mouseReleased(left(450, 300, 0));
+        require(selection.phase() == SelectionState.Phase.SELECTED && selection.bounds().equals(new SelectionBounds(110, 80, 269, 239)),
+                "A click inside the selection started a new one");
+        // A click whose pointer jitters a pixel or two is still a click (zoomed out, a pixel is many blocks).
+        controller.mouseClicked(left(450, 300, 0), false);
+        controller.beforeRender(452, 301);
+        require(selection.bounds().equals(new SelectionBounds(110, 80, 269, 239)), "A held jittery click moved the selection");
+        controller.mouseReleased(left(452, 301, 0));
+        require(selection.bounds().equals(new SelectionBounds(110, 80, 269, 239)), "A 2-pixel jitter moved the selection: " + selection.bounds());
+        controller.mouseClicked(left(586, 340, 0), false);
+        controller.beforeRender(588, 341);
+        controller.mouseReleased(left(588, 341, 0));
+        require(selection.bounds().equals(new SelectionBounds(110, 80, 269, 239)), "A 2-pixel jitter on a handle resized the selection: " + selection.bounds());
+        // In contour mode a click on a handle still starts a contour instead of resizing.
+        set(controller, "polygonMode", true);
+        controller.mouseClicked(left(586, 340, 0), false);
+        controller.mouseReleased(left(586, 340, 0));
+        require(((List<?>) get(controller, "polygonDraft")).size() == 1 && selection.bounds().equals(new SelectionBounds(110, 80, 269, 239)),
+                "A click on a handle in contour mode did not add a vertex or changed the frame");
+        key(controller, GLFW.GLFW_KEY_ESCAPE, 0);
+        require(!(Boolean) get(controller, "polygonMode"), "Esc did not leave contour mode");
+        selection.set(new SelectionBounds(110, 80, 269, 239));
+        selection.reset(); call(controller, "updateVisibility");
+        for (String name : List.of("sizeButton", "moveButton", "centerButton"))
+            require(!((Button) get(controller, name)).active, name + " works without a selection");
+        selection.set(new SelectionBounds(80, 80, 239, 239)); call(controller, "updateVisibility");
+        require(((Button) get(controller, "moveButton")).active, "Move is unavailable for a finished selection");
+
         selection.enable();
         set(controller, "chunks", true);
         clickMap(controller, 500, 260, 0);
@@ -641,6 +828,25 @@ public final class ManagementUiCheck {
         controller.mouseReleased(left(431, 270, GLFW.GLFW_MOD_SHIFT));
         require(selection.geometry().equals(polygon.translated(21, 0)),
                 "Rectangle chunk snapping leaked into polygon movement");
+        // A press just inside an edge moves the shape too; only double clicks and presses outside act on the side.
+        MapBridge.Frame frame = (MapBridge.Frame) call(controller, "checkedFrame");
+        for (String source : new String[]{null, "edited-rectangle"}) {
+            AreaGeometry shape = source == null ? polygon : new RectangleGeometry(new SelectionBounds(80, 80, 119, 119));
+            selection.load(shape, source);
+            // Mid-side: a press on a polygon vertex drags that vertex instead.
+            int px = (int) Math.round(frame.screenX(80)) + 3, py = (int) Math.round(frame.screenY(90));
+            controller.mouseClicked(left(px, py, 0), false);
+            controller.beforeRender(px + 20, py);
+            controller.mouseReleased(left(px + 20, py, 0));
+            require(!selection.geometry().equals(shape) && selection.geometry().bounds().minX() > 80,
+                    "A press near the edge did not move " + shape + ": " + selection.geometry());
+        }
+        selection.load(polygon, null);
+        // Outside a loaded polygon a click starts a new selection, which no longer edits the saved area.
+        selection.load(polygon, "loaded-area");
+        clickMap(controller, 600, 350, 0); clickMap(controller, 640, 390, 0);
+        require(selection.phase() == SelectionState.Phase.SELECTED && selection.geometry() instanceof RectangleGeometry
+                && selection.source() == null, "A click outside a loaded polygon did not start a new selection: " + selection.snapshot());
 
         set(controller, "sizeFromCenter", true);
         set(controller, "moveInChunks", true);
@@ -770,10 +976,47 @@ public final class ManagementUiCheck {
             store.replace(new SavedAreaStore.State(saved.areas(), groups, true, true));
             press(controller, "newAreaGroup");
             require(get(controller, "newAreaGroupId").equals("release-group"), "New-area group button did not choose the group");
+            press(controller, "newAreaOpacityButton");
+            require((Integer) get(controller, "newAreaOpacity") == 50, "New-area fill did not advance from 25% to 50%");
+            int[] nameRect = (int[]) call(controller, "dialogRect");
+            int sample = (Integer) call(controller, "colorSampleWidth", nameRect[2]);
+            EditBox nameField = ((EditBox[]) get(controller, "dialogFields"))[8];
+            EditBox hexField = ((EditBox[]) get(controller, "dialogFields"))[10];
+            int first = (Integer) call(controller, "swatchX", nameRect[0], nameRect[2], 0);
+            int last = (Integer) call(controller, "swatchX", nameRect[0], nameRect[2], AreaPalette.COLUMNS - 1) + sample;
+            int fieldEnd = nameField.getX() + nameField.getWidth();
+            require(first >= nameField.getX() && last <= fieldEnd
+                    && Math.abs((first - nameField.getX()) - (fieldEnd - last)) <= 1 && fieldEnd - last < AreaPalette.COLUMNS,
+                    "New-area palette is not lined up with the name field");
+            require(hexField.visible && hexField.getY() >= nameRect[1] + 98 + 3 * 22 - 4
+                    && hexField.getX() + hexField.getWidth() < last - sample, "Custom color field is missing or covers the preview");
+            // Second row, second swatch: the palette sits below the group and fill buttons.
+            controller.mouseClicked(left((Integer) call(controller, "swatchX", nameRect[0], nameRect[2], 1) + 2,
+                    nameRect[1] + 122, 0), false);
+            require((Integer) get(controller, "newAreaColor") == AreaPalette.COLORS[9] && window(controller).equals("AREA_NAME")
+                    && hexField.getValue().equals(AreaPalette.format(AreaPalette.COLORS[9])),
+                    "New-area palette did not pick the clicked color");
+            hexField.setValue("#12345");
+            require((Integer) get(controller, "newAreaColor") == AreaPalette.COLORS[9], "Incomplete custom color was taken");
+            hexField.setValue("#123456");
+            require((Integer) get(controller, "newAreaColor") == 0x123456, "Typed custom color was not taken");
+            hexField.setValue(AreaPalette.format(AreaPalette.COLORS[9]));
+            SelectionState.Snapshot beforeSave = selection.snapshot();
+            int countBefore = store.state().areas().size();
             enter(controller, map, 8, "Quick saved");
             SavedAreaStore.Area added = store.state().areas().getLast();
             require(window(controller).equals("NONE") && added.groupId().equals("release-group")
                     && selection.source() == null, "Quick save lost the group or enabled editing implicitly");
+            require(added.color() == AreaPalette.COLORS[9] && added.opacity() == 50, "Saved area ignored the chosen color or fill");
+            require(selection.phase() == SelectionState.Phase.READY && selection.bounds() == null,
+                    "Selection was not cleared after saving the area");
+            key(controller, GLFW.GLFW_KEY_Z, GLFW.GLFW_MOD_CONTROL);
+            require(selection.snapshot().equals(beforeSave) && store.state().areas().size() == countBefore + 1,
+                    "First undo after saving should only bring the selection back");
+            key(controller, GLFW.GLFW_KEY_Z, GLFW.GLFW_MOD_CONTROL);
+            require(store.state().areas().size() == countBefore, "Second undo did not remove the saved area");
+            key(controller, GLFW.GLFW_KEY_Y, GLFW.GLFW_MOD_CONTROL); key(controller, GLFW.GLFW_KEY_Y, GLFW.GLFW_MOD_CONTROL);
+            require(store.state().areas().getLast().equals(added) && selection.bounds() == null, "Redo did not restore the save and clear");
             press(controller, "areasButton"); press(controller, "areaSelectAll");
             press(controller, "areaColor"); checkLayout(controller);
             enter(controller, map, 10, "invalid");
@@ -783,9 +1026,10 @@ public final class ManagementUiCheck {
             controller.mouseClicked(left(rect[0] + 14, rect[1] + 36, 0), false);
             require(window(controller).equals("AREAS") && store.state().areas().stream().allMatch(a -> a.color() == AreaPalette.COLORS[0]),
                     "Palette did not recolor every selected area");
+            // Select all makes the last area primary; it was saved at 50%, so every checked area moves to 75%.
             press(controller, "areaOpacity");
             require(store.state().areas().stream().map(SavedAreaStore.Area::opacity).distinct().count() == 1
-                    && store.state().areas().get(0).opacity() == 50, "Opacity did not change every selected area");
+                    && store.state().areas().get(0).opacity() == 75, "Opacity did not change every selected area");
             press(controller, "areaColor"); enter(controller, map, 10, "#abc");
             require(store.state().areas().stream().allMatch(a -> a.color() == 0xAABBCC), "Custom RGB did not apply to all selected areas");
             row(controller, store.state().areas().size() - 1, false);
@@ -813,7 +1057,7 @@ public final class ManagementUiCheck {
             AreaGeometry triangle = selection.geometry();
             doubleClickMap(controller, 561, 60, GLFW.GLFW_MOD_CONTROL);
             require(selection.geometry().equals(triangle), "Deleting a triangle vertex was allowed");
-            press(controller, "clear"); press(controller, "polygonModeButton");
+            call(controller, "reset"); press(controller, "polygonModeButton");
             clickMap(controller, 400, 60, 0); clickMap(controller, 560, 60, 0); clickMap(controller, 560, 260, 0);
             doubleClickMap(controller, 560, 60, GLFW.GLFW_MOD_CONTROL);
             require(draft.size() == 2, "Ctrl double click did not delete a draft vertex");
@@ -828,7 +1072,7 @@ public final class ManagementUiCheck {
             for (int[] size : List.of(new int[]{320, 240}, new int[]{480, 270}, new int[]{960, 540})) {
                 map.width = size[0]; map.height = size[1]; controller.init();
                 press(controller, "areasButton"); press(controller, "areaSelectAll");
-                press(controller, "areaColor"); checkLayout(controller); press(controller, "colorBack");
+                press(controller, "areaColor"); checkLayout(controller); key(controller, GLFW.GLFW_KEY_ESCAPE, 0); require(!window(controller).equals("COLOR"), "Esc did not close the color window");
                 press(controller, "areaSave"); checkLayout(controller); press(controller, "modalCancel");
                 press(controller, "managementClose");
             }
@@ -880,6 +1124,7 @@ public final class ManagementUiCheck {
                                                 SavedAreaStore store, MapBridge.Context context) throws Exception {
         FakeWaypoints access = new FakeWaypoints();
         ExactSelectionController controller = new ExactSelectionController(map, bridge, minecraft, store, access);
+        autosaveProperties(controller);
         controller.init();
         SelectionState selection = (SelectionState) get(controller, "state");
         selection.enable(); set(controller, "context", context); set(controller, "historyContext", context);
@@ -898,8 +1143,7 @@ public final class ManagementUiCheck {
             call(controller, "refreshPending", false);
             press(controller, "pointRecolor"); checkLayout(controller);
             rect = (int[]) call(controller, "dialogRect");
-            int sw = Math.min(40, (rect[2] - 52) / 8);
-            controller.mouseClicked(left(rect[0] + 14 + 2 * (sw + 4), rect[1] + 36, 0), false);
+            controller.mouseClicked(left((Integer) call(controller, "swatchX", rect[0], rect[2], 2) + 2, rect[1] + 36, 0), false);
             require(access.points.get(0).color() == 2 && access.points.get(1).color() == 0
                     && window(controller).equals("WAYPOINTS"), "Waypoint palette did not edit only checked rows");
             access.points.set(0, access.points.get(0).with("External", 2));
@@ -926,7 +1170,7 @@ public final class ManagementUiCheck {
             text(controller, 7).setValue(""); call(controller, "updateVisibility");
             for (int[] size : List.of(new int[]{320, 240}, new int[]{480, 270}, new int[]{960, 540})) {
                 map.width = size[0]; map.height = size[1]; controller.init(); checkLayout(controller);
-                press(controller, "pointRecolor"); checkLayout(controller); press(controller, "colorBack");
+                press(controller, "pointRecolor"); checkLayout(controller); key(controller, GLFW.GLFW_KEY_ESCAPE, 0); require(!window(controller).equals("COLOR"), "Esc did not close the color window");
             }
             press(controller, "cancel");
             System.out.println("PASS: safe entire-set waypoint management, rename/color/delete, undo, stale snapshot guards, scope and responsive layouts");
@@ -957,6 +1201,13 @@ public final class ManagementUiCheck {
             require(chosen.size() == 1 && chosen.contains(points.get(11).identity()), "Last visible waypoint row is not clickable");
             controller.mouseClicked(left(60, 15 + 81 + 12 * 14 + 1, 0), false);
             require(chosen.size() == 1, "Clicking below the waypoint list toggled a hidden row");
+            // 30 rows, 12 visible: the scrollbar sits at x + w - 17 .. x + w - 7 = 583..593 beside the rows.
+            controller.mouseClicked(left(588, 15 + 81 + 12 * 14 - 1, 0), false);
+            require((Integer) get(controller, "modalScroll") == 18 && chosen.size() == 1,
+                    "Clicking the bottom of the scrollbar did not scroll to the end (or toggled a row)");
+            controller.mouseReleased(left(588, 15 + 81, 0));
+            require((Integer) get(controller, "modalScroll") == 0 && !(Boolean) get(controller, "scrollbarDragging"),
+                    "Dragging the scrollbar thumb to the top did not scroll back");
         } finally {
             chosen.clear();
             set(controller, "pending", null);
@@ -964,6 +1215,659 @@ public final class ManagementUiCheck {
             call(controller, "updateVisibility");
         }
         System.out.println("PASS: waypoint rows accept clicks only where they are drawn");
+    }
+
+    private static void checkFramedAreasAndMetrics(ExactSelectionController controller, SavedAreaStore store) throws Exception {
+        SelectionState selection = (SelectionState) get(controller, "state");
+        SelectionState.Snapshot initial = selection.snapshot();
+        SavedAreaStore.State saved = store.state();
+        var inside = SavedAreaStore.create("Inside", new SelectionBounds(0, 0, 10, 10), 0x123456, 25, null);
+        var touching = SavedAreaStore.create("Touching", new SelectionBounds(21, 0, 30, 10), 0x123456, 25, null);
+        var far = SavedAreaStore.create("Far", new PolygonGeometry(List.of(new GridPoint(100, 100), new GridPoint(120, 100),
+                new GridPoint(100, 120))), 0x123456, 25, null);
+        var crossing = SavedAreaStore.create("Crossing", new PolygonGeometry(List.of(new GridPoint(15, -10), new GridPoint(40, -10),
+                new GridPoint(15, 15))), 0x123456, 25, null);
+        try {
+            store.replace(new SavedAreaStore.State(List.of(inside, touching, far, crossing), List.of(), true, true));
+            selection.set(new SelectionBounds(-5, -5, 20, 20));
+            press(controller, "panelModeButton");
+            Button zones = (Button) get(controller, "zonesButton"), areas = (Button) get(controller, "areasButton");
+            require(areas.visible && zones.visible && zones.active, "Expanded panel lost Areas or Areas in selection");
+            require((Integer) get(controller, "metricsShift") == -12, "Perimeter did not join the area line in the wide panel");
+            press(controller, "zonesButton");
+            require(window(controller).equals("AREAS")
+                    && get(controller, "selectedAreaIds").equals(new java.util.LinkedHashSet<>(List.of(inside.id(), crossing.id()))),
+                    "Areas in selection must check overlapping areas only, not touching or distant ones");
+            press(controller, "managementClose");
+            press(controller, "panelModeButton");
+            require((Integer) get(controller, "metricsShift") == 0, "Perimeter shared a line that is too narrow in the compact panel");
+        } finally {
+            store.replace(saved); selection.restore(initial);
+            if (!(Boolean) get(controller, "compact")) press(controller, "panelModeButton");
+            ((Set<?>) get(controller, "selectedAreaIds")).clear();
+            call(controller, "syncFields"); call(controller, "updateVisibility");
+        }
+        System.out.println("PASS: Areas stays in the expanded panel, areas in selection by overlap, perimeter beside area when it fits");
+    }
+
+    @SuppressWarnings("unchecked")
+    /** Right click inside the selection: quick actions for the territory under edit, or save and clear for a new one. */
+    private static int[] pickerRect(String name, int[] r) throws Exception {
+        Method method = ExactSelectionController.class.getDeclaredMethod(name, int.class, int.class, int.class, int.class);
+        method.setAccessible(true);
+        return (int[]) method.invoke(null, r[0], r[1], r[2], r[3]);
+    }
+
+    private static void checkColorPicker(ExactSelectionController controller) throws Exception {
+        SelectionState selection = (SelectionState) get(controller, "state");
+        SelectionState.Snapshot initial = selection.snapshot();
+        int previous = (Integer) get(controller, "newAreaColor");
+        try {
+            require(AreaPalette.hsv(0, 1, 1) == 0xFF0000 && AreaPalette.hsv(1 / 3.0, 1, 1) == 0x00FF00
+                    && AreaPalette.hsv(0.5, 0, 0.5) == 0x808080, "HSV conversion is wrong");
+            for (int color : AreaPalette.COLORS) {
+                double[] hsv = AreaPalette.toHsv(color);
+                require(AreaPalette.hsv(hsv[0], hsv[1], hsv[2]) == color, "HSV round trip changed " + AreaPalette.format(color));
+            }
+            selection.enable(); selection.set(new SelectionBounds(0, 0, 9, 9));
+            call(controller, "openAreaNameDialog");
+            int[] r = (int[]) call(controller, "dialogRect");
+            int preview = (Integer) call(controller, "swatchX", r[0], r[2], AreaPalette.COLUMNS - 1);
+            controller.mouseClicked(left(preview + 2, r[1] + 175, 0), false);
+            require(window(controller).equals("PICKER"), "The color preview did not open the picker");
+            r = (int[]) call(controller, "dialogRect");
+            int[] square = pickerRect("pickerSquare", r), hue = pickerRect("pickerHueBar", r);
+            // Hue: drag from the top (red) down a third (green); then the square's top-right is the full color.
+            controller.mouseClicked(left(hue[0] + 4, hue[1], 0), false);
+            controller.mouseReleased(left(hue[0] + 4, hue[1] + (hue[3] - 1) / 3, 0));
+            controller.mouseClicked(left(square[0] + square[2] - 1, square[1], 0), false);
+            controller.mouseReleased(left(square[0] + square[2] + 20, square[1] - 20, 0));
+            int picked = (Integer) call(controller, "pickerColor");
+            require((picked >> 8 & 255) == 255 && (picked & 255) == 0 && (picked >> 16) < 16,
+                    "Picker did not give a full green: " + AreaPalette.format(picked));
+            key(controller, GLFW.GLFW_KEY_ESCAPE, 0);
+            require(window(controller).equals("AREA_NAME") && (Integer) get(controller, "newAreaColor") == previous,
+                    "Esc in the picker changed the color or left the save window");
+            controller.mouseClicked(left(preview + 2, r[1] + 175, 0), false);
+            square = pickerRect("pickerSquare", (int[]) call(controller, "dialogRect"));
+            controller.mouseClicked(left(square[0], square[1] + square[3] - 1, 0), false);
+            controller.mouseReleased(left(square[0], square[1] + square[3] - 1, 0));
+            press(controller, "modalApply");
+            require(window(controller).equals("AREA_NAME") && (Integer) get(controller, "newAreaColor") == 0
+                    && ((EditBox[]) get(controller, "dialogFields"))[10].getValue().equals("#000000"),
+                    "Apply in the picker did not hand black back to the save window");
+            key(controller, GLFW.GLFW_KEY_ESCAPE, 0);
+            // The zone color window has a preview too; the picker's Apply recolors the zone at once.
+            SavedAreaStore store = (SavedAreaStore) get(controller, "areaStore");
+            SavedAreaStore.State savedAreas = store.state();
+            var area = SavedAreaStore.create("Picked", new SelectionBounds(0, 0, 9, 9), 0x123456, 25, null);
+            store.replace(new SavedAreaStore.State(List.of(area), List.of()));
+            try {
+                selection.load(area.geometry(), area.id());
+                call(controller, "openQuickColor");
+                r = (int[]) call(controller, "dialogRect");
+                controller.mouseClicked(left(r[0] + r[2] - 146 + 2, r[1] + 115, 0), false);
+                require(window(controller).equals("PICKER"), "The zone color preview did not open the picker");
+                square = pickerRect("pickerSquare", (int[]) call(controller, "dialogRect"));
+                controller.mouseClicked(left(square[0], square[1] + square[3] - 1, 0), false);
+                controller.mouseReleased(left(square[0], square[1] + square[3] - 1, 0));
+                press(controller, "modalApply");
+                require(window(controller).equals("NONE") && store.state().areas().get(0).color() == 0,
+                        "Apply in the picker did not recolor the zone: " + AreaPalette.format(store.state().areas().get(0).color()));
+            } finally {
+                store.replace(savedAreas);
+                ((SelectionHistory) get(controller, "history")).clear();
+            }
+        } finally {
+            set(controller, "dialog", dialog(controller, "NONE"));
+            set(controller, "newAreaColor", previous);
+            selection.restore(initial);
+            call(controller, "syncFields"); call(controller, "updateVisibility");
+        }
+        System.out.println("PASS: color picker from the save and zone color previews: HSV conversion, hue bar, square with clamping, Esc and Apply");
+    }
+
+    private static void checkContourOverLoadedArea(ExactSelectionController controller, SavedAreaStore store) throws Exception {
+        SelectionState selection = (SelectionState) get(controller, "state");
+        SelectionState.Snapshot initial = selection.snapshot();
+        SavedAreaStore.State saved = store.state();
+        AutosaveSettings autosave = (AutosaveSettings) get(controller, "autosave");
+        boolean autosaveWas = autosave.enabled();
+        try {
+            var area = SavedAreaStore.create("Loaded", new SelectionBounds(80, 80, 239, 239), 0x123456, 25, null);
+            store.replace(new SavedAreaStore.State(List.of(area), List.of(), true, true));
+            selection.enable();
+            selection.load(area.geometry(), area.id()); call(controller, "updateVisibility");
+            autosave.setEnabled(true);
+            press(controller, "polygonModeButton");
+            clickMap(controller, 400, 60, 0); clickMap(controller, 600, 60, 0); clickMap(controller, 600, 330, 0);
+            key(controller, GLFW.GLFW_KEY_ENTER, 0);
+            require(selection.geometry() instanceof PolygonGeometry && selection.source() == null
+                    && store.state().areas().get(0).geometry().equals(area.geometry()),
+                    "A contour finished over a loaded area wrote into it: " + selection.snapshot());
+            key(controller, GLFW.GLFW_KEY_Z, GLFW.GLFW_MOD_CONTROL);
+            require(area.id().equals(selection.source()), "Undo did not return to editing the loaded area");
+        } finally {
+            autosave.setEnabled(autosaveWas);
+            set(controller, "polygonMode", false);
+            store.replace(saved); selection.restore(initial);
+            ((SelectionHistory) get(controller, "history")).clear();
+            call(controller, "syncFields"); call(controller, "updateVisibility");
+        }
+        System.out.println("PASS: a new contour over a loaded area is a new selection and never edits that area");
+    }
+
+    private static void checkQuickMenu(ExactSelectionController controller, SavedAreaStore store) throws Exception {
+        SelectionState selection = (SelectionState) get(controller, "state");
+        SelectionState.Snapshot initial = selection.snapshot();
+        SavedAreaStore.State saved = store.state();
+        try {
+            selection.enable();
+            selection.set(new SelectionBounds(80, 80, 239, 239)); call(controller, "updateVisibility");
+            controller.mouseClicked(right(450, 300), false);
+            controller.mouseReleased(right(490, 300));
+            require(!(Boolean) get(controller, "quickMenu"), "Panning with the right button opened the quick menu");
+            controller.mouseClicked(right(450, 300), false);
+            controller.mouseReleased(right(450, 300));
+            require((Boolean) get(controller, "quickMenu") && ((Button) get(controller, "quickMenuSave")).visible
+                    && !((Button) get(controller, "quickMenuDelete")).visible, "A new selection did not offer Save and Clear");
+            key(controller, GLFW.GLFW_KEY_ESCAPE, 0);
+            require(!(Boolean) get(controller, "quickMenu") && selection.bounds() != null, "Esc did not just close the quick menu");
+            // Size, Move and Center moved from the panel into this menu; a polygon has no Size.
+            controller.mouseClicked(right(450, 300), false);
+            controller.mouseReleased(right(450, 300));
+            require(((Button) get(controller, "sizeButton")).visible && ((Button) get(controller, "centerButton")).visible,
+                    "Size and Center are not in the quick menu");
+            press(controller, "moveButton");
+            require(window(controller).equals("MOVE") && !(Boolean) get(controller, "quickMenu"), "Quick Move did not open its window");
+            key(controller, GLFW.GLFW_KEY_ESCAPE, 0);
+            require(!((Button) get(controller, "sizeButton")).visible, "Size is still shown outside the quick menu");
+            selection.setGeometry(new PolygonGeometry(List.of(new GridPoint(80, 80), new GridPoint(239, 80),
+                    new GridPoint(239, 239), new GridPoint(80, 239))));
+            call(controller, "updateVisibility");
+            controller.mouseClicked(right(450, 300), false);
+            controller.mouseReleased(right(450, 300));
+            require(!((Button) get(controller, "sizeButton")).visible && ((Button) get(controller, "moveButton")).visible,
+                    "A polygon's quick menu offered Size or lost Move");
+            key(controller, GLFW.GLFW_KEY_ESCAPE, 0);
+
+            var area = SavedAreaStore.create("Edited", new SelectionBounds(80, 80, 239, 239), 0x123456, 25, null);
+            store.replace(new SavedAreaStore.State(List.of(area), List.of(), true, true));
+            selection.load(area.geometry(), area.id()); call(controller, "updateVisibility");
+            controller.mouseClicked(right(450, 300), false);
+            controller.mouseReleased(right(450, 300));
+            press(controller, "quickMenuOpacity");
+            require(store.state().areas().get(0).opacity() == 50 && (Boolean) get(controller, "quickMenu"),
+                    "Quick fill did not apply at once or closed the menu");
+            press(controller, "quickMenuColor");
+            require(window(controller).equals("COLOR"), "Quick color did not open the palette");
+            controller.mouseClicked(left((Integer) call(controller, "swatchX", ((int[]) call(controller, "dialogRect"))[0],
+                    ((int[]) call(controller, "dialogRect"))[2], 2) + 2, ((int[]) call(controller, "dialogRect"))[1] + 36, 0), false);
+            require(window(controller).equals("NONE") && store.state().areas().get(0).color() == AreaPalette.COLORS[2],
+                    "A quick color pick was not applied to the territory");
+            controller.mouseClicked(right(450, 300), false);
+            controller.mouseReleased(right(450, 300));
+            press(controller, "quickMenuDelete");
+            require(store.state().areas().isEmpty() && selection.bounds() == null, "Quick delete kept the zone or the selection");
+            call(controller, "updateVisibility");
+            press(controller, "undo"); press(controller, "undo");
+            require(store.state().areas().size() == 1 && selection.source() != null, "Undo did not bring the deleted zone back");
+        } finally {
+            set(controller, "quickMenu", false);
+            store.replace(saved); selection.restore(initial);
+            ((SelectionHistory) get(controller, "history")).clear();
+            call(controller, "syncFields"); call(controller, "updateVisibility");
+        }
+        System.out.println("PASS: right-click quick menu: pan does not open it, save/clear for new, fill/color/delete for an edited zone, Esc, undo");
+    }
+
+    private static void checkAreaDraftAndAutosave(ExactSelectionController controller, GuiMap map, SavedAreaStore store,
+                                                   Unsafe unsafe) throws Exception {
+        SelectionState selection = (SelectionState) get(controller, "state");
+        SelectionState.Snapshot initial = selection.snapshot();
+        SavedAreaStore.State saved = store.state();
+        AutosaveSettings autosave = (AutosaveSettings) get(controller, "autosave");
+        Map<AutosaveSettings.Field, Button> fieldButtons = (Map<AutosaveSettings.Field, Button>) get(controller, "autosaveFields");
+        var group = new SavedAreaStore.Group("draft-group", "Draft group", true);
+        var a = SavedAreaStore.create("Alpha", new SelectionBounds(0, 0, 9, 9), 0x123456, 25, null);
+        var b = SavedAreaStore.create("Beta", new SelectionBounds(40, 40, 49, 49), 0x654321, 25, null);
+        try {
+            store.replace(new SavedAreaStore.State(List.of(a, b), List.of(group), true, true));
+            autosave.setEnabled(false);
+            press(controller, "areasButton");
+            require(((Set<?>) get(controller, "selectedAreaIds")).isEmpty(), "Areas window opened with an area checked");
+            press(controller, "areaNames");
+            require(!store.state().showNames() && store.state().showOnMap(), "Names switch did not hide only the names");
+            call(controller, "updateVisibility");
+            press(controller, "managementUndo");
+            require(store.state().showNames(), "Undo did not bring the area names back");
+            pick(controller, store, a.id());
+            text(controller, 4).setValue("Draft name");
+            press(controller, "areaOpacity");
+            press(controller, "groupAssign"); row(controller, 1, false);
+            press(controller, "areaColor");
+            int[] rect = (int[]) call(controller, "dialogRect");
+            controller.mouseClicked(left(rect[0] + 14, rect[1] + 36, 0), false);
+            require(window(controller).equals("AREAS") && store.state().areas().get(0).equals(a),
+                    "Changes were written before Save while autosave is off");
+            Button save = (Button) get(controller, "areaSaveChanges");
+            require(save.visible && save.active, "Save is unavailable for pending changes");
+            Button load = (Button) get(controller, "areaLoad"), shown = (Button) get(controller, "areaVisibility");
+            Button gear = (Button) get(controller, "autosaveButton");
+            Button[] copies = (Button[]) get(controller, "areaCopies");
+            call(controller, "layoutDialog");
+            require(save.getX() == load.getX() && save.getY() >= load.getY() + load.getHeight()
+                    && copies[1].getY() > save.getY() + save.getHeight()
+                    && shown.getY() > copies[3].getY() + copies[3].getHeight() + 6,
+                    "Save is not under Edit/Export, or Selected is not below the territory's controls");
+            require(gear.getWidth() <= 20 && gear.getMessage().getString().isEmpty(), "Autosave settings button is not a gear");
+            int depth = ((Deque<?>) get(get(controller, "history"), "undo")).size();
+            press(controller, "areaSaveChanges");
+            SavedAreaStore.Area written = store.state().areas().get(0);
+            require(written.name().equals("Draft name") && written.opacity() == 50 && "draft-group".equals(written.groupId())
+                    && written.color() == AreaPalette.COLORS[0] && store.state().areas().get(1).equals(b),
+                    "Save did not write every pending property of the checked area only");
+            require(((Deque<?>) get(get(controller, "history"), "undo")).size() == depth + 1, "Save took more than one undo step");
+            press(controller, "managementUndo");
+            require(store.state().areas().get(0).equals(a), "One undo did not restore all saved properties");
+            press(controller, "managementRedo");
+            text(controller, 4).setValue("Lost name");
+            row(controller, 1, false);
+            require(store.state().areas().get(0).name().equals("Draft name")
+                    && get(controller, "message").toString().contains("area_changes_discarded"),
+                    "Switching areas wrote or silently dropped unsaved changes");
+
+            press(controller, "autosaveButton");
+            require((Boolean) get(controller, "autosaveOpen") && ((Button) get(controller, "autosaveToggle")).visible
+                    && !((Button) get(controller, "groupAssign")).visible, "Autosave settings did not replace the properties");
+            checkLayout(controller);
+            press(controller, "autosaveToggle");
+            require(autosave.enabled() && fieldButtons.values().stream().allMatch(button -> button.active),
+                    "Autosave did not switch on with its field toggles");
+            fieldButtons.get(AutosaveSettings.Field.NAME).onPress(new KeyEvent(GLFW.GLFW_KEY_ENTER, 0, 0));
+            if (!autosave.includes(AutosaveSettings.Field.GEOMETRY)) fieldButtons.get(AutosaveSettings.Field.GEOMETRY).onPress(new KeyEvent(GLFW.GLFW_KEY_ENTER, 0, 0));
+            press(controller, "autosaveClose");
+            require(!save.visible, "Save stays visible under autosave with nothing pending");
+            call(controller, "layoutDialog");
+            require(copies[1].getY() == load.getY() + load.getHeight() + 19, "Hidden Save leaves a gap above the area details");
+            press(controller, "areaOpacity");
+            require(store.state().areas().get(1).opacity() == 50, "Autosaved fill was not written immediately");
+            text(controller, 4).setValue("Manual name");
+            call(controller, "updateVisibility");
+            require(save.visible && store.state().areas().get(1).name().equals("Beta"),
+                    "A change outside autosave must keep Save visible and wait for it");
+            press(controller, "areaSaveChanges");
+            require(store.state().areas().get(1).name().equals("Manual name"), "Save did not write the non-autosaved name");
+            call(controller, "layoutDialog");
+            for (Button copy : (Button[]) get(controller, "areaCopies")) require(copy.visible && copy.active, "Area copy buttons are missing");
+            Button[] small = (Button[]) get(controller, "areaCopies");
+            require(small[2].getWidth() <= 12 && small[2].getMessage().getString().isEmpty()
+                    && small[5].getY() == small[4].getY() && small[5].getX() < small[4].getX(),
+                    "Area copy buttons are not small icons after their values");
+
+            pick(controller, store, a.id());
+            press(controller, "areaLoad");
+            Button quick = (Button) get(controller, "quickSave");
+            require(quick.getMessage().getString().equals(Component.translatable("exactselection.quick_autosaved").getString()),
+                    "Panel does not show that the territory shape autosaves");
+            EditBox[] coordinates = (EditBox[]) get(controller, "fields");
+            coordinates[2].setValue("19"); coordinates[3].setValue("19");
+            call(controller, "applyFields");
+            SavedAreaStore.Area reshaped = store.state().areas().get(0);
+            require(reshaped.bounds().equals(new SelectionBounds(0, 0, 19, 19)), "Edited territory shape was not autosaved");
+            key(controller, GLFW.GLFW_KEY_Z, GLFW.GLFW_MOD_CONTROL);
+            require(store.state().areas().get(0).bounds().equals(new SelectionBounds(0, 0, 9, 9))
+                    && selection.bounds().equals(new SelectionBounds(0, 0, 9, 9)),
+                    "One undo did not restore both the selection and the autosaved territory");
+            // While Alpha is edited its stored shape is drawn faded; Beta keeps its full outline.
+            RecordingGraphics graphics = (RecordingGraphics) unsafe.allocateInstance(RecordingGraphics.class);
+            graphics.events = new ArrayList<>();
+            graphics.transform = new Matrix3x2fStack(16);
+            graphics.state = new GuiRenderState();
+            controller.renderMapOverlays(graphics, 600, 330);
+            List<Integer> colors = new ArrayList<>();
+            graphics.state.forEachElement(element -> {
+                try {
+                    // Vertex colors; the outline's smoothed fringe fades to transparent and is left out.
+                    Method vertices = element.getClass().getDeclaredMethod("vertices");
+                    vertices.setAccessible(true);
+                    for (Object vertex : (List<?>) vertices.invoke(element)) {
+                        Method color = vertex.getClass().getDeclaredMethod("color");
+                        color.setAccessible(true);
+                        int value = (Integer) color.invoke(vertex);
+                        if (value >>> 24 != 0) colors.add(value);
+                    }
+                } catch (ReflectiveOperationException e) { throw new AssertionError(e); }
+            }, GuiRenderState.TraverseRange.ALL);
+            int alpha = store.state().areas().get(0).color();
+            require(colors.stream().filter(c -> (c & 0xFFFFFF) == alpha).allMatch(c -> c >>> 24 <= 0x60)
+                    && colors.stream().anyMatch(c -> (c & 0xFFFFFF) == alpha),
+                    "The stored shape of the edited territory is not faded behind its live bounds");
+            int beta = store.state().areas().get(1).color();
+            require(colors.stream().anyMatch(c -> c == (0xFF000000 | beta)), "Areas not being edited lost their full outline");
+
+            // Writing another change keeps an unsaved name; a deletion leaves nothing checked.
+            press(controller, "areasButton");
+            pick(controller, store, b.id());
+            text(controller, 4).setValue("Unsaved name");
+            press(controller, "areaMapVisibility");
+            AreaDraft draft = (AreaDraft) get(controller, "areaDraft");
+            require(text(controller, 4).getValue().equals("Unsaved name") && "Unsaved name".equals(draft.name),
+                    "Switching the map layer silently dropped the unsaved name");
+            press(controller, "areaDelete"); press(controller, "confirm");
+            require(store.state().areas().size() == 1 && ((Set<?>) get(controller, "selectedAreaIds")).isEmpty()
+                    && get(controller, "areaId") == null && draft.isEmpty() && text(controller, 4).getValue().isEmpty(),
+                    "Deleting an area checked another one or kept its draft");
+        } finally {
+            if (!autosave.enabled()) autosave.setEnabled(true);
+            if (!autosave.includes(AutosaveSettings.Field.NAME)) autosave.toggle(AutosaveSettings.Field.NAME);
+            if (autosave.includes(AutosaveSettings.Field.GEOMETRY)) autosave.toggle(AutosaveSettings.Field.GEOMETRY);
+            set(controller, "autosaveOpen", false);
+            store.replace(saved); selection.restore(initial);
+            set(controller, "dialog", dialog(controller, "NONE"));
+            ((Set<?>) get(controller, "selectedAreaIds")).clear(); set(controller, "areaId", null);
+            ((SelectionHistory) get(controller, "history")).clear();
+            call(controller, "syncFields"); call(controller, "updateVisibility");
+        }
+        System.out.println("PASS: area properties wait for Save as one undo step, autosave settings, Save hiding, area copy, territory shape autosave");
+    }
+
+    private static void clickRow(ExactSelectionController controller, int index, int modifiers) throws Exception {
+        int[] rect = (int[]) call(controller, "dialogRect");
+        controller.mouseClicked(new MouseButtonEvent(rect[0] + 54, rect[1] + 54 + index * 20,
+                new MouseButtonInfo(GLFW.GLFW_MOUSE_BUTTON_LEFT, modifiers)), false);
+    }
+
+    private static Set<String> checkedNames(ExactSelectionController controller, SavedAreaStore store) throws Exception {
+        Set<?> ids = (Set<?>) get(controller, "selectedAreaIds");
+        Set<String> names = new java.util.TreeSet<>();
+        for (SavedAreaStore.Area area : store.state().areas()) if (ids.contains(area.id())) names.add(area.name());
+        return names;
+    }
+
+    private static void checkAreaListAndTransfer(ExactSelectionController controller, SavedAreaStore store, Path directory) throws Exception {
+        SavedAreaStore.State saved = store.state();
+        var roads = new SavedAreaStore.Group("roads", "Roads", true);
+        var c = SavedAreaStore.create("Charlie", new SelectionBounds(0, 0, 4, 4), 0x111111, 25, null);
+        var a = SavedAreaStore.create("alpha", new SelectionBounds(10, 0, 14, 4), 0x222222, 25, "roads");
+        var d = SavedAreaStore.create("Delta", new SelectionBounds(20, 0, 24, 4), 0x333333, 25, "roads");
+        var b = SavedAreaStore.create("Bravo", new SelectionBounds(30, 0, 34, 4), 0x444444, 25, null);
+        try {
+            store.replace(new SavedAreaStore.State(List.of(c, a, d, b), List.of(roads), true, true));
+            press(controller, "areasButton");
+            clickRow(controller, 0, 0);
+            clickRow(controller, 2, GLFW.GLFW_MOD_SHIFT);
+            require(checkedNames(controller, store).equals(Set.of("Charlie", "alpha", "Delta")), "Shift+click did not check the range");
+            clickRow(controller, 1, GLFW.GLFW_MOD_CONTROL);
+            require(checkedNames(controller, store).equals(Set.of("Charlie", "Delta")), "Ctrl+click did not toggle one area");
+            clickRow(controller, 3, GLFW.GLFW_MOD_CONTROL | GLFW.GLFW_MOD_SHIFT);
+            // The Ctrl+click on alpha moved the anchor there, so the added range is alpha..Bravo.
+            require(checkedNames(controller, store).equals(Set.of("Charlie", "alpha", "Delta", "Bravo")),
+                    "Ctrl+Shift+click did not add the range from the last clicked area");
+            clickRow(controller, 1, 0);
+            require(checkedNames(controller, store).equals(Set.of("alpha")), "Plain click did not check a single area");
+
+            press(controller, "areaSortButton");
+            List<?> order = (List<?>) call(controller, "displayedAreas");
+            require(order.stream().map(area -> ((SavedAreaStore.Area) area).name()).toList()
+                    .equals(List.of("alpha", "Bravo", "Charlie", "Delta")), "Name order is wrong: " + order);
+            clickRow(controller, 1, 0);
+            require(checkedNames(controller, store).equals(Set.of("Bravo")), "Rows do not follow the sorted order");
+            press(controller, "areaSortButton");
+            require(((List<?>) call(controller, "displayedAreas")).stream().map(area -> ((SavedAreaStore.Area) area).name()).toList()
+                    .equals(List.of("alpha", "Delta", "Bravo", "Charlie")), "Group order must list grouped areas by group, then the rest");
+            press(controller, "areaSortButton"); press(controller, "areaSortButton");
+            require(get(controller, "areaSort").toString().equals("DATE"), "Sort did not cycle back to date order");
+            // Search by name, case-insensitive; All checks only what the search shows.
+            EditBox search = (EditBox) get(controller, "areaSearch");
+            require(search.visible, "The Areas window has no search field");
+            search.setValue("RAV");
+            require(((List<?>) call(controller, "displayedAreas")).stream().map(area -> ((SavedAreaStore.Area) area).name()).toList()
+                    .equals(List.of("Bravo")), "Search did not find Bravo by part of its name");
+            press(controller, "areaClearSelection");
+            press(controller, "areaSelectAll");
+            require(checkedNames(controller, store).equals(Set.of("Bravo")), "All checked areas the search hides");
+            call(controller, "updateVisibility");
+            require(!((Button) get(controller, "areaSelectAll")).active, "All stays active with every found area checked");
+            search.setValue(""); call(controller, "updateVisibility");
+            require(((Button) get(controller, "areaSelectAll")).active, "All is unavailable with unchecked areas shown");
+            search.setValue("RAV");
+            search.setValue("nothing like it");
+            require(((List<?>) call(controller, "displayedAreas")).isEmpty(), "Search kept areas that do not match");
+            search.setValue("");
+            require(((List<?>) call(controller, "displayedAreas")).size() == 4, "An empty search hid areas");
+            checkLayout(controller);
+            require(((Button[]) get(controller, "areaCopies")).length == 9, "Area copy buttons lack a name or one of the four corners");
+
+            press(controller, "areaClearSelection");
+            call(controller, "layoutDialog");
+            Button folderIcon = (Button) get(controller, "transferFolderButton"), importButton = (Button) get(controller, "areaImport");
+            require(folderIcon.visible && folderIcon.getMessage().getString().isEmpty() && folderIcon.getY() == importButton.getY()
+                    && folderIcon.getX() >= importButton.getX() + importButton.getWidth(),
+                    "Areas window has no folder button beside Import");
+            press(controller, "areaExportFile");
+            Path folder = AreaTransfer.folder(directory);
+            List<Path> files = AreaTransfer.list(folder);
+            require(files.size() == 1 && AreaTransfer.read(files.get(0)).areas().size() == 4, "Exporting all areas wrote no complete file");
+            require(((Button) get(controller, "openExportButton")).visible, "Export did not offer to show the file");
+            press(controller, "areaImport");
+            require(window(controller).equals("IMPORT"), "Import window did not open");
+            checkLayout(controller);
+            int[] rect = (int[]) call(controller, "dialogRect");
+            controller.mouseClicked(left(rect[0] + 40, rect[1] + 54, 0), false);
+            require(window(controller).equals("AREAS") && store.state().areas().size() == 4,
+                    "Re-importing the same areas created duplicates");
+            store.replace(new SavedAreaStore.State(List.of(c), List.of(), true, true));
+            press(controller, "areaImport");
+            controller.mouseClicked(left(rect[0] + 40, rect[1] + 54, 0), false);
+            require(store.state().areas().size() == 4 && store.state().groups().size() == 1
+                    && store.state().groups().get(0).name().equals("Roads")
+                    && store.state().areas().stream().filter(area -> area.name().equals("Delta"))
+                    .allMatch(area -> area.groupId().equals(store.state().groups().get(0).id())),
+                    "Import did not restore areas with their group matched by name");
+            press(controller, "managementUndo");
+            require(store.state().areas().size() == 1, "Import was not one undo step");
+            press(controller, "managementRedo");
+
+            press(controller, "manageGroups");
+            row(controller, 0, false);
+            press(controller, "groupExport");
+            checkLayout(controller);
+            Path groupFile = AreaTransfer.list(folder).get(0);
+            require(AreaTransfer.read(groupFile).areas().stream().map(SavedAreaStore.Area::name).sorted().toList()
+                    .equals(List.of("Delta", "alpha")), "Group export must contain exactly that group's areas");
+            press(controller, "managementClose");
+        } finally {
+            store.replace(saved);
+            set(controller, "dialog", dialog(controller, "NONE"));
+            ((Set<?>) get(controller, "selectedAreaIds")).clear(); set(controller, "areaId", null);
+            set(controller, "areaSort", get(controller, "areaSort").getClass().getEnumConstants()[0]);
+            ((SelectionHistory) get(controller, "history")).clear();
+            set(controller, "message", "");
+            call(controller, "updateVisibility");
+        }
+        System.out.println("PASS: Shift/Ctrl area selection, sorting, name copy, export/import with duplicate skipping and group matching, group export");
+    }
+
+    private static void checkExportWindow(ExactSelectionController controller, GuiMap map, Path directory) throws Exception {
+        SelectionState selection = (SelectionState) get(controller, "state");
+        SelectionState.Snapshot initial = selection.snapshot();
+        try {
+            selection.set(new SelectionBounds(0, 0, 99, 49));
+            call(controller, "updateVisibility");
+            press(controller, "panelModeButton");
+            press(controller, "selectionExportButton");
+            require(window(controller).equals("EXPORT"), "Selection export did not open the export window");
+            ExportWindow window = (ExportWindow) get(controller, "exportWindow");
+            EditBox folder = window.folder;
+            Path defaultFolder = directory.resolve("xaero-exact-selection").resolve("map-exports").toAbsolutePath();
+            require(folder.getValue().isEmpty() && window.folder().equals(defaultFolder),
+                    "Default export folder must remain an empty field resolving to the default path: " + folder.getValue());
+            Button run = window.run;
+            require(run.visible && run.active, "Export is unavailable for a small selection");
+            require(!window.ownFill.visible && window.unfilledArea() == null, "A plain selection offered to drop its own area fill");
+            ExportPreferences preferences = window.preferences;
+            Button areas = window.areas, labels = window.labels;
+            require(preferences.areas && areas.visible && areas.active && labels.active,
+                    "Export must include areas by default");
+            boolean previousLabels = preferences.labels;
+            press(controller, window.areas, "areas");
+            require(!preferences.areas && !labels.active && preferences.labels == previousLabels,
+                    "Hiding exported areas must disable labels without losing their preference");
+            preferences.save();
+            require(!ExportPreferences.load(directory).areas, "Area export visibility was not remembered");
+            press(controller, window.areas, "areas");
+            require(preferences.areas && labels.active && preferences.labels == previousLabels,
+                    "Enabling exported areas did not restore the label control");
+            preferences.save();
+            int scale = preferences.scale;
+            press(controller, window.scale, "scale");
+            require(preferences.scale != scale && window.windowScale == preferences.scale, "Scale button did not change the scale");
+            boolean night = preferences.night;
+            press(controller, window.time, "time");
+            require(preferences.night != night, "Day/night button did not toggle");
+            folder.setValue("relative/path"); call(controller, "updateVisibility");
+            require(!run.active, "A relative folder can be exported to");
+            press(controller, window.standardFolder, "standardFolder");
+            require(run.active && folder.getValue().isEmpty() && window.folder().equals(defaultFolder),
+                    "Default folder button did not clear the field and restore a usable folder");
+            for (int[] size : List.of(new int[]{320, 240}, new int[]{480, 270}, new int[]{960, 540}, new int[]{640, 360})) {
+                map.width = size[0]; map.height = size[1];
+                // Screen.rebuildWidgets clears the old widgets before init() adds new ones.
+                for (String name : List.of("children", "narratables", "renderables")) ((List<?>) get(map, name)).clear();
+                controller.init(); checkLayout(controller);
+            }
+            key(controller, GLFW.GLFW_KEY_ESCAPE, 0);
+            require(window(controller).equals("NONE"), "Esc did not close the export window back to the map");
+            // Exporting a saved area can leave out that area's own fill; the choice is remembered.
+            SavedAreaStore store = (SavedAreaStore) get(controller, "areaStore");
+            SavedAreaStore.State savedAreas = store.state();
+            var own = SavedAreaStore.create("Own", new SelectionBounds(0, 0, 99, 49), 0x123456, 40, null);
+            store.replace(new SavedAreaStore.State(List.of(own), List.of()));
+            try {
+                selection.load(own.geometry(), own.id()); call(controller, "updateVisibility");
+                press(controller, "selectionExportButton");
+                require(window.ownFill.visible && window.ownFill.active && window.unfilledArea() == null,
+                        "Exporting a saved area did not offer its own fill, on by default");
+                checkLayout(controller);
+                press(controller, window.ownFill, "ownFill");
+                require(own.id().equals(window.unfilledArea()), "Turning off the area's fill did not reach the export");
+                preferences.save();
+                require(!ExportPreferences.load(directory).ownFill, "The area's own fill choice was not remembered");
+                press(controller, window.areas, "areas");
+                require(!window.ownFill.active && window.unfilledArea() == null, "The fill switch works with areas hidden");
+                press(controller, window.areas, "areas"); press(controller, window.ownFill, "ownFill");
+                preferences.save();
+                key(controller, GLFW.GLFW_KEY_ESCAPE, 0);
+            } finally { store.replace(savedAreas); }
+            preferences.scale = 4;
+            selection.set(new SelectionBounds(0, 0, 3999, 3999));
+            call(controller, "updateVisibility");
+            press(controller, "selectionExportButton");
+            require(window(controller).equals("EXPORT"), "Export window did not reopen; message=" + get(controller, "message"));
+            // init() above rebuilt the widgets, so read the current button.
+            require(!window.run.active, "An image above the pixel limit can be exported");
+            require(window.windowScale == 1 && preferences.scale == 4,
+                    "A large area lowered the remembered export scale instead of only this window's");
+            key(controller, GLFW.GLFW_KEY_ESCAPE, 0);
+        } finally {
+            set(controller, "dialog", dialog(controller, "NONE"));
+            set(controller, "compact", true);
+            selection.restore(initial);
+            call(controller, "layoutMainPanel"); call(controller, "syncFields"); call(controller, "updateVisibility");
+        }
+        System.out.println("PASS: export window with default folder, path validation, scale, day/night, own area fill, size limit and responsive layout");
+    }
+
+    private static void checkSeparateCorners(ExactSelectionController controller, GuiMap map, Minecraft minecraft,
+                                             SavedAreaStore store, Unsafe unsafe) throws Exception {
+        SelectionState selection = (SelectionState) get(controller, "state");
+        SelectionState.Snapshot before = selection.snapshot();
+        SavedAreaStore.State saved = store.state();
+        Object previousKeyboard = get(minecraft, "keyboardHandler");
+        ClipboardKeyboard keyboard = (ClipboardKeyboard) unsafe.allocateInstance(ClipboardKeyboard.class);
+        set(minecraft, "keyboardHandler", keyboard);
+        try {
+            SelectionBounds bounds = new SelectionBounds(-120, 340, 56, -78);
+            selection.set(bounds); call(controller, "syncFields"); call(controller, "updateVisibility");
+            // The compact panel has no corner rows; the expanded one copies each corner beside its fields.
+            set(controller, "compact", true); call(controller, "layoutMainPanel"); call(controller, "updateVisibility");
+            require(!((Button) get(controller, "copyCoordinates")).visible && !((Button) get(controller, "clear")).visible,
+                    "The compact panel still shows the corners or Clear");
+            checkMainLayout(controller, map);
+            for (boolean compact : List.of(false)) {
+                set(controller, "compact", compact); call(controller, "layoutMainPanel"); call(controller, "updateVisibility");
+                Button a = (Button) get(controller, "copyCoordinates"), b = (Button) get(controller, "copyCornerB");
+                require(a.visible && a.active && b.visible && b.active && a.getY() < b.getY(),
+                        "Corner buttons are missing or are not beside separate coordinate rows");
+                checkMainLayout(controller, map);
+                press(controller, "copyCoordinates"); require("-120 340".equals(keyboard.copied), "Corner A clipboard format is wrong");
+                press(controller, "copyCornerB"); require("56 -78".equals(keyboard.copied), "Corner B clipboard format is wrong");
+            }
+            set(controller, "compact", true); call(controller, "layoutMainPanel"); call(controller, "updateVisibility");
+            var area = SavedAreaStore.create("Corners", bounds, AreaPalette.DEFAULT, 25, null);
+            store.replace(new SavedAreaStore.State(List.of(area), List.of(), true, true));
+            press(controller, "areasButton"); pick(controller, store, area.id()); call(controller, "layoutDialog");
+            Button[] copies = (Button[]) get(controller, "areaCopies");
+            // Four corners by direction (north is -Z, west is -X): NW and NE on one line, SW and SE below.
+            require(copies[1].visible && copies[7].visible && copies[8].visible && copies[6].visible
+                    && copies[1].getY() == copies[7].getY() && copies[8].getY() == copies[6].getY()
+                    && copies[1].getY() < copies[8].getY() && copies[1].getX() < copies[7].getX(),
+                    "Saved rectangle lacks its four corner buttons");
+            checkLayout(controller);
+            String[] expected = {"-120 -78", "56 -78", "-120 340", "56 340"};
+            int[] order = {1, 7, 8, 6};
+            for (int i = 0; i < 4; i++) {
+                copies[order[i]].onPress(new KeyEvent(GLFW.GLFW_KEY_ENTER, 0, 0));
+                require(expected[i].equals(keyboard.copied), "Saved corner " + i + " copied " + keyboard.copied);
+            }
+            var polygon = SavedAreaStore.create("Polygon", new PolygonGeometry(List.of(new GridPoint(0, 0),
+                    new GridPoint(3, 0), new GridPoint(0, 4))), AreaPalette.DEFAULT, 25, null);
+            store.replace(new SavedAreaStore.State(List.of(polygon), List.of(), true, true));
+            pick(controller, store, polygon.id()); call(controller, "layoutDialog");
+            require(copies[1].visible && !copies[6].visible && !copies[7].visible && !copies[8].visible,
+                    "Polygon vertex copy exposed rectangle corners");
+            copies[1].onPress(new KeyEvent(GLFW.GLFW_KEY_ENTER, 0, 0));
+            require("0 0; 3 0; 0 4".equals(keyboard.copied), "Polygon vertex coordinate pairs must use spaces");
+            // Its area is 6 blocks² exactly, its perimeter 12; a sloped one has fractions, copied rounded down, up or exactly.
+            var sloped = SavedAreaStore.create("Sloped", new PolygonGeometry(List.of(new GridPoint(0, 0),
+                    new GridPoint(3, 0), new GridPoint(0, 3))), AreaPalette.DEFAULT, 25, null);
+            store.replace(new SavedAreaStore.State(List.of(sloped), List.of(), true, true));
+            pick(controller, store, sloped.id()); call(controller, "layoutDialog");
+            AutosaveSettings settings = (AutosaveSettings) get(controller, "autosave");
+            AutosaveSettings.Rounding rounding = settings.rounding();
+            try {
+                settings.setRounding(AutosaveSettings.Rounding.DOWN);
+                double slopedArea = sloped.geometry().area(), perimeter = sloped.geometry().perimeter();
+                require(slopedArea != Math.floor(slopedArea) && perimeter != Math.floor(perimeter), "The sloped polygon has whole metrics");
+                copies[2].onPress(new KeyEvent(GLFW.GLFW_KEY_ENTER, 0, 0));
+                require(Long.toString((long) Math.floor(slopedArea)).equals(keyboard.copied), "Area was not rounded down: " + keyboard.copied);
+                copies[3].onPress(new KeyEvent(GLFW.GLFW_KEY_ENTER, 0, 0));
+                require(Long.toString((long) Math.floor(perimeter)).equals(keyboard.copied), "Perimeter was not rounded down: " + keyboard.copied);
+                set(controller, "autosaveOpen", true); call(controller, "updateVisibility"); call(controller, "layoutDialog");
+                press(controller, "roundingButton");
+                checkLayout(controller);
+                require(settings.rounding() == AutosaveSettings.Rounding.UP
+                        && AutosaveSettings.load(store.root()).rounding() == AutosaveSettings.Rounding.UP, "Rounding up was not switched on and saved");
+                copies[2].onPress(new KeyEvent(GLFW.GLFW_KEY_ENTER, 0, 0));
+                require(Long.toString((long) Math.ceil(slopedArea)).equals(keyboard.copied), "Area was not rounded up: " + keyboard.copied);
+                copies[3].onPress(new KeyEvent(GLFW.GLFW_KEY_ENTER, 0, 0));
+                require(Long.toString((long) Math.ceil(perimeter)).equals(keyboard.copied), "Perimeter was not rounded up: " + keyboard.copied);
+                press(controller, "roundingButton");
+                require(settings.rounding() == AutosaveSettings.Rounding.EXACT, "Rounding did not cycle to none");
+                copies[2].onPress(new KeyEvent(GLFW.GLFW_KEY_ENTER, 0, 0));
+                require(keyboard.copied.contains("."), "Exact copying still rounded the area: " + keyboard.copied);
+            } finally {
+                settings.setRounding(rounding);
+                set(controller, "autosaveOpen", false);
+            }
+            System.out.println("PASS: separate A/B corner copying in the expanded panel, four compass corners for saved areas, none in the compact panel, space-separated coordinates, polygon vertices preserved");
+        } finally {
+            set(minecraft, "keyboardHandler", previousKeyboard); store.replace(saved); selection.restore(before);
+            ((Set<?>) get(controller, "selectedAreaIds")).clear(); set(controller, "areaId", null);
+            set(controller, "dialog", dialog(controller, "NONE")); set(controller, "compact", true); set(controller, "message", "");
+            call(controller, "layoutMainPanel"); call(controller, "syncFields"); call(controller, "updateVisibility");
+        }
     }
 
     public static void main(String[] args) throws Exception {
@@ -999,12 +1903,19 @@ public final class ManagementUiCheck {
             SavedAreaStore minimapStore = new SavedAreaStore(directory);
             minimapStore.useContext(context);
             ExactSelectionController controller = new ExactSelectionController(map, bridge, minecraft, store, null);
+            autosaveProperties(controller);
             controller.init();
             SelectionState selection = (SelectionState) get(controller, "state");
             selection.enable(); selection.set(new SelectionBounds(40, 40, 50, 50));
             set(controller, "context", context); set(controller, "historyContext", context);
             call(controller, "updateVisibility");
+            checkSeparateCorners(controller, map, minecraft, store, unsafe);
             checkSelectionPanel(controller, map);
+            checkHintFitting(controller);
+            checkFramedAreasAndMetrics(controller, store);
+            checkAreaDraftAndAutosave(controller, map, store, unsafe);
+            checkAreaListAndTransfer(controller, store, directory);
+            checkExportWindow(controller, map, directory);
             checkExportNotice(controller, map, directory);
             checkPolygonEditing(controller, map, store, directory, context);
             checkSavedLabelLayering(controller, store, unsafe);
@@ -1014,9 +1925,17 @@ public final class ManagementUiCheck {
             checkPrecisePointer(controller, minecraft, unsafe);
             checkWaypointRows(controller);
             checkReleaseFeatures(controller, map, store);
+            checkQuickMenu(controller, store);
+            checkContourOverLoadedArea(controller, store);
+            checkColorPicker(controller);
             checkWaypointManagement(map, bridge, minecraft, store, context);
             controller.init();
-            press(controller, "groupsButton");
+            // Groups left the panel; they open from the Areas window (checked there), here directly.
+            Object none = dialog(controller, "NONE");
+            Method openGroups = ExactSelectionController.class.getDeclaredMethod("openGroupsWindow", none.getClass());
+            openGroups.setAccessible(true);
+            openGroups.invoke(controller, none);
+            call(controller, "layoutDialog");
             require(window(controller).equals("GROUPS"), "Groups did not open separately");
             checkLayout(controller);
             press(controller, "groupCreate");
@@ -1034,7 +1953,9 @@ public final class ManagementUiCheck {
             require(store.state().groups().get(1).name().equals("Stores") && store.state().groups().get(1).id().equals(secondGroup), "Group rename changed identity");
             press(controller, "managementClose");
             press(controller, "areasButton");
+            require(((Set<?>) get(controller, "selectedAreaIds")).isEmpty(), "Areas window opened with an area already checked");
             checkLayout(controller);
+            row(controller, 0, false);
             enter(controller, map, 4, "Renamed first");
             require(store.state().areas().size() == 2 && store.state().areas().get(0).name().equals("Renamed first"), "Enter in area name created an area instead of renaming it");
             press(controller, "groupAssign");
@@ -1097,6 +2018,8 @@ public final class ManagementUiCheck {
             press(controller, "areaSave");
             enter(controller, map, 8, "Third area");
             require(store.state().areas().size() == 3 && ((Set<?>) get(controller, "selectedAreaIds")).size() == 1, "Saved area was not selected");
+            require(selection.bounds() == null, "Saving from the Areas window kept the selection");
+            selection.set(new SelectionBounds(40, 40, 50, 50)); call(controller, "updateVisibility");
             SavedAreaStore reloaded = new SavedAreaStore(directory);
             reloaded.useContext(context);
             require(reloaded.state().equals(store.state()), "Group operations were lost after reloading saved data");

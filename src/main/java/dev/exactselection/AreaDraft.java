@@ -1,5 +1,6 @@
 package dev.exactselection;
 
+import dev.exactselection.SavedAreaStore.Area;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Predicate;
@@ -42,14 +43,18 @@ final class AreaDraft {
     }
 
     /** {@code areas} with the selected pending fields applied to every area in {@code targets}. */
-    List<SavedAreaStore.Area> apply(List<SavedAreaStore.Area> areas, Set<String> targets,
+    List<Area> apply(List<Area> areas, Set<String> targets,
                                     Predicate<AutosaveSettings.Field> fields) {
         boolean rename = name != null && targets.size() == 1 && fields.test(AutosaveSettings.Field.NAME);
         boolean group = groupSet && fields.test(AutosaveSettings.Field.GROUP);
         boolean recolor = color != null && fields.test(AutosaveSettings.Field.COLOR);
         boolean fill = opacity != null && fields.test(AutosaveSettings.Field.OPACITY);
-        return areas.stream().map(a -> !targets.contains(a.id()) ? a : new SavedAreaStore.Area(a.id(),
-                rename ? name : a.name(), a.x1(), a.z1(), a.x2(), a.z2(), recolor ? color : a.color(),
-                fill ? opacity : a.opacity(), group ? groupId : a.groupId(), a.visible(), a.vertices())).toList();
+        return areas.stream().map(a -> {
+            if (!targets.contains(a.id())) return a;
+            Area edited = rename ? a.withName(name) : a;
+            if (recolor) edited = edited.withColor(color);
+            if (fill) edited = edited.withOpacity(opacity);
+            return group ? edited.withGroup(groupId) : edited;
+        }).toList();
     }
 }

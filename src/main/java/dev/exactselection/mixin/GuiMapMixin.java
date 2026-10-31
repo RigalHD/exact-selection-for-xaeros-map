@@ -2,6 +2,7 @@ package dev.exactselection.mixin;
 
 import dev.exactselection.ExactSelectionController;
 import dev.exactselection.MapBridge;
+import java.util.Objects;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
@@ -30,6 +31,8 @@ public abstract class GuiMapMixin extends Screen implements MapBridge {
     @Shadow private double cameraX;
     @Shadow private double cameraZ;
     @Shadow private double scale;
+    @Shadow private double userScale;
+    @Shadow private static double destScale;
     @Shadow private MapProcessor mapProcessor;
     @Shadow private ResourceKey<Level> lastViewedDimensionId;
     @Shadow private String lastViewedMultiworldId;
@@ -54,7 +57,7 @@ public abstract class GuiMapMixin extends Screen implements MapBridge {
     @Inject(method = {"init", "method_25426"}, at = @At("TAIL"))
     private void exactselection$init(CallbackInfo ci) {
         if (exactselection$controller == null)
-            exactselection$controller = new ExactSelectionController((GuiMap) (Object) this, this);
+            exactselection$controller = ExactSelectionController.forScreen((GuiMap) (Object) this, this);
         exactselection$controller.init();
     }
 
@@ -180,7 +183,7 @@ public abstract class GuiMapMixin extends Screen implements MapBridge {
     @Inject(method = {"removed", "method_25432"}, at = @At("HEAD"))
     private void exactselection$removed(CallbackInfo ci) {
         exactselection$zoomAnchorActive = false;
-        if (exactselection$controller != null) exactselection$controller.disable();
+        if (exactselection$controller != null) exactselection$controller.suspend();
     }
 
     @Override public Frame exactselection$frame() {
@@ -190,7 +193,7 @@ public abstract class GuiMapMixin extends Screen implements MapBridge {
         if (dimension == null || !mapProcessor.isMapWorldUsable() || mapProcessor.isRenderingPaused()
                 || lastViewedDimensionId == null || scale <= 0
                 || !lastViewedDimensionId.equals(world.getFutureDimensionId())
-                || !java.util.Objects.equals(lastViewedMultiworldId, dimension.getCurrentMultiworld()))
+                || !Objects.equals(lastViewedMultiworldId, dimension.getCurrentMultiworld()))
             return null;
         var window = Minecraft.getInstance().getWindow();
         return new Frame(new Context(world, mapProcessor.getCurrentWorldId(), lastViewedDimensionId,
@@ -208,6 +211,15 @@ public abstract class GuiMapMixin extends Screen implements MapBridge {
         cameraX -= dx * frame.guiScale() / scale;
         cameraZ -= dy * frame.guiScale() / scale;
     }
+
+    @Override public void exactselection$moveCamera(double x, double z, double pixelsPerBlock) {
+        exactselection$zoomAnchorActive = false;
+        cameraDestination = new int[]{(int) Math.round(x), (int) Math.round(z)};
+        // scale is userScale times a window factor, and userScale follows destScale; the limits are changeZoom's.
+        destScale = Math.max(0.0625, Math.min(50, pixelsPerBlock * userScale / scale));
+    }
+
+    @Override public void exactselection$closeMap() { ((GuiMap) (Object) this).goBack(); }
 
     @Override public void exactselection$clearNativeInput() {
         leftMouseButton.isDown = rightMouseButton.isDown = false;

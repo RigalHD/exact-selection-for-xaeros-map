@@ -2,6 +2,8 @@ package dev.exactselection;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Locale;
 import java.util.function.Consumer;
@@ -13,7 +15,11 @@ import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.network.chat.Component;
-import org.slf4j.LoggerFactory;
+import net.minecraft.resources.Identifier;
+import net.minecraft.util.Util;
+import org.lwjgl.util.tinyfd.TinyFileDialogs;
+import static dev.exactselection.ExactSelectionController.place;
+import static dev.exactselection.ModLog.LOG;
 
 /**
  * The PNG export window: target folder, day or night, scale, saved areas and labels. The controller shows it as one
@@ -49,40 +55,38 @@ final class ExportWindow {
         return Button.builder(tr(key), b -> action.run()).bounds(0, 0, 100, 18).build();
     }
 
+    private static Button button(String key, String tooltipKey, Runnable action) {
+        Button result = button(key, action);
+        result.setTooltip(Tooltip.create(tr(tooltipKey)));
+        return result;
+    }
+
     /**
-     * Creates the widgets again after Xaero rebuilds the screen, keeping a typed folder. {@code changed} refreshes the
-     * controller's view, {@code export} runs the export and {@code report} shows a message.
+     * Creates the widgets again after Xaero rebuilds the screen, keeping a typed folder. {@code export} runs the
+     * export and {@code report} shows a message.
      */
-    List<AbstractWidget> createWidgets(Runnable changed, Runnable export, Consumer<String> report) {
+    List<AbstractWidget> createWidgets(Runnable export, Consumer<String> report) {
         String typed = folder == null ? preferences.folder : folder.getValue();
         folder = new EditBox(mc.font, 0, 0, 100, 18, Component.empty());
         folder.setMaxLength(1024);
         folder.setValue(typed);
-        folder.setResponder(value -> changed.run());
-        pick = button("export_pick_folder", () -> { pickFolder(report); changed.run(); });
-        standardFolder = button("export_default_folder", () -> { folder.setValue(""); changed.run(); });
+        pick = button("export_pick_folder", "export_pick_tooltip", () -> pickFolder(report));
+        standardFolder = button("export_default_folder", () -> folder.setValue(""));
         openFolder = button("import_open_folder", () -> {
             Path target = folder();
-            if (target != null && Files.isDirectory(target)) net.minecraft.util.Util.getPlatform().openPath(target);
+            if (target != null && Files.isDirectory(target)) Util.getPlatform().openPath(target);
         });
-        time = button("export_day", () -> { preferences.night = !preferences.night; changed.run(); });
-        scale = button("export_scale", () -> {
+        time = button("export_day", "export_time_tooltip", () -> preferences.night = !preferences.night);
+        scale = button("export_scale", "export_scale_tooltip", () -> {
             int[] scales = ExportPreferences.SCALES;
             int index = 0;
             for (int i = 0; i < scales.length; i++) if (scales[i] == windowScale) index = i;
             windowScale = preferences.scale = scales[(index + 1) % scales.length];
-            changed.run();
         });
-        labels = button("export_labels_on", () -> { preferences.labels = !preferences.labels; changed.run(); });
-        areas = button("export_areas_on", () -> { preferences.areas = !preferences.areas; changed.run(); });
-        ownFill = button("export_own_fill_on", () -> { preferences.ownFill = !preferences.ownFill; changed.run(); });
+        labels = button("export_labels_on", "export_labels_tooltip", () -> preferences.labels = !preferences.labels);
+        areas = button("export_areas_on", "export_areas_tooltip", () -> preferences.areas = !preferences.areas);
+        ownFill = button("export_own_fill_on", "export_own_fill_tooltip", () -> preferences.ownFill = !preferences.ownFill);
         run = button("export_run", export);
-        pick.setTooltip(Tooltip.create(tr("export_pick_tooltip")));
-        time.setTooltip(Tooltip.create(tr("export_time_tooltip")));
-        scale.setTooltip(Tooltip.create(tr("export_scale_tooltip")));
-        areas.setTooltip(Tooltip.create(tr("export_areas_tooltip")));
-        labels.setTooltip(Tooltip.create(tr("export_labels_tooltip")));
-        ownFill.setTooltip(Tooltip.create(tr("export_own_fill_tooltip")));
         return List.of(folder, pick, standardFolder, openFolder, time, scale, areas, labels, ownFill, run);
     }
 
@@ -116,15 +120,15 @@ final class ExportWindow {
     }
 
     private static String fileName() {
-        return "ExactSelection-" + java.time.LocalDateTime.now().format(
-                java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd_HH-mm-ss", Locale.ROOT)) + ".png";
+        return "ExactSelection-" + LocalDateTime.now().format(
+                DateTimeFormatter.ofPattern("yyyy-MM-dd_HH-mm-ss", Locale.ROOT)) + ".png";
     }
 
     /** The system folder picker; it blocks the game until it closes, like other mods' file dialogs. */
     private void pickFolder(Consumer<String> report) {
         try {
             Path current = folder();
-            String chosen = org.lwjgl.util.tinyfd.TinyFileDialogs.tinyfd_selectFolderDialog(
+            String chosen = TinyFileDialogs.tinyfd_selectFolderDialog(
                     tr("export_pick_title").getString(), current == null ? "" : current.toString());
             if (chosen != null && !chosen.isBlank()) folder.setValue(chosen);
         } catch (Throwable unavailable) {
@@ -142,9 +146,9 @@ final class ExportWindow {
             pixelFontLoaded = true;
             try {
                 pixelFont = PixelFont.load(path -> mc.getResourceManager()
-                        .getResource(net.minecraft.resources.Identifier.withDefaultNamespace(path)).orElseThrow().open());
+                        .getResource(Identifier.withDefaultNamespace(path)).orElseThrow().open());
             } catch (Exception e) {
-                LoggerFactory.getLogger("Exact Selection for Xaero's map").warn("Minecraft font unavailable; labels use a system font", e);
+                LOG.warn("Minecraft font unavailable; labels use a system font", e);
             }
         }
         return new AreaExportService.Options(target, fileName(), preferences.night, windowScale, preferences.labels,
@@ -153,16 +157,16 @@ final class ExportWindow {
 
     void layout(int x, int y, int w, int buttonY) {
         int half = (w - 27) / 2;
-        ExactSelectionController.place(folder, x + 12, y + 56, w - 24 - 94, 18);
-        ExactSelectionController.place(pick, x + w - 102, y + 56, 90, 18);
-        ExactSelectionController.place(standardFolder, x + 12, y + 78, half, 18);
-        ExactSelectionController.place(openFolder, x + 15 + half, y + 78, w - 27 - half, 18);
-        ExactSelectionController.place(time, x + 12, y + 122, half, 18);
-        ExactSelectionController.place(scale, x + 15 + half, y + 122, w - 27 - half, 18);
-        ExactSelectionController.place(areas, x + 12, y + 144, half, 18);
-        ExactSelectionController.place(labels, x + 15 + half, y + 144, w - 27 - half, 18);
-        ExactSelectionController.place(ownFill, x + 12, y + 166, w - 24, 18);
-        ExactSelectionController.place(run, x + w / 2 - 116, buttonY, 110, 18);
+        place(folder, x + 12, y + 56, w - 24 - 94, 18);
+        place(pick, x + w - 102, y + 56, 90, 18);
+        place(standardFolder, x + 12, y + 78, half, 18);
+        place(openFolder, x + 15 + half, y + 78, w - 27 - half, 18);
+        place(time, x + 12, y + 122, half, 18);
+        place(scale, x + 15 + half, y + 122, w - 27 - half, 18);
+        place(areas, x + 12, y + 144, half, 18);
+        place(labels, x + 15 + half, y + 144, w - 27 - half, 18);
+        place(ownFill, x + 12, y + 166, w - 24, 18);
+        place(run, x + w / 2 - 116, buttonY, 110, 18);
     }
 
     void show(boolean exportRunning) {

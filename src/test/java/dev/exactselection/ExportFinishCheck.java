@@ -46,6 +46,16 @@ public final class ExportFinishCheck {
         System.out.println("PASS: PNG area visibility controls fills, outlines and names without changing the export territory");
     }
 
+    private static void checkRouteInImage(Path root) throws IOException {
+        var route = SavedAreaStore.create("Road", new PolylineGeometry(List.of(new GridPoint(2, 2), new GridPoint(13, 2), new GridPoint(13, 13))), 0xFF0000, 100, null);
+        AreaExportService.RawJob base = job(root, "route", 16);
+        var export = new AreaExportService.RawJob(base.jobDirectory(), root, base.id(), 16, 16, 0, 0, 16, 16, base.territory(), List.of(route), List.of(), base.options());
+        BufferedImage image = ImageIO.read(AreaExportService.finish(export).file().toFile());
+        require(image.getRGB(8, 2) == 0xFFFF0000 || image.getRGB(8, 1) == 0xFFFF0000, "A route's line is missing from the image");
+        require(image.getRGB(8, 8) == 0xFF336699 && image.getRGB(10, 5) == 0xFF336699, "A route was closed or filled in the image");
+        System.out.println("PASS: a route is drawn on the PNG as an open line without a fill");
+    }
+
     private static boolean leftovers(Path root, String id) throws IOException {
         try (var files = Files.list(root)) {
             return files.anyMatch(path -> path.getFileName().toString().startsWith(".") && path.toString().contains(id));
@@ -57,6 +67,7 @@ public final class ExportFinishCheck {
         Path root = Files.createTempDirectory("exact-selection-export-");
         try {
             checkHiddenAreas(root);
+            checkRouteInImage(root);
             AreaExportService.Result result = AreaExportService.finish(job(root, "ok", 16));
             BufferedImage written = ImageIO.read(result.file().toFile());
             require(written.getWidth() == 16 && written.getRGB(4, 4) == 0xFF336699, "Composed PNG has wrong content");
@@ -93,6 +104,12 @@ public final class ExportFinishCheck {
             AreaExportService.RawJob failed = job(root, "failed", 32);
             try { AreaExportService.finish(failed); throw new AssertionError("Wrong size accepted"); }
             catch (IOException expected) { require(!leftovers(root, "failed"), "A failed export left temporary files"); }
+            // The next export clears the job folder of one the game did not finish, and nothing else.
+            Path crashed = Files.createDirectories(root.resolve(".raw-crashed"));
+            Files.write(crashed.resolve("xaero.png"), new byte[]{1});
+            Path finished = Files.write(root.resolve("finished.png"), new byte[]{1});
+            AreaExportService.removeLeftoverJobs(root);
+            require(!Files.exists(crashed) && Files.exists(finished), "Leftovers of a stopped export were not cleared correctly");
             System.out.println("PASS: background export writes the PNG, survives cleanup failures, and keeps the original error");
         } finally {
             try (var paths = Files.walk(root)) {

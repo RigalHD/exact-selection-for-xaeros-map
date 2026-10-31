@@ -10,7 +10,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.EnumSet;
 import java.util.Locale;
-import org.slf4j.LoggerFactory;
+import static dev.exactselection.ModLog.LOG;
 
 /**
  * The Areas window's settings, shared by all worlds: which saved-area changes are written immediately instead of
@@ -50,7 +50,7 @@ public final class AutosaveSettings {
         } catch (Exception e) {
             settings.enabled = false;
             settings.fields.addAll(EnumSet.allOf(Field.class));
-            LoggerFactory.getLogger("Exact Selection for Xaero's map").warn("Could not read autosave settings; using defaults", e);
+            LOG.warn("Could not read autosave settings; using defaults", e);
         }
         return settings;
     }
@@ -88,7 +88,7 @@ public final class AutosaveSettings {
             SavedAreaStore.writeAtomically(file, root.toString());
         } catch (IOException e) {
             // A preference that fails to persist still applies for this session.
-            LoggerFactory.getLogger("Exact Selection for Xaero's map").warn("Could not save autosave settings", e);
+            LOG.warn("Could not save autosave settings", e);
         }
     }
 }

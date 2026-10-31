@@ -1,0 +1,295 @@
+package dev.exactselection;
+
+import dev.exactselection.ExactSelectionController.Dialog;
+import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.components.EditBox;
+import net.minecraft.network.chat.Component;
+import static dev.exactselection.ExactSelectionController.ACCENT;
+import static dev.exactselection.ExactSelectionController.AREA_NAME_FIELD;
+import static dev.exactselection.ExactSelectionController.CENTER_NAME_FIELD;
+import static dev.exactselection.ExactSelectionController.GROUP_NAME_FIELD;
+import static dev.exactselection.ExactSelectionController.HEX_FIELD;
+import static dev.exactselection.ExactSelectionController.LENGTH_FIELD;
+import static dev.exactselection.ExactSelectionController.NEW_AREA_FIELD;
+import static dev.exactselection.ExactSelectionController.OFFSET_X_FIELD;
+import static dev.exactselection.ExactSelectionController.OFFSET_Z_FIELD;
+import static dev.exactselection.ExactSelectionController.WIDTH_FIELD;
+import static dev.exactselection.ExactSelectionController.place;
+
+/** What all windows share: opening and closing them, their frame and title, and the shared buttons. */
+final class Windows extends UiPart {
+    Windows(ExactSelectionController ui) { super(ui); }
+
+    void openDialog(Dialog next) {
+        if (ui.dirty || !ui.polygonTool.draft.isEmpty() || ui.holding() || ui.waypointsWindow.pending != null) return;
+        ui.polygonTool.draftUndo.clear(); ui.polygonTool.draftRedo.clear();
+        ui.polygonTool.stateBefore = null;
+        ui.dialog = next;
+        if (next == Dialog.AREAS) ui.areasWindow.areaSearch.setValue("");
+        if (next == Dialog.SIZE) {
+            SelectionBounds b = ui.state.bounds();
+            ui.setDialogValue(WIDTH_FIELD, b == null ? "1" : Long.toString(b.width()));
+            ui.setDialogValue(LENGTH_FIELD, b == null ? "1" : Long.toString(b.length()));
+        } else if (next == Dialog.MOVE) {
+            ui.setDialogValue(OFFSET_X_FIELD, "0"); ui.setDialogValue(OFFSET_Z_FIELD, "0");
+        } else if (next == Dialog.CENTER) {
+            ui.setDialogValue(CENTER_NAME_FIELD, ui.tr("center_waypoint_default").getString());
+        } else if (next == Dialog.AREAS) {
+            // The window opens with nothing checked; properties apply only to areas the user picks.
+            ui.areasWindow.selectedAreaIds.clear();
+            ui.areasWindow.areaId = null;
+            ui.areasWindow.areaAnchorId = null;
+            ui.areaEdits.areaDraft.clear();
+            ui.areasWindow.autosaveOpen = false;
+            ui.areasWindow.areaDeleteConfirmation = ui.groupsWindow.groupDeleteConfirmation = ui.areasWindow.areaDeleteFromMenu = false;
+            ui.setDialogValue(AREA_NAME_FIELD, "");
+            ui.message = "";
+        }
+        if (next == Dialog.SIZE) ui.selectionDialogs.anchorButton.setMessage(ui.tr(ui.selectionDialogs.sizeFromCenter ? "anchor_center" : "anchor_lower_left"));
+        if (next == Dialog.MOVE) ui.selectionDialogs.moveUnitsButton.setMessage(ui.tr(ui.selectionDialogs.moveInChunks ? "units_chunks" : "units_blocks"));
+        ui.focus(null);
+    }
+
+    void cancelDialog() {
+        if (ui.dialog == Dialog.AREAS && ui.areasWindow.areaDeleteConfirmation) {
+            ui.areasWindow.areaDeleteConfirmation = false;
+            if (ui.areasWindow.areaDeleteFromMenu) { ui.areasWindow.areaDeleteFromMenu = false; ui.dialog = Dialog.NONE; }
+            ui.message = "";
+            ui.focus(null);
+            return;
+        }
+        if (ui.dialog == Dialog.GROUPS && ui.groupsWindow.groupDeleteConfirmation) {
+            ui.groupsWindow.groupDeleteConfirmation = false;
+            ui.focus(null);
+            return;
+        }
+        if (ui.dialog == Dialog.WAYPOINTS) ui.waypointsWindow.pending = null;
+        if (ui.dialog == Dialog.AREAS) ui.areaEdits.flushDraft();
+        ui.dialog = switch (ui.dialog) {
+            case AREA_NAME -> ui.newAreaWindow.areaNameReturn;
+            case COLOR -> ui.colorWindows.colorReturn;
+            case PICKER -> ui.colorWindows.pickerReturn;
+            case ASSIGN_GROUP, IMPORT -> Dialog.AREAS;
+            case EXPORT -> ui.mapExport.exportReturn;
+            case GROUP_NAME -> Dialog.GROUPS;
+            case GROUPS -> ui.groupsWindow.groupsReturnDialog;
+            default -> Dialog.NONE;
+        };
+        ui.focus(null);
+    }
+
+    int[] dialogRect() {
+        int width = Math.min(switch (ui.dialog) {
+            case AREAS, GROUPS -> 760;
+            case ASSIGN_GROUP, AREA_NAME, GROUP_NAME, COLOR, PICKER -> 420;
+            default -> 560;
+        }, ui.screen.width - 20);
+        int height = switch (ui.dialog) {
+            case SIZE, MOVE -> Math.min(180, ui.screen.height - 16);
+            case CENTER -> Math.min(172, ui.screen.height - 16);
+            case AREAS, GROUPS -> Math.min(460, ui.screen.height - 16);
+            case ASSIGN_GROUP -> Math.min(330, ui.screen.height - 16);
+            case AREA_NAME, PICKER -> Math.min(236, ui.screen.height - 16);
+            case GROUP_NAME -> Math.min(140, ui.screen.height - 16);
+            case COLOR -> Math.min(164, ui.screen.height - 16);
+            case WAYPOINTS, IMPORT -> Math.min(330, ui.screen.height - 16);
+            case EXPORT -> Math.min(ui.exportWindow.hasTargetArea() ? 242 : 220, ui.screen.height - 16);
+            default -> 0;
+        };
+        return new int[]{(ui.screen.width - width) / 2, (ui.screen.height - height) / 2, width, height};
+    }
+
+    void layoutDialog() {
+        if (ui.dialog == Dialog.NONE) return;
+        int[] r = dialogRect(); int x = r[0], y = r[1], w = r[2], h = r[3];
+        int buttonY = y + h - 28;
+        switch (ui.dialog) {
+            case SIZE -> {
+                place(ui.dialogFields[WIDTH_FIELD], x + 18, y + 52, (w - 54) / 2, 18);
+                place(ui.dialogFields[LENGTH_FIELD], x + 36 + (w - 54) / 2, y + 52, (w - 54) / 2, 18);
+                place(ui.selectionDialogs.anchorButton, x + 18, y + 82, w - 36, 18);
+                place(ui.modalApply, x + w / 2 - 116, buttonY, 110, 18);
+                place(ui.modalCancel, x + w / 2 + 6, buttonY, 110, 18);
+            }
+            case MOVE -> {
+                place(ui.dialogFields[OFFSET_X_FIELD], x + 18, y + 52, (w - 54) / 2, 18);
+                place(ui.dialogFields[OFFSET_Z_FIELD], x + 36 + (w - 54) / 2, y + 52, (w - 54) / 2, 18);
+                place(ui.selectionDialogs.moveUnitsButton, x + 18, y + 82, w - 36, 18);
+                place(ui.modalApply, x + w / 2 - 116, buttonY, 110, 18);
+                place(ui.modalCancel, x + w / 2 + 6, buttonY, 110, 18);
+            }
+            case CENTER -> {
+                place(ui.dialogFields[CENTER_NAME_FIELD], x + 18, y + 58, w - 36, 18);
+                place(ui.selectionDialogs.centerCopy, x + 18, buttonY - 22, Math.max(70, (w - 48) / 2), 18);
+                place(ui.selectionDialogs.centerCreate, x + 30 + (w - 48) / 2, buttonY - 22, Math.max(70, (w - 48) / 2), 18);
+                place(ui.modalCancel, x + w / 2 - 55, buttonY, 110, 18);
+            }
+            case AREAS -> ui.areasWindow.layoutAreas(x, y, w, h, buttonY);
+            case GROUPS -> ui.groupsWindow.layoutGroups(x, y, w, h, buttonY);
+            case EXPORT -> {
+                ui.exportWindow.layout(x, y, w, buttonY);
+                place(ui.modalCancel, x + w / 2 + 6, buttonY, 110, 18);
+            }
+            case IMPORT -> {
+                place(ui.managementClose, x + w - 82, y + 7, 70, 18);
+                place(ui.transferWindow.importOpenFolder, x + 12, y + h - 28, 150, 18);
+            }
+            case ASSIGN_GROUP -> {
+                place(ui.managementClose, x + w - 82, y + 7, 70, 18);
+                place(ui.groupsWindow.manageGroups, x + 12, y + h - 36, w - 24, 18);
+            }
+            case AREA_NAME, GROUP_NAME -> {
+                place(ui.dialogFields[ui.dialog == Dialog.AREA_NAME ? NEW_AREA_FIELD : GROUP_NAME_FIELD], x + 16, y + 48, w - 32, 18);
+                if (ui.dialog == Dialog.AREA_NAME) ui.newAreaWindow.layoutNewArea(x, y, w);
+                place(ui.modalApply, x + w / 2 - 116, buttonY, 110, 18);
+                place(ui.modalCancel, x + w / 2 + 6, buttonY, 110, 18);
+            }
+            case PICKER -> {
+                place(ui.modalApply, x + w / 2 - 116, buttonY, 110, 18);
+                place(ui.modalCancel, x + w / 2 + 6, buttonY, 110, 18);
+            }
+            case COLOR -> ui.colorWindows.layoutColorDialog(x, y, w, h, buttonY);
+            case WAYPOINTS -> ui.waypointsWindow.layoutWaypoints(x, y, w, h, buttonY);
+            default -> {}
+        }
+    }
+
+    /** The fields and buttons every window shares. */
+    void createWindowWidgets() {
+        ui.confirm = ui.button("confirm", this::confirmDelete);
+        ui.cancel = ui.button("cancel", this::cancelDialog);
+        for (int i = 0; i < ui.dialogFields.length; i++) {
+            EditBox field = new EditBox(ui.mc.font, 0, 0, 100, 18, Component.empty());
+            field.setMaxLength(i <= OFFSET_Z_FIELD ? 10 : i == HEX_FIELD ? 7 : 128);
+            if (i == HEX_FIELD) field.setHint(Component.literal("#RRGGBB"));
+            ui.dialogFields[i] = field;
+            ui.widgets.add(field);
+        }
+        ui.modalApply = ui.button("apply", this::applyDialog);
+        ui.modalCancel = ui.button("cancel", this::cancelDialog);
+        ui.managementClose = ui.button("done", this::cancelDialog);
+        ui.managementUndo = ui.arrowButton("↶", ui::undo);
+        ui.managementRedo = ui.arrowButton("↷", ui::redo);
+    }
+
+    /** Which widgets the open window shows; the Areas and Groups windows decide for themselves. */
+    void showWindowWidgets() {
+        if (ui.dialog == Dialog.SIZE) ui.show(true, ui.dialogFields[WIDTH_FIELD], ui.dialogFields[LENGTH_FIELD], ui.selectionDialogs.anchorButton, ui.modalApply, ui.modalCancel);
+        if (ui.dialog == Dialog.MOVE) ui.show(true, ui.dialogFields[OFFSET_X_FIELD], ui.dialogFields[OFFSET_Z_FIELD], ui.selectionDialogs.moveUnitsButton, ui.modalApply, ui.modalCancel);
+        if (ui.dialog == Dialog.CENTER) ui.show(true, ui.dialogFields[CENTER_NAME_FIELD], ui.selectionDialogs.centerCopy, ui.selectionDialogs.centerCreate, ui.modalCancel);
+        if (ui.dialog == Dialog.AREA_NAME) {
+            ui.show(true, ui.dialogFields[NEW_AREA_FIELD], ui.dialogFields[HEX_FIELD], ui.newAreaWindow.newAreaGroup, ui.newAreaWindow.newAreaOpacityButton, ui.modalApply, ui.modalCancel);
+            // A route has nothing to fill.
+            ui.newAreaWindow.newAreaOpacityButton.visible = ui.newAreaWindow.routeToSave == null;
+        }
+        if (ui.dialog == Dialog.COLOR) {
+            // A swatch or Apply chooses the color; Cancel or Esc leaves without one.
+            ui.show(true, ui.modalCancel);
+            if (ui.colorWindows.colorReturn != Dialog.WAYPOINTS) ui.show(true, ui.dialogFields[HEX_FIELD], ui.colorWindows.colorHexApply);
+        }
+        if (ui.dialog == Dialog.GROUP_NAME) ui.show(true, ui.dialogFields[GROUP_NAME_FIELD], ui.modalApply, ui.modalCancel);
+        if (ui.dialog == Dialog.PICKER) ui.show(true, ui.modalApply, ui.modalCancel);
+        if (ui.dialog == Dialog.ASSIGN_GROUP) ui.show(true, ui.groupsWindow.manageGroups, ui.managementClose);
+        if (ui.dialog == Dialog.AREAS) ui.areasWindow.showAreaWidgets();
+        if (ui.dialog == Dialog.GROUPS) ui.groupsWindow.showGroupWidgets();
+        if (ui.dialog == Dialog.IMPORT) ui.show(true, ui.managementClose, ui.transferWindow.importOpenFolder);
+        if (ui.dialog == Dialog.EXPORT) {
+            ui.exportWindow.show(ui.mapExport.exportRunning);
+            ui.show(true, ui.modalCancel);
+        }
+    }
+
+    /** The shared buttons' labels and states for the open window. */
+    void updateWindowWidgets() {
+        if (ui.areasWindow.areaDeleteConfirmation && ui.dialog == Dialog.AREAS || ui.groupsWindow.groupDeleteConfirmation && ui.dialog == Dialog.GROUPS) {
+            ui.confirm.setMessage(ui.tr(ui.groupsWindow.groupDeleteConfirmation ? "group_delete_confirm_button" : "area_delete_confirm_button"));
+            ui.cancel.setMessage(ui.tr("cancel"));
+            ui.confirm.active = (ui.groupsWindow.groupDeleteConfirmation ? ui.groupsWindow.selectedGroup() != null : !ui.areasWindow.selectedAreas().isEmpty()) && !ui.loadFailed;
+        }
+        ui.selectionDialogs.centerCopy.active = ui.state.bounds() != null;
+        ui.selectionDialogs.centerCreate.active = ui.state.phase() == SelectionState.Phase.SELECTED && ui.waypoints != null;
+        ui.managementUndo.active = ui.history.canUndo();
+        ui.managementRedo.active = ui.history.canRedo();
+        ui.managementClose.setMessage(ui.tr(ui.dialog == Dialog.AREAS || ui.dialog == Dialog.GROUPS && ui.groupsWindow.groupsReturnDialog == Dialog.NONE
+                ? "back_to_map" : "back"));
+        ui.modalCancel.setMessage(ui.tr("cancel"));
+        ui.modalApply.setMessage(ui.tr(ui.dialog == Dialog.AREA_NAME ? ui.newAreaWindow.routeToSave != null ? "route_create_button" : "area_create_button"
+                : ui.dialog == Dialog.GROUP_NAME ? ui.groupsWindow.renamingGroup ? "save_name" : "group_create" : "apply"));
+        ui.modalApply.active = switch (ui.dialog) {
+            case AREA_NAME -> !ui.dialogFields[NEW_AREA_FIELD].getValue().trim().isEmpty() && !ui.loadFailed;
+            case GROUP_NAME -> !ui.dialogFields[GROUP_NAME_FIELD].getValue().trim().isEmpty() && !ui.loadFailed;
+            default -> true;
+        };
+    }
+
+    void applyDialog() {
+        if (ui.dialog == Dialog.AREA_NAME) { ui.newAreaWindow.saveArea(); return; }
+        if (ui.dialog == Dialog.PICKER) { ui.colorWindows.applyPicker(); return; }
+        if (ui.dialog == Dialog.GROUP_NAME) {
+            if (ui.groupsWindow.renamingGroup) ui.groupsWindow.renameGroup(); else ui.groupsWindow.createGroup();
+            return;
+        }
+        try {
+            ui.selectionDialogs.applySizeOrMove();
+            ui.dialog = Dialog.NONE; ui.focus(null); ui.message = "";
+        } catch (Exception e) { ui.say("invalid_dimensions"); }
+    }
+
+    void renderDialog(GuiGraphics g) {
+        int[] r = dialogRect(); int x = r[0], y = r[1], w = r[2], h = r[3];
+        g.nextStratum(); g.fill(0, 0, ui.screen.width, ui.screen.height, 0xC0080D12);
+        g.fill(x, y, x + w, y + h, 0xFF141E29); g.renderOutline(x, y, w, h, 0xFF42636D);
+        String title = switch (ui.dialog) {
+            case SIZE -> "dialog_size"; case MOVE -> "dialog_move"; case CENTER -> "dialog_center";
+            case AREAS -> "areas_window"; case GROUPS -> "groups_window";
+            case ASSIGN_GROUP -> "group_picker_title"; case AREA_NAME -> ui.newAreaWindow.routeToSave != null ? "route_new_title" : "area_new_title";
+            case GROUP_NAME -> ui.groupsWindow.renamingGroup ? "group_rename_title" : "group_new_title";
+            case WAYPOINTS -> "dialog_waypoints"; case COLOR -> "color_title"; case PICKER -> "picker_title";
+            case IMPORT -> "import_title"; case EXPORT -> "export_title"; default -> "title";
+        };
+        if (ui.dialog == Dialog.AREAS || ui.dialog == Dialog.GROUPS || ui.dialog == Dialog.ASSIGN_GROUP || ui.dialog == Dialog.IMPORT)
+            g.drawString(ui.mc.font, ui.tr(title), x + 12, y + 12, ACCENT);
+        else g.drawCenteredString(ui.mc.font, ui.tr(title), x + w / 2, y + 10, ACCENT);
+        switch (ui.dialog) {
+            case SIZE -> {
+                g.drawString(ui.mc.font, ui.tr("width_field"), x + 18, y + 38, -1);
+                g.drawString(ui.mc.font, ui.tr("length_field"), x + 36 + (w - 54) / 2, y + 38, -1);
+                SelectionBounds b = ui.state.bounds();
+                if (b != null) g.drawString(ui.mc.font, ui.tr("current_anchor", SelectionDialogs.formatNumber(ui.selectionDialogs.sizeFromCenter ? b.centerX() : b.minX()),
+                        SelectionDialogs.formatNumber(ui.selectionDialogs.sizeFromCenter ? b.centerZ() : b.maxZ())), x + 18, y + 108, 0xFF9BAAB7);
+                g.drawString(ui.mc.font, ui.tr("lower_left_axes"), x + 18, y + 124, 0xFF9BAAB7);
+            }
+            case MOVE -> {
+                g.drawString(ui.mc.font, ui.tr("offset_x"), x + 18, y + 38, -1);
+                g.drawString(ui.mc.font, ui.tr("offset_z"), x + 36 + (w - 54) / 2, y + 38, -1);
+                g.drawString(ui.mc.font, ui.tr("move_note"), x + 18, y + 108, 0xFF9BAAB7);
+            }
+            case CENTER -> {
+                SelectionBounds b = ui.state.bounds();
+                g.drawString(ui.mc.font, b == null ? ui.tr("no_selection") : ui.tr("center_value", SelectionDialogs.formatNumber(b.centerX()), SelectionDialogs.formatNumber(b.centerZ())), x + 18, y + 34, -1);
+                g.drawString(ui.mc.font, ui.tr("center_waypoint_y"), x + 18, y + 82, 0xFF9BAAB7);
+            }
+            case AREAS -> ui.areasWindow.renderAreasDialog(g, x, y, w, h);
+            case GROUPS -> ui.groupsWindow.renderGroupsDialog(g, x, y, w, h);
+            case ASSIGN_GROUP -> ui.groupsWindow.renderGroupChooser(g, x, y, w, h);
+            case IMPORT -> ui.transferWindow.renderImportDialog(g, x, y, w, h);
+            case EXPORT -> ui.exportWindow.render(g, x, y, w, ui.message);
+            case AREA_NAME, GROUP_NAME -> {
+                String label = ui.dialog == Dialog.GROUP_NAME ? "group_name" : ui.newAreaWindow.routeToSave != null ? "route_name" : "area_name";
+                g.drawString(ui.mc.font, ui.tr(label), x + 16, y + 32, -1);
+                if (ui.dialog == Dialog.AREA_NAME) ui.newAreaWindow.renderNewArea(g, x, y, w);
+                if (!ui.message.isEmpty()) g.drawString(ui.mc.font, ui.mc.font.plainSubstrByWidth(ui.message, w - 32), x + 16, y + (ui.dialog == Dialog.AREA_NAME ? 194 : 80), 0xFFFFCF62);
+            }
+            case WAYPOINTS -> ui.waypointsWindow.renderWaypointsDialog(g, x, y, w, h);
+            case COLOR -> ui.colorWindows.renderColorDialog(g, x, y, w, h);
+            case PICKER -> ui.colorWindows.renderPicker(g, x, y, w, h);
+            default -> {}
+        }
+    }
+
+    private void confirmDelete() {
+        if (ui.dialog == Dialog.GROUPS && ui.groupsWindow.groupDeleteConfirmation) { ui.groupsWindow.confirmGroupDelete(); return; }
+        if (ui.dialog == Dialog.AREAS && ui.areasWindow.areaDeleteConfirmation) { ui.areasWindow.confirmAreaDelete(); return; }
+        if (ui.dialog == Dialog.WAYPOINTS) ui.waypointsWindow.confirmPointDelete();
+    }
+}

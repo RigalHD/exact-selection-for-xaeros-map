@@ -19,6 +19,11 @@ public interface WaypointAccess {
                     initials, type, yaw, rotation, yIncluded, global, purpose, temporary, destination,
                     serverWaypoint, createdAt, worldIdentity, setIdentity);
         }
+        public Point withOwner(Object world, Object set) {
+            return new Point(identity, x, y, z, name, disabled, editable, color, symbol, visibility,
+                    initials, type, yaw, rotation, yIncluded, global, purpose, temporary, destination,
+                    serverWaypoint, createdAt, world, set);
+        }
     }
     record Snapshot(Object world, Object set, String setName, List<Point> points, List<Point> setPoints) {
         public Snapshot {
@@ -29,13 +34,7 @@ public interface WaypointAccess {
             this(world, set, setName, points, List.of());
         }
     }
-    Snapshot select(MapBridge.Context context, SelectionBounds bounds);
-    default Snapshot select(MapBridge.Context context, AreaGeometry geometry) {
-        if (geometry == null) return null;
-        GeometryBounds b = geometry.bounds();
-        return select(context, new SelectionBounds((int) b.minX(), (int) b.minZ(),
-                (int) (b.maxX() - 1), (int) (b.maxZ() - 1)));
-    }
+    Snapshot select(MapBridge.Context context, AreaGeometry geometry);
     Snapshot all(MapBridge.Context context);
     /** Xaero's division from waypoint coordinates to map blocks; 1 when the waypoints belong to the viewed dimension. */
     default double dimensionScale() { return 1; }

@@ -2,7 +2,7 @@ package dev.exactselection;
 
 import java.util.List;
 import java.util.function.Supplier;
-import org.slf4j.LoggerFactory;
+import static dev.exactselection.ModLog.LOG;
 
 /**
  * Keeps an unsupported Xaero's Minimap version from crashing the game: the bridge links against Minimap internals,
@@ -26,8 +26,7 @@ final class SafeWaypointAccess implements WaypointAccess {
     }
 
     private static void log(LinkageError error) {
-        LoggerFactory.getLogger("Exact Selection for Xaero's map")
-                .warn("This Xaero's Minimap version is not supported; waypoint features are turned off", error);
+        LOG.warn("This Xaero's Minimap version is not supported; waypoint features are turned off", error);
     }
 
     private <T> T query(Supplier<T> call, T fallback) {
@@ -59,9 +58,6 @@ final class SafeWaypointAccess implements WaypointAccess {
         action(() -> { call.run(); return null; });
     }
 
-    @Override public Snapshot select(MapBridge.Context context, SelectionBounds bounds) {
-        return query(() -> delegate.select(context, bounds), null);
-    }
     @Override public Snapshot select(MapBridge.Context context, AreaGeometry geometry) {
         return query(() -> delegate.select(context, geometry), null);
     }

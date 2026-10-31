@@ -60,13 +60,11 @@ public final class SelectionState {
     public void setGeometry(AreaGeometry geometry) {
         this.geometry = geometry;
         if (geometry == null) { bounds = null; source = null; phase = enabled() ? Phase.READY : Phase.OFF; return; }
-        GeometryBounds b = geometry.bounds();
-        bounds = new SelectionBounds((int) b.minX(), (int) b.minZ(), (int) (b.maxX() - 1), (int) (b.maxZ() - 1));
+        bounds = geometry.bounds().blocks();
         phase = Phase.SELECTED;
     }
     public void load(AreaGeometry geometry, String source) {
         setGeometry(geometry);
         this.source = geometry == null ? null : source;
     }
-    public void escape() { if (bounds != null) reset(); else disable(); }
 }

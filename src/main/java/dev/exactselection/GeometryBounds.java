@@ -5,6 +5,10 @@ public record GeometryBounds(long minX, long minZ, long maxX, long maxZ) {
         if (minX >= maxX || minZ >= maxZ) throw new IllegalArgumentException("Geometry must have positive bounds");
     }
 
+    /** The blocks these outer edges enclose, both corner blocks included. */
+    public SelectionBounds blocks() {
+        return new SelectionBounds((int) minX, (int) minZ, (int) (maxX - 1), (int) (maxZ - 1));
+    }
     public long width() { return maxX - minX; }
     public long length() { return maxZ - minZ; }
     public double centerX() { return (minX + maxX) / 2.0; }

@@ -1,7 +1,10 @@
 package dev.exactselection;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Set;
 import xaero.common.minimap.waypoints.Waypoint;
 import xaero.hud.minimap.module.MinimapSession;
 import xaero.hud.minimap.waypoint.WaypointPurpose;
@@ -13,11 +16,6 @@ import xaero.map.mods.SupportMods;
 
 public final class XaeroWaypointBridge implements WaypointAccess {
     @Override
-    public Snapshot select(MapBridge.Context context, SelectionBounds bounds) {
-        return bounds == null ? null : select(context, new RectangleGeometry(bounds));
-    }
-
-    @Override
     public Snapshot select(MapBridge.Context context, AreaGeometry geometry) {
         return geometry == null ? null : select(context, (x, z) -> geometry.containsBlockCenter(x, z));
     }
@@ -25,6 +23,7 @@ public final class XaeroWaypointBridge implements WaypointAccess {
     @Override public Snapshot all(MapBridge.Context context) { return select(context, (x, z) -> true); }
     @Override public int colorRgb(int index) { return WaypointColor.fromIndex(index).getHex() & 0xFFFFFF; }
     @FunctionalInterface private interface Area { boolean contains(int x, int z); }
+    @FunctionalInterface interface Save { void run() throws Exception; }
 
     /**
      * The waypoint world the World Map itself draws: the minimap's current world, or the viewed map's own world when
@@ -88,33 +87,44 @@ public final class XaeroWaypointBridge implements WaypointAccess {
                 w.isTemporary(), w.isDestination(), w.isServerWaypoint(), w.getCreatedAt(), null, null);
     }
 
-    @Override
-    public void delete(Snapshot snapshot) throws Exception {
-        MinimapWorld world = (MinimapWorld) snapshot.world();
+    /** Saves a waypoint world, which must still be the one the map shows; the minimap is told either way. */
+    private static Save saver(Object world, Object set) {
         MinimapSession session = BuiltInHudModules.MINIMAP.getCurrentSession();
-        if (session == null || world != SupportMods.xaeroMinimap.getWaypointWorld()
-                || snapshot.set() != world.getCurrentWaypointSet())
+        if (world == null || set == null || !SupportMods.minimap() || session == null
+                || world != SupportMods.xaeroMinimap.getWaypointWorld()
+                || set != ((MinimapWorld) world).getCurrentWaypointSet())
             throw new IllegalStateException("Waypoint context changed");
+        return () -> {
+            try { session.getWorldManagerIO().saveWorld((MinimapWorld) world); }
+            finally { SupportMods.xaeroMinimap.requestWaypointsRefresh(); }
+        };
+    }
+
+    /** Applies a change and saves it; when that fails, takes the change back and saves again. */
+    private static void change(Runnable apply, Runnable undo, Save save) throws Exception {
         try {
-            deleteAndSave(snapshot, () -> session.getWorldManagerIO().saveWorld(world));
-        } finally {
-            SupportMods.xaeroMinimap.requestWaypointsRefresh();
+            apply.run();
+            save.run();
+        } catch (Exception failure) {
+            undo.run();
+            // Retry the normal writer with the restored state if a write failed part-way through.
+            try { save.run(); }
+            catch (Exception rollbackFailure) { failure.addSuppressed(rollbackFailure); }
+            throw failure;
         }
     }
 
+    @Override public void delete(Snapshot snapshot) throws Exception {
+        deleteAndSave(snapshot, saver(snapshot.world(), snapshot.set()));
+    }
+
     @Override public void edit(Snapshot snapshot, List<Point> from, List<Point> to) throws Exception {
-        MinimapWorld world = (MinimapWorld) snapshot.world();
-        MinimapSession session = BuiltInHudModules.MINIMAP.getCurrentSession();
-        if (!SupportMods.minimap() || session == null || world != SupportMods.xaeroMinimap.getWaypointWorld()
-                || snapshot.set() != world.getCurrentWaypointSet())
-            throw new IllegalStateException("Waypoint context changed");
-        try { editAndSave((WaypointSet) snapshot.set(), from, to, () -> session.getWorldManagerIO().saveWorld(world)); }
-        finally { SupportMods.xaeroMinimap.requestWaypointsRefresh(); }
+        editAndSave((WaypointSet) snapshot.set(), from, to, saver(snapshot.world(), snapshot.set()));
     }
 
     static void editAndSave(WaypointSet set, List<Point> from, List<Point> to, Save save) throws Exception {
         if (from.size() != to.size()) throw new IllegalStateException("Waypoint changed after confirmation");
-        java.util.Set<Object> identities = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
+        Set<Object> identities = Collections.newSetFromMap(new IdentityHashMap<>());
         List<Waypoint> current = new ArrayList<>(); set.addTo(current);
         for (int i = 0; i < from.size(); i++) {
             Point p = from.get(i), next = to.get(i);
@@ -123,22 +133,17 @@ public final class XaeroWaypointBridge implements WaypointAccess {
                     || next.name() == null || next.name().isBlank() || next.color() < 0 || next.color() >= COLOR_COUNT)
                 throw new IllegalStateException("Waypoint changed after confirmation");
         }
-        try {
+        change(() -> {
             for (int i = 0; i < from.size(); i++) {
                 Waypoint w = (Waypoint) from.get(i).identity();
                 w.setName(to.get(i).name()); w.setColor(to.get(i).color());
             }
-            save.run();
-        } catch (Exception failure) {
+        }, () -> {
             for (Point p : from) {
                 Waypoint w = (Waypoint) p.identity(); w.setName(p.name()); w.setColor(p.color());
             }
-            try { save.run(); } catch (Exception rollbackFailure) { failure.addSuppressed(rollbackFailure); }
-            throw failure;
-        }
+        }, save);
     }
-
-    @FunctionalInterface interface Save { void run() throws Exception; }
 
     static void deleteAndSave(Snapshot snapshot, Save save) throws Exception {
         WaypointSet set = (WaypointSet) snapshot.set();
@@ -149,17 +154,8 @@ public final class XaeroWaypointBridge implements WaypointAccess {
             if (!before.contains(w) || !matches(w, p))
                 throw new IllegalStateException("Waypoint changed after confirmation");
         }
-        try {
-            for (Point p : snapshot.points()) set.remove((Waypoint) p.identity());
-            save.run();
-        } catch (Exception failure) {
-            set.clear();
-            set.addAll(before);
-            // Retry the normal writer with the restored set if a write failed part-way through.
-            try { save.run(); }
-            catch (Exception rollbackFailure) { failure.addSuppressed(rollbackFailure); }
-            throw failure;
-        }
+        change(() -> { for (Point p : snapshot.points()) set.remove((Waypoint) p.identity()); },
+                () -> { set.clear(); set.addAll(before); }, save);
     }
 
     private static boolean matches(Waypoint waypoint, Point expected) {
@@ -172,12 +168,8 @@ public final class XaeroWaypointBridge implements WaypointAccess {
 
     @Override
     public void restore(Snapshot snapshot) throws Exception {
-        MinimapWorld world = (MinimapWorld) snapshot.world();
-        MinimapSession session = BuiltInHudModules.MINIMAP.getCurrentSession();
-        if (session == null || world != SupportMods.xaeroMinimap.getWaypointWorld()
-                || snapshot.set() != world.getCurrentWaypointSet())
-            throw new IllegalStateException("Waypoint context changed");
         WaypointSet set = (WaypointSet) snapshot.set();
+        Save save = saver(snapshot.world(), set);
         List<Waypoint> current = new ArrayList<>(); set.addTo(current);
         for (Point p : snapshot.points()) {
             Waypoint waypoint = (Waypoint) p.identity();
@@ -191,9 +183,7 @@ public final class XaeroWaypointBridge implements WaypointAccess {
         for (Point p : snapshot.points()) {
             Waypoint waypoint = (Waypoint) p.identity();
             if (!point(waypoint).equals(p)) throw new IllegalStateException("Deleted waypoint changed");
-            int original = -1;
-            for (int i = 0; i < snapshot.setPoints().size(); i++)
-                if (snapshot.setPoints().get(i).identity() == waypoint) { original = i; break; }
+            int original = indexOfSnapshot(snapshot.setPoints(), waypoint);
             int insertion = merged.size();
             if (original >= 0) {
                 for (int i = original + 1; i < snapshot.setPoints().size(); i++) {
@@ -212,105 +202,48 @@ public final class XaeroWaypointBridge implements WaypointAccess {
             merged.add(Math.max(0, Math.min(insertion, merged.size())), waypoint);
         }
         merged.addAll(additions);
-        List<Waypoint> before = new ArrayList<>(current);
-        try {
-            set.clear(); set.addAll(merged);
-            session.getWorldManagerIO().saveWorld(world);
-        } catch (Exception failure) {
-            set.clear(); set.addAll(before);
-            try { session.getWorldManagerIO().saveWorld(world); }
-            catch (Exception rollbackFailure) { failure.addSuppressed(rollbackFailure); }
-            throw failure;
-        } finally {
-            SupportMods.xaeroMinimap.requestWaypointsRefresh();
-        }
+        change(() -> { set.clear(); set.addAll(merged); }, () -> { set.clear(); set.addAll(current); }, save);
     }
 
     @Override
     public Point create(MapBridge.Context context, int x, int y, int z, String name) throws Exception {
-        if (!SupportMods.minimap() || context == null) throw new IllegalStateException("Minimap unavailable");
-        var support = SupportMods.xaeroMinimap;
+        if (context == null) throw new IllegalStateException("Minimap unavailable");
         MinimapWorld world = displayedWorld();
-        if (world == null) throw new IllegalStateException("Waypoints unavailable");
+        WaypointSet set = world == null ? null : world.getCurrentWaypointSet();
+        Save save = saver(world, set);
         // x/z are map blocks; place the waypoint where the map will draw it in that block.
         double scale = scale();
         if (scale != 1) { x = (int) Math.floor((x + 0.5) * scale); z = (int) Math.floor((z + 0.5) * scale); }
-        WaypointSet set = world.getCurrentWaypointSet();
-        MinimapSession session = BuiltInHudModules.MINIMAP.getCurrentSession();
-        if (set == null || session == null) throw new IllegalStateException("Waypoint set unavailable");
         Waypoint waypoint = new Waypoint(x, y, z, name, "", WaypointColor.YELLOW);
-        set.add(waypoint);
-        try { session.getWorldManagerIO().saveWorld(world); }
-        catch (Exception failure) {
-            set.remove(waypoint);
-            try { session.getWorldManagerIO().saveWorld(world); }
-            catch (Exception rollbackFailure) { failure.addSuppressed(rollbackFailure); }
-            throw failure;
-        } finally { support.requestWaypointsRefresh(); }
-        Point p = point(waypoint);
-        return new Point(p.identity(), p.x(), p.y(), p.z(), p.name(), p.disabled(), p.editable(), p.color(), p.symbol(),
-                p.visibility(), p.initials(), p.type(), p.yaw(), p.rotation(), p.yIncluded(), p.global(), p.purpose(),
-                p.temporary(), p.destination(), p.serverWaypoint(), p.createdAt(), world, set);
+        change(() -> set.add(waypoint), () -> set.remove(waypoint), save);
+        return point(waypoint).withOwner(world, set);
     }
 
     @Override
     public Point recreate(MapBridge.Context context, Point point) throws Exception {
-        if (point == null || point.worldIdentity() == null || point.setIdentity() == null)
-            throw new IllegalStateException("Waypoint context changed");
-        MinimapWorld world = (MinimapWorld) point.worldIdentity();
+        if (point == null) throw new IllegalStateException("Waypoint context changed");
         WaypointSet set = (WaypointSet) point.setIdentity();
-        MinimapSession session = BuiltInHudModules.MINIMAP.getCurrentSession();
-        if (!SupportMods.minimap() || session == null || world != SupportMods.xaeroMinimap.getWaypointWorld()
-                || set != world.getCurrentWaypointSet())
-            throw new IllegalStateException("Waypoint context changed");
+        Save save = saver(point.worldIdentity(), set);
         Waypoint waypoint = new Waypoint(point.x(), point.y(), point.z(), point.name(), point.symbol(),
                 WaypointColor.fromIndex(point.color()));
         waypoint.setInitials(point.initials()); waypoint.setVisibilityType(point.visibility());
         waypoint.setType(point.type()); waypoint.setYaw(point.yaw()); waypoint.setRotation(point.rotation());
         waypoint.setYIncluded(point.yIncluded()); waypoint.setDisabled(point.disabled());
         waypoint.setPurpose(WaypointPurpose.valueOf(point.purpose()));
-        set.add(waypoint);
-        try { session.getWorldManagerIO().saveWorld(world); }
-        catch (Exception failure) {
-            set.remove(waypoint);
-            try { session.getWorldManagerIO().saveWorld(world); }
-            catch (Exception rollbackFailure) { failure.addSuppressed(rollbackFailure); }
-            throw failure;
-        } finally { SupportMods.xaeroMinimap.requestWaypointsRefresh(); }
-        Point created = point(waypoint);
-        return new Point(created.identity(), created.x(), created.y(), created.z(), created.name(), created.disabled(),
-                created.editable(), created.color(), created.symbol(), created.visibility(), created.initials(), created.type(),
-                created.yaw(), created.rotation(), created.yIncluded(), created.global(), created.purpose(),
-                created.temporary(), created.destination(), created.serverWaypoint(), created.createdAt(), world, set);
+        change(() -> set.add(waypoint), () -> set.remove(waypoint), save);
+        return point(waypoint).withOwner(point.worldIdentity(), set);
     }
 
     @Override
     public void removeCreated(MapBridge.Context context, Point point) throws Exception {
-        if (!SupportMods.minimap() || context == null || point == null) throw new IllegalStateException("Minimap unavailable");
-        var support = SupportMods.xaeroMinimap;
-        MinimapWorld world = (MinimapWorld) point.worldIdentity();
-        MinimapSession session = BuiltInHudModules.MINIMAP.getCurrentSession();
-        if (world == null || session == null || world != support.getWaypointWorld())
-            throw new IllegalStateException("Waypoint context changed");
+        if (context == null || point == null) throw new IllegalStateException("Minimap unavailable");
         WaypointSet set = (WaypointSet) point.setIdentity();
-        if (set == null || set != world.getCurrentWaypointSet()) throw new IllegalStateException("Waypoint set changed");
+        Save save = saver(point.worldIdentity(), set);
         Waypoint waypoint = (Waypoint) point.identity();
         List<Waypoint> existing = new ArrayList<>(); set.addTo(existing);
-        if (!existing.contains(waypoint) || !point(waypoint).equals(withoutOwner(point))) throw new IllegalStateException("Waypoint changed");
-        set.remove(waypoint);
-        try { session.getWorldManagerIO().saveWorld(world); }
-        catch (Exception failure) {
-            set.add(waypoint);
-            try { session.getWorldManagerIO().saveWorld(world); }
-            catch (Exception rollbackFailure) { failure.addSuppressed(rollbackFailure); }
-            throw failure;
-        } finally { support.requestWaypointsRefresh(); }
-    }
-
-    private static Point withoutOwner(Point p) {
-        return new Point(p.identity(), p.x(), p.y(), p.z(), p.name(), p.disabled(), p.editable(), p.color(), p.symbol(),
-                p.visibility(), p.initials(), p.type(), p.yaw(), p.rotation(), p.yIncluded(), p.global(), p.purpose(),
-                p.temporary(), p.destination(), p.serverWaypoint(), p.createdAt(), null, null);
+        if (!existing.contains(waypoint) || !point(waypoint).equals(point.withOwner(null, null)))
+            throw new IllegalStateException("Waypoint changed");
+        change(() -> set.remove(waypoint), () -> set.add(waypoint), save);
     }
 
     private static int indexOfIdentity(List<Waypoint> list, Object identity) {

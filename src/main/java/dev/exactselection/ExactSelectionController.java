@@ -1,21 +1,12 @@
 package dev.exactselection;
 
-import java.awt.Desktop;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.util.ArrayDeque;
+import dev.exactselection.MapOverlays.MapLabel;
+import dev.exactselection.SavedAreaStore.Area;
+import dev.exactselection.SavedAreaStore.Group;
 import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.Deque;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.LinkedHashSet;
+import java.util.Arrays;
 import java.util.List;
-import java.util.Locale;
-import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
-import java.util.UUID;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
@@ -27,146 +18,86 @@ import net.minecraft.client.input.CharacterEvent;
 import net.minecraft.client.input.KeyEvent;
 import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.network.chat.Component;
-import org.lwjgl.glfw.GLFW;
-import org.slf4j.LoggerFactory;
 import xaero.map.gui.GuiMap;
+import static dev.exactselection.ModLog.LOG;
 
+/**
+ * The map tool on one World Map screen: owns the selection, its history and the state the {@link UiPart jobs} share,
+ * receives Xaero's input and render calls and passes each to the job it belongs to.
+ */
 public final class ExactSelectionController {
-    private static final int PANEL_X = 34, PANEL_Y = 26;
-    private static final int COMPACT_HEIGHT = 111, EXPANDED_HEIGHT = 238, COPY_SIZE = 10;
-    /** Row height of the right-click menu, as in Xaero's. */
-    private static final int MENU_ROW = 11;
-    /** -12 while the perimeter shares the area line: everything below moves up one line and the panel gets shorter. */
-    private int metricsShift;
-    private static final int RENAME_FIELD = 9, HEX_FIELD = 10;
-    private static final int ACCENT = 0xFF59E3CE;
-    private record MapLabel(Component text, int x, int y, int color) {}
-    private record ScreenPoint(double x, double y) {}
-    private enum Dialog { NONE, SIZE, MOVE, CENTER, AREAS, GROUPS, ASSIGN_GROUP, AREA_NAME, GROUP_NAME, WAYPOINTS, COLOR, IMPORT, EXPORT, PICKER }
-    private final GuiMap screen;
-    private final MapBridge bridge;
-    private final Minecraft mc;
-    private final SelectionState state = new SelectionState();
-    private final SelectionHistory history = new SelectionHistory();
-    private final WaypointAccess waypoints;
-    private final SavedAreaStore areaStore;
-    private final List<AbstractWidget> widgets = new ArrayList<>();
-    private final EditBox[] fields = new EditBox[4];
-    // 0–3 dimensions/offsets, 4–8 area/group/waypoint names and search, 9 waypoint rename, 10 RGB color.
-    private final EditBox[] dialogFields = new EditBox[11];
-    private Button toggle, apply, clear, pointsButton, confirm, cancel;
-    private Button copyCoordinates, copyCornerB, copyArea, copyPerimeter, copyLength, copyWidth;
-    private Button undo, redo, chunkMode, sizeButton, moveButton, centerButton, areasButton;
-    private Button polygonModeButton, panelModeButton, selectionExportButton;
-    private boolean compact = true;
-    private int panelHeight, panelScroll;
-    private Button modalApply, modalCancel, anchorButton, moveUnitsButton;
-    private Button centerCopy, centerCreate, areaSave, areaLoad, areaDelete;
-    private Button areaSelectAll, areaClearSelection, areaSaveChanges, autosaveButton, autosaveToggle, autosaveClose, roundingButton;
-    /** Name, corner A or polygon vertices, area, perimeter, length, width, corner B. */
-    /** Name, NW corner (or all polygon vertices), area, perimeter, length, width, SE, NE and SW corners. */
-    private final Button[] areaCopies = new Button[9];
-    /** List order of the Areas window; DATE is the order areas were added, oldest first. */
-    private enum AreaSort { DATE, NAME, GROUP, VISIBILITY }
-    private AreaSort areaSort = AreaSort.DATE;
-    private Button areaSortButton;
-    /** Filters the Areas window list by name; cleared whenever the window opens. */
-    private EditBox areaSearch;
-    private final Map<AutosaveSettings.Field, Button> autosaveFields = new java.util.EnumMap<>(AutosaveSettings.Field.class);
-    private final AreaDraft areaDraft = new AreaDraft();
-    private final AutosaveSettings autosave;
-    /** The Areas window shows the autosave settings instead of the area properties. */
-    private boolean autosaveOpen;
-    private Button areaExportFile, areaImport, groupExport, importOpenFolder, transferFolderButton;
-    /** Exchange files listed by the import window, newest first; refreshed each time it opens. */
-    private List<Path> importFiles = List.of();
-    private int importScroll;
-    /** The last row clicked without Shift; Shift+click checks the range from it. */
-    private String areaAnchorId;
-    private final ExportWindow exportWindow;
-    /** The window the export window returns to. */
-    private Dialog exportReturn = Dialog.NONE;
-    private Button groupCreate, groupRename, groupAssign, groupVisibility, areaVisibility, areaColor, areaOpacity;
-    private Button groupDelete, manageGroups, managementClose, managementUndo, managementRedo;
-    private Button areaExportButton, openExportButton;
-    private Path lastExport;
-    private boolean exportRunning;
-    private String exportNotice = "";
-    private Button areaMapVisibility, areaMinimapVisibility, areaNames;
-    /** Right-click menu on the selection; it stays where it opened until an action or a click elsewhere. */
-    private Button quickMenuSave, quickMenuColor, quickMenuOpacity, quickMenuDelete, quickMenuClear;
-    private boolean quickMenu;
-    private int quickMenuX, quickMenuY;
-    private double rightPressX, rightPressY;
-    /** The message shown at the bottom of the screen and when it appeared; it fades out after TOAST_MILLIS. */
-    private static final long TOAST_MILLIS = 6000;
+    final RulerTool rulerTool = new RulerTool(this);
+    final PolygonTool polygonTool = new PolygonTool(this);
+    final MapOverlays mapOverlays = new MapOverlays(this);
+    final ColorWindows colorWindows = new ColorWindows(this);
+    final WaypointsWindow waypointsWindow = new WaypointsWindow(this);
+    final GroupsWindow groupsWindow = new GroupsWindow(this);
+    final AreasWindow areasWindow = new AreasWindow(this);
+    final TransferWindow transferWindow = new TransferWindow(this);
+    final MapExport mapExport = new MapExport(this);
+    final SelectionPanel selectionPanel = new SelectionPanel(this);
+    final MapPointer mapPointer = new MapPointer(this);
+    final SelectionDialogs selectionDialogs = new SelectionDialogs(this);
+    final RightClickMenu rightClickMenu = new RightClickMenu(this);
+    final ZoneSnap zoneSnap = new ZoneSnap(this);
+    final AreaEdits areaEdits = new AreaEdits(this);
+    final NewAreaWindow newAreaWindow = new NewAreaWindow(this);
+    final Windows windows = new Windows(this);
+    final InputRouter input = new InputRouter(this);
+
+    /** Places in {@link #dialogFields}. */
+    static final int WIDTH_FIELD = 0, LENGTH_FIELD = 1, OFFSET_X_FIELD = 2, OFFSET_Z_FIELD = 3, AREA_NAME_FIELD = 4, GROUP_NAME_FIELD = 5,
+            CENTER_NAME_FIELD = 6, POINT_SEARCH_FIELD = 7, NEW_AREA_FIELD = 8, RENAME_FIELD = 9, HEX_FIELD = 10;
+    static final int ACCENT = 0xFF59E3CE;
+    enum Dialog { NONE, SIZE, MOVE, CENTER, AREAS, GROUPS, ASSIGN_GROUP, AREA_NAME, GROUP_NAME, WAYPOINTS, COLOR, IMPORT, EXPORT, PICKER }
+    /** Xaero builds a new screen for every map opening; the tool outlives them, so its selection and history survive. */
+    private static ExactSelectionController current;
+    GuiMap screen;
+    MapBridge bridge;
+    /** A new map screen has no frame until it first renders, which must not count as a lost map. */
+    private boolean awaitingFrame;
+    /** The stored areas must be read again on the next frame. */
+    private boolean areasStale;
+    final Minecraft mc;
+    final SelectionState state = new SelectionState();
+    final SelectionHistory history = new SelectionHistory();
+    final WaypointAccess waypoints;
+    final SavedAreaStore areaStore;
+    final List<AbstractWidget> widgets = new ArrayList<>();
+    final EditBox[] dialogFields = new EditBox[11];
+    Button confirm, cancel;
+    Button modalApply, modalCancel;
+    AutosaveSettings autosave;
+    final ExportWindow exportWindow;
+    Button managementClose, managementUndo, managementRedo;
     /** A press whose pointer moves less than this many GUI pixels is a click, not a move or resize. */
-    private static final double CLICK_SLOP = 3;
-    private String toastText = "";
-    private long toastShownAt;
-    /** A contour-mode press inside a finished shape: a release without movement adds a vertex there instead of moving. */
-    private boolean vertexOnClick;
-    private double pressX, pressY;
-    /** The pointer of a move or resize has left the CLICK_SLOP zone around its press. */
-    private boolean dragMoved;
-    /** When and where the last click that a double click acts on (a side or a vertex) was made, for one Minecraft missed. */
-    private long clickAt;
-    private double clickX, clickY;
-    /** The left press landed on a side of the finished polygon: a click there does not start a contour. */
-    private boolean sidePress;
-    private Button pointVisibility, pointColor, pointScope, pointRename, pointRecolor;
-    private Button quickSave, zonesButton, newAreaGroup, newAreaOpacityButton, colorHexApply;
-    private Dialog areaNameReturn = Dialog.AREAS, colorReturn = Dialog.AREAS;
-    /** The full color picker: the window it returns to, its hue, saturation and brightness, and what is dragged (0 none, 1 square, 2 hue). */
-    private Dialog pickerReturn = Dialog.AREA_NAME;
-    private double pickerHue, pickerSat, pickerValue;
-    private int pickerDrag;
-    private String newAreaGroupId;
-    /** Style for the next saved area; kept between saves so a series of areas can share it. */
-    private int newAreaColor = AreaPalette.DEFAULT, newAreaOpacity = 25;
-    private boolean pointsInSelection;
-    private MapBridge.Context context;
-    private WaypointAccess.Snapshot selected, pending;
-    private boolean syncing, dirty, dragging, chunks, sizeFromCenter, moveInChunks, loadFailed;
-    private boolean areaDeleteConfirmation;
-    private boolean groupDeleteConfirmation;
-    private boolean renamingGroup;
-    private Dialog groupsReturnDialog = Dialog.NONE;
-    private final Set<String> assignmentTargets = new LinkedHashSet<>();
-    private int assignmentScroll;
-    private double lastMouseX, lastMouseY;
-    private int panelWidth, coordinateLabelWidth, zLabelWidth, fieldWidth, fieldGap, modalScroll;
-    private Dialog dialog = Dialog.NONE;
+    static final double CLICK_SLOP = 3;
+    MapBridge.Context context;
+    WaypointAccess.Snapshot selected;
+    boolean syncing, dirty, dragging, chunks, loadFailed;
+    double lastMouseX, lastMouseY;
+    Dialog dialog = Dialog.NONE;
     /**
      * The map gesture in progress, or null. It ends through its finish or cancel; disable, reset and changes that
      * replace the selection drop it outright, which turns a later finish or cancel of it into a no-op.
      */
-    private MapGesture gesture;
-    private final MapGesture.Host gestureHost = new MapGesture.Host() {
+    MapGesture gesture;
+    final MapGesture.Host gestureHost = new MapGesture.Host() {
         @Override public MapGesture gesture() { return gesture; }
         @Override public void clearGesture() { gesture = null; }
         @Override public SelectionState state() { return state; }
-        @Override public List<GridPoint> draft() { return polygonDraft; }
+        @Override public List<GridPoint> draft() { return polygonTool.draft; }
         @Override public boolean chunks() { return chunks; }
         @Override public void commit(SelectionState.Snapshot before, String key) { commitSelection(before, state.snapshot(), key); }
-        @Override public void recordDraftChange(List<GridPoint> before) { ExactSelectionController.this.recordDraftChange(before); }
+        @Override public void recordDraftChange(List<GridPoint> before) { polygonTool.recordDraftChange(before); }
         @Override public void selectionMoved() { syncFields(); updateSelection(); }
         @Override public void refresh() { refreshSelectionState(); }
-        @Override public void message(String key) { message = tr(key).getString(); }
-        @Override public void updateVisibility() { ExactSelectionController.this.updateVisibility(); }
+        @Override public void message(String key) { say(key); }
+        @Override public GridPoint snap(MapBridge.Frame frame, double x, double y) { return zoneSnap.point(frame, x, y); }
     };
-    private String areaId, groupId;
-    private final Set<String> selectedAreaIds = new LinkedHashSet<>();
-    private final Set<Object> chosenPoints = new HashSet<>();
-    private int visibilityFilter, colorFilter = -1;
     private MapBridge.Context historyContext;
-    private String message = "";
-    private boolean polygonMode, shiftDown;
-    private final List<GridPoint> polygonDraft = new ArrayList<>();
-    private GridPoint polygonCursor;
-    private SelectionState.Snapshot polygonBefore;
-    private final Deque<List<GridPoint>> polygonDraftUndo = new ArrayDeque<>();
-    private final Deque<List<GridPoint>> polygonDraftRedo = new ArrayDeque<>();
+    String message = "";
+    boolean shiftDown, altDown;
 
     public ExactSelectionController(GuiMap screen, MapBridge bridge) {
         this(screen, bridge, Minecraft.getInstance(), new SavedAreaStore(FabricLoader.getInstance().getConfigDir()),
@@ -180,236 +111,68 @@ public final class ExactSelectionController {
         this.areaStore = areaStore;
         this.waypoints = waypoints;
         this.autosave = AutosaveSettings.load(areaStore.root());
-        this.exportWindow = new ExportWindow(mc, ExportPreferences.load(areaStore.root()), this::defaultExportFolder);
+        this.exportWindow = new ExportWindow(mc, ExportPreferences.load(areaStore.root()), mapExport::defaultExportFolder);
     }
 
-    private Component tr(String key, Object... args) {
+    public static ExactSelectionController forScreen(GuiMap screen, MapBridge bridge) {
+        if (current == null) current = new ExactSelectionController(screen, bridge);
+        else current.useScreen(screen, bridge);
+        return current;
+    }
+
+    private void useScreen(GuiMap screen, MapBridge bridge) {
+        this.screen = screen;
+        this.bridge = bridge;
+        awaitingFrame = true;
+        // Mod Menu's settings and the area file may have changed while the map was closed.
+        autosave = AutosaveSettings.load(areaStore.root());
+        areaStore.reload();
+        areasStale = true;
+    }
+
+    /** The map screen is going away: what is held or open ends, the selection and its history stay. */
+    public void suspend() {
+        if (holding()) cancelGesture();
+        dragging = false;
+        rightClickMenu.quickMenu = false;
+        rulerTool.pressed = false;
+        if (dialog == Dialog.AREAS) areaEdits.flushDraft();
+        waypointsWindow.pending = null;
+        dialog = Dialog.NONE;
+    }
+
+    Component tr(String key, Object... args) {
         return Component.translatable("exactselection." + key, args);
     }
 
+    /** The message the window or toast shows next. */
+    void say(String key, Object... args) { message = tr(key, args).getString(); }
+
+    List<Area> areas() { return areaStore.state().areas(); }
+
+    List<Group> groups() { return areaStore.state().groups(); }
+
     public void init() {
         // Xaero rebuilds its widgets on resize and when changing dimensions/settings.
-        String[] draft = fields[0] == null ? null : java.util.Arrays.stream(fields).map(EditBox::getValue).toArray(String[]::new);
-        String[] dialogDraft = dialogFields[0] == null ? null : java.util.Arrays.stream(dialogFields).map(EditBox::getValue).toArray(String[]::new);
+        String[] draft = selectionPanel.fields[0] == null ? null : Arrays.stream(selectionPanel.fields).map(EditBox::getValue).toArray(String[]::new);
+        String[] dialogDraft = dialogFields[WIDTH_FIELD] == null ? null : Arrays.stream(dialogFields).map(EditBox::getValue).toArray(String[]::new);
         widgets.clear();
-        int toggleWidth = 24;
-        toggle = button("toggle_icon", 6, 28, toggleWidth, this::toggle);
-        toggle.setTooltip(Tooltip.create(tr("title")));
-        coordinateLabelWidth = Math.max(mc.font.width("A: X"), mc.font.width("B: X"));
-        zLabelWidth = mc.font.width("Z");
-        fieldGap = 6;
-        for (int i = 0; i < 4; i++) {
-            int col = i % 2, row = i / 2;
-            EditBox field = new EditBox(mc.font, 0, 0, 100, 18,
-                    tr("coordinate", row == 0 ? "A" : "B", col == 0 ? "X" : "Z"));
-            field.setMaxLength(10);
-            field.setResponder(value -> { if (!syncing) { dirty = true; message = ""; updateVisibility(); } });
-            fields[i] = field;
-            widgets.add(field);
-        }
-        panelModeButton = button("panel_expand", 0, 0, 72, this::togglePanelMode);
-        selectionExportButton = button("selection_export", 0, 0, 120, this::exportCurrentSelection);
-        selectionExportButton.setTooltip(Tooltip.create(tr("selection_export_tooltip")));
-        openExportButton = button("export_show_file", 0, 0, 120, this::openLastExport);
-        apply = button("apply", 0, 0, 100, this::applyFields);
-        apply.setMessage(tr("apply_short"));
-        apply.setTooltip(Tooltip.create(tr("apply")));
-        copyCoordinates = copyButton("copy_corner_a_tooltip", this::copyCoordinates);
-        copyCornerB = copyButton("copy_corner_b_tooltip", () -> copySelection(5));
-        copyArea = copyButton("copy_area_tooltip", this::copyArea);
-        copyPerimeter = copyButton("copy_perimeter_tooltip", this::copyPerimeter);
-        copyLength = copyButton("copy_length_tooltip", this::copyLength);
-        copyWidth = copyButton("copy_width_tooltip", this::copyWidth);
-        undo = arrowButton("↶", this::undo);
-        redo = arrowButton("↷", this::redo);
-        chunkMode = button("units_blocks", 0, 0, 100, this::toggleChunks);
-        sizeButton = button("size", 0, 0, 100, () -> openDialog(Dialog.SIZE));
-        moveButton = button("move", 0, 0, 100, () -> openDialog(Dialog.MOVE));
-        centerButton = button("center", 0, 0, 100, () -> openDialog(Dialog.CENTER));
-        polygonModeButton = button("polygon_mode", 0, 0, 100, this::togglePolygonMode);
-        areasButton = button("areas_window", 0, 0, 100, () -> openDialog(Dialog.AREAS));
-        clear = button("clear", 0, 0, 100, this::reset);
-        quickSave = button("quick_save", 0, 0, 100, this::quickSave);
-        zonesButton = button("zones_in_selection", 0, 0, 100, this::openAreasInSelection);
-        zonesButton.setTooltip(Tooltip.create(tr("zones_in_selection_tooltip")));
-        pointsButton = button("waypoints_all", 0, 0, 100, this::openWaypoints);
-        confirm = button("confirm", 0, 0, 110, this::confirmDelete);
-        cancel = button("cancel", 0, 0, 110, this::cancelDialog);
-        for (int i = 0; i < dialogFields.length; i++) {
-            EditBox field = new EditBox(mc.font, 0, 0, 100, 18, Component.empty());
-            field.setMaxLength(i < 4 ? 10 : i == HEX_FIELD ? 7 : 128);
-            if (i == HEX_FIELD) field.setHint(Component.literal("#RRGGBB"));
-            field.setResponder(value -> { if (!syncing) updateVisibility(); });
-            dialogFields[i] = field;
-            widgets.add(field);
-        }
-        dialogFields[HEX_FIELD].setResponder(value -> {
-            if (syncing) return;
-            // The new-area window takes a typed color as soon as it is complete.
-            int color = AreaPalette.parse(value);
-            if (dialog == Dialog.AREA_NAME && color >= 0) newAreaColor = color;
-            updateVisibility();
-        });
-        dialogFields[4].setResponder(value -> {
-            if (syncing) return;
-            SavedAreaStore.Area area = selectedAreas().size() == 1 ? selectedArea() : null;
-            String name = value.trim();
-            areaDraft.name = area == null || name.isEmpty() || name.equals(area.name()) ? null : name;
-            updateVisibility();
-        });
-        modalApply = button("apply", 0, 0, 110, this::applyDialog);
-        modalCancel = button("cancel", 0, 0, 110, this::cancelDialog);
-        anchorButton = button("anchor_lower_left", 0, 0, 150, () -> {
-            sizeFromCenter = !sizeFromCenter;
-            anchorButton.setMessage(tr(sizeFromCenter ? "anchor_center" : "anchor_lower_left"));
-        });
-        anchorButton.setMessage(tr(sizeFromCenter ? "anchor_center" : "anchor_lower_left"));
-        moveUnitsButton = button("units_blocks", 0, 0, 110, () -> {
-            moveInChunks = !moveInChunks;
-            moveUnitsButton.setMessage(tr(moveInChunks ? "units_chunks" : "units_blocks"));
-        });
-        moveUnitsButton.setMessage(tr(moveInChunks ? "units_chunks" : "units_blocks"));
-        centerCopy = button("copy_center", 0, 0, 130, this::copyCenter);
-        centerCreate = button("create_center_waypoint", 0, 0, 180, this::createCenterWaypoint);
-        areaSave = button("area_save_selection", 0, 0, 110, () -> { areaNameReturn = Dialog.AREAS; openAreaNameDialog(); });
-        areaLoad = button("area_edit", 0, 0, 110, this::loadArea);
-        areaDelete = button("area_delete", 0, 0, 110, this::deleteArea);
-        areaSaveChanges = button("area_save_changes", 0, 0, 110, () -> commitDraft(field -> true));
-        autosaveButton = Button.builder(Component.empty(), button -> { autosaveOpen = !autosaveOpen; focus(null); updateVisibility(); })
-                .bounds(0, 0, 18, 16).build();
-        widgets.add(autosaveButton);
-        autosaveToggle = button("autosave_off", 0, 0, 120, () -> {
-            autosave.setEnabled(!autosave.enabled());
-            if (autosave.enabled()) commitDraft(autosave::covers);
-            updateVisibility();
-        });
-        for (AutosaveSettings.Field field : AutosaveSettings.Field.values())
-            autosaveFields.put(field, button("autosave_field", 0, 0, 120, () -> {
-                autosave.toggle(field);
-                if (autosave.covers(field)) commitDraft(f -> f == field);
-                updateVisibility();
-            }));
-        areaSortButton = button("area_sort_date", 0, 0, 130, () -> {
-            areaSort = AreaSort.values()[(areaSort.ordinal() + 1) % AreaSort.values().length];
-            areaScroll = 0;
-            updateVisibility();
-        });
-        areaSortButton.setTooltip(Tooltip.create(tr("area_sort_tooltip")));
-        String typedSearch = areaSearch == null ? "" : areaSearch.getValue();
-        areaSearch = new EditBox(mc.font, 0, 0, 100, 16, tr("area_search"));
-        areaSearch.setMaxLength(64);
-        areaSearch.setHint(tr("area_search"));
-        areaSearch.setValue(typedSearch);
-        areaSearch.setResponder(value -> { areaScroll = 0; updateVisibility(); });
-        widgets.add(areaSearch);
-        widgets.addAll(exportWindow.createWidgets(this::updateVisibility, this::runExport, text -> message = text));
-        areaExportFile = button("areas_export", 0, 0, 110, this::exportAreaFile);
-        areaImport = button("areas_import", 0, 0, 110, this::openImport);
-        groupExport = button("group_export", 0, 0, 120, this::exportGroupFile);
-        importOpenFolder = button("import_open_folder", 0, 0, 150, this::openTransferFolder);
-        // Folder icon beside the area and group export buttons: the exchange files, like Open folder in map export.
-        transferFolderButton = Button.builder(Component.empty(), button -> openTransferFolder()).bounds(0, 0, 18, 18).build();
-        transferFolderButton.setTooltip(Tooltip.create(tr("transfer_folder_tooltip")));
-        widgets.add(transferFolderButton);
-        areaExportFile.setTooltip(Tooltip.create(tr("areas_export_tooltip")));
-        areaImport.setTooltip(Tooltip.create(tr("areas_import_tooltip")));
-        groupExport.setTooltip(Tooltip.create(tr("group_export_tooltip")));
-        autosaveClose = button("autosave_close", 0, 0, 120, () -> { autosaveOpen = false; focus(null); updateVisibility(); });
-        roundingButton = button("rounding", 0, 0, 120, () -> { autosave.cycleRounding(); updateVisibility(); });
-        roundingButton.setTooltip(Tooltip.create(tr("rounding_tooltip")));
-        String[] copies = {"copy_name_tooltip", "copy_corner_nw_tooltip", "copy_area_tooltip", "copy_perimeter_tooltip",
-                "copy_length_tooltip", "copy_width_tooltip", "copy_corner_se_tooltip", "copy_corner_ne_tooltip",
-                "copy_corner_sw_tooltip"};
-        for (int i = 0; i < areaCopies.length; i++) {
-            int kind = i - 1;
-            // Rectangle corners by direction: 0 NW, 1 NE, 2 SW, 3 SE.
-            int corner = switch (i) { case 1 -> 0; case 7 -> 1; case 8 -> 2; case 6 -> 3; default -> -1; };
-            areaCopies[i] = copyButton(copies[i], () -> {
-                SavedAreaStore.Area area = selectedAreas().size() == 1 ? selectedArea() : null;
-                if (area == null) return;
-                if (kind < 0) copyToClipboard(area.name());
-                else if (corner >= 0 && !(area.geometry() instanceof PolygonGeometry))
-                    copyToClipboard(compassCorner(area.bounds(), corner)[1]);
-                else copyMetric(kind, area.geometry(), area.bounds());
-            });
-        }
-        areaSelectAll = button("area_select_all", 0, 0, 110, this::selectAllAreas);
-        areaClearSelection = button("area_clear_selection", 0, 0, 110, this::clearAreaSelection);
-        groupCreate = button("group_create", 0, 0, 110, () -> openGroupNameDialog(false));
-        groupRename = button("group_rename_action", 0, 0, 110, () -> openGroupNameDialog(true));
-        groupAssign = button("group_choose", 0, 0, 120, this::openGroupChooser);
-        groupVisibility = button("group_toggle", 0, 0, 120, this::toggleGroup);
-        areaVisibility = button("area_toggle", 0, 0, 120, this::toggleArea);
-        areaColor = button("area_color", 0, 0, 100, () -> openColorDialog(Dialog.AREAS));
-        areaOpacity = button("area_fill", 0, 0, 100, this::cycleAreaOpacity);
-        areaMapVisibility = button("area_map_on", 0, 0, 120, this::toggleAreaMapVisibility);
-        areaNames = button("area_names_on", 0, 0, 120, this::toggleAreaNames);
-        quickMenuSave = button("quick_menu_save", 0, 0, 120, () -> { quickMenu = false; quickSave(); });
-        quickMenuColor = button("area_color", 0, 0, 120, this::openQuickColor);
-        quickMenuOpacity = button("area_new_opacity", 0, 0, 120, () -> {
-            SavedAreaStore.Area area = editedArea();
-            if (area != null) changeAreas(areaState(areaStore.state().areas().stream().map(a -> a != area ? a
-                    : new SavedAreaStore.Area(a.id(), a.name(), a.x1(), a.z1(), a.x2(), a.z2(), a.color(), nextOpacity(a.opacity()),
-                            a.groupId(), a.visible(), a.vertices())).toList(), areaStore.state().groups()), "area_update");
-            updateVisibility();
-        });
-        quickMenuDelete = button("quick_menu_delete", 0, 0, 120, () -> {
-            SavedAreaStore.Area area = editedArea();
-            quickMenu = false;
-            if (area != null && !changeAreas(areaState(areaStore.state().areas().stream().filter(a -> a != area).toList(),
-                    areaStore.state().groups()), "area_delete")) return;
-            reset();
-            if (area != null) message = tr("quick_menu_deleted", area.name()).getString();
-            updateVisibility();
-        });
-        quickMenuClear = button("quick_menu_clear", 0, 0, 120, () -> { quickMenu = false; reset(); });
-        areaNames.setTooltip(Tooltip.create(tr("area_names_tooltip")));
-        areaMinimapVisibility = button("area_minimap_on", 0, 0, 120, this::toggleAreaMinimapVisibility);
-        manageGroups = button("groups_manage", 0, 0, 120,
-                () -> openGroupsWindow(dialog == Dialog.ASSIGN_GROUP ? Dialog.ASSIGN_GROUP : Dialog.AREAS));
-        managementClose = button("done", 0, 0, 80, this::cancelDialog);
-        managementUndo = arrowButton("↶", this::undo);
-        managementRedo = arrowButton("↷", this::redo);
-        groupDelete = button("group_delete", 0, 0, 120, this::askDeleteGroup);
-        areaExportButton = button("area_export", 0, 0, 120, this::exportSelectedArea);
-        pointVisibility = button("filter_all", 0, 0, 120, this::cycleVisibilityFilter);
-        pointColor = button("filter_color_all", 0, 0, 120, this::cycleColorFilter);
-        pointScope = button("point_scope_all", 0, 0, 100, this::togglePointScope);
-        pointRename = button("point_rename", 0, 0, 110, this::renamePoints);
-        pointRecolor = button("area_color", 0, 0, 110, () -> openColorDialog(Dialog.WAYPOINTS));
-        newAreaGroup = button("group_none", 0, 0, 100, this::cycleNewAreaGroup);
-        newAreaOpacityButton = button("area_fill", 0, 0, 100, () -> {
-            newAreaOpacity = nextOpacity(newAreaOpacity);
-            updateVisibility();
-        });
-        newAreaOpacityButton.setTooltip(Tooltip.create(tr("area_new_opacity_tooltip")));
-        colorHexApply = button("color_apply", 0, 0, 90, this::applyHexColor);
-        pointsButton.setTooltip(Tooltip.create(tr(waypoints == null ? "minimap_missing" : "waypoints_tooltip")));
-        pointScope.setTooltip(Tooltip.create(tr("point_scope_tooltip")));
-        pointRename.setTooltip(Tooltip.create(tr("point_rename_tooltip")));
-        pointRecolor.setTooltip(Tooltip.create(tr("point_color_tooltip")));
-        newAreaGroup.setTooltip(Tooltip.create(tr("area_new_group_tooltip")));
-        colorHexApply.setTooltip(Tooltip.create(tr("color_hex_tooltip")));
-        areaVisibility.setTooltip(Tooltip.create(tr("area_visibility_rules")));
-        groupVisibility.setTooltip(Tooltip.create(tr("group_toggle_tooltip")));
-        groupAssign.setTooltip(Tooltip.create(tr("group_picker_tooltip")));
-        areaLoad.setTooltip(Tooltip.create(tr("area_edit_tooltip")));
-        areaColor.setTooltip(Tooltip.create(tr("area_color_tooltip")));
-        areaOpacity.setTooltip(Tooltip.create(tr("area_opacity_tooltip")));
-        areaMapVisibility.setTooltip(Tooltip.create(tr("area_map_tooltip")));
-        areaMinimapVisibility.setTooltip(Tooltip.create(tr("area_minimap_tooltip")));
-        areaDelete.setTooltip(Tooltip.create(tr("area_delete_tooltip")));
-        areaSaveChanges.setTooltip(Tooltip.create(tr("area_save_changes_tooltip")));
-        autosaveButton.setTooltip(Tooltip.create(tr("autosave_tooltip")));
-        areaSelectAll.setTooltip(Tooltip.create(tr("area_select_all_tooltip")));
-        areaClearSelection.setTooltip(Tooltip.create(tr("area_clear_selection_tooltip")));
-        groupDelete.setTooltip(Tooltip.create(tr("group_delete_tooltip")));
-        areaExportButton.setTooltip(Tooltip.create(tr("area_export_tooltip")));
-        layoutMainPanel();
+        selectionPanel.createPanelWidgets();
+        windows.createWindowWidgets();
+        areasWindow.createAreaWidgets();
+        newAreaWindow.createNewAreaWidgets();
+        groupsWindow.createGroupWidgets();
+        transferWindow.createTransferWidgets();
+        waypointsWindow.createWaypointWidgets();
+        colorWindows.createColorWidgets();
+        rightClickMenu.createMenuWidgets();
+        mapExport.createExportWidgets();
+        selectionDialogs.createDialogWidgets();
+        selectionPanel.layoutMainPanel();
         for (AbstractWidget widget : widgets) screen.addWidget(widget);
         if (dirty && draft != null) {
             syncing = true;
-            for (int i = 0; i < 4; i++) fields[i].setValue(draft[i]);
+            for (int i = 0; i < 4; i++) selectionPanel.fields[i].setValue(draft[i]);
             syncing = false;
         } else syncFields();
         if (dialogDraft != null) {
@@ -418,1391 +181,28 @@ public final class ExactSelectionController {
         updateVisibility();
     }
 
-    private void togglePanelMode() {
-        compact = !compact;
-        panelScroll = 0;
-        focus(null);
-        layoutMainPanel();
-        updateVisibility();
-    }
-
-    private void layoutMainPanel() {
-        panelWidth = Math.min(compact ? 256 : 320, Math.max(224, screen.width - 68));
-        metricsShift = perimeterInline() ? -12 : 0;
-        panelHeight = Math.min(contentHeight(), screen.height - PANEL_Y - 8);
-        panelScroll = Math.max(0, Math.min(panelScroll, maxPanelScroll()));
-        int x = PANEL_X + 8, top = PANEL_Y - (compact ? 0 : panelScroll), y = top + metricsShift, w = panelWidth - 16;
-        place(panelModeButton, PANEL_X + panelWidth - 30, PANEL_Y + 3, 22, 18);
-        if (compact) {
-            // Groups open from the Areas window; Esc or the right-click menu clears the selection.
-            arrowRow(new Button[]{polygonModeButton, areasButton}, x, y + 74, w);
-        } else {
-            // Narrow coordinate fields; Save and, below it, Apply stand beside them (Save is placed in updateVisibility).
-            // Size, Move and Center live in the right-click menu, Groups in the Areas window.
-            int applyWidth = mc.font.width(apply.getMessage());
-            for (String key : List.of("quick_save", "quick_apply", "quick_autosaved")) applyWidth = Math.max(applyWidth, mc.font.width(tr(key)));
-            // A long translation scrolls inside its button instead of squeezing the fields.
-            applyWidth = Math.min(w / 4, applyWidth + 12);
-            fieldWidth = (w - coordinateLabelWidth - zLabelWidth - fieldGap * 3 - COPY_SIZE - 3 - 6 - applyWidth) / 2;
-            int xField = x + coordinateLabelWidth + fieldGap;
-            int zField = xField + fieldWidth + fieldGap * 2 + zLabelWidth;
-            for (int i = 0; i < fields.length; i++)
-                place(fields[i], i % 2 == 0 ? xField : zField, top + 34 + i / 2 * 24, fieldWidth, 18);
-            place(copyCoordinates, zField + fieldWidth + 3, top + 38, COPY_SIZE, COPY_SIZE);
-            place(copyCornerB, zField + fieldWidth + 3, top + 62, COPY_SIZE, COPY_SIZE);
-            place(apply, x + w - applyWidth, top + 58, applyWidth, 18);
-            arrowRow(new Button[]{chunkMode, polygonModeButton, clear}, x, y + 126, w);
-            mainRow(new Button[]{areasButton, zonesButton, pointsButton}, x, y + 148, w, 18);
-            place(selectionExportButton, x, y + 170, w, 18);
-        }
-    }
-
-    private int contentHeight() { return (compact ? COMPACT_HEIGHT : EXPANDED_HEIGHT) + metricsShift; }
-
-    private Component areaText() {
-        return state.bounds() == null ? tr("area_empty") : tr("area", formatMetric(state.geometry().area()));
-    }
-
-    private Component perimeterText() {
-        return tr("perimeter", state.bounds() == null ? "—" : formatLength(state.geometry().perimeter()));
-    }
-
-    /** The perimeter goes on the area line when both fit in the panel width. */
-    private boolean perimeterInline() {
-        return metricWidth(new MetricLine(List.of(areaText().getString(), perimeterText().getString()),
-                List.of(copyArea, copyPerimeter))) <= panelWidth - 16;
-    }
-
-    /** Values joined by " · ", each followed by the copy button at the same index (if any). */
-    private record MetricLine(List<String> parts, List<Button> copies) {}
-
-    private static final String METRIC_SEPARATOR = " · ";
-
-    private int metricWidth(MetricLine line) {
-        int width = 0;
-        for (int i = 0; i < line.parts().size(); i++) {
-            if (i > 0) width += mc.font.width(METRIC_SEPARATOR);
-            width += mc.font.width(line.parts().get(i)) + (i < line.copies().size() ? 3 + COPY_SIZE : 0);
-        }
-        return width;
-    }
-
-    private MetricLine fitMetricLine(MetricLine line, int width) {
-        if (metricWidth(line) <= width) return line;
-        int textWidth = line.parts().stream().mapToInt(mc.font::width).sum();
-        int available = Math.max(0, width - (line.parts().size() - 1) * mc.font.width(METRIC_SEPARATOR)
-                - Math.min(line.parts().size(), line.copies().size()) * (3 + COPY_SIZE));
-        List<String> fitted = new ArrayList<>();
-        int remaining = available;
-        for (int i = 0; i < line.parts().size(); i++) {
-            String part = line.parts().get(i);
-            int budget = i == line.parts().size() - 1 ? remaining
-                    : textWidth == 0 ? 0 : (int) ((long) available * mc.font.width(part) / textWidth);
-            String text = mc.font.width(part) <= budget ? part : budget < mc.font.width("…") ? ""
-                    : mc.font.plainSubstrByWidth(part, budget - mc.font.width("…")).stripTrailing() + "…";
-            fitted.add(text); remaining -= mc.font.width(text);
-        }
-        return new MetricLine(fitted, line.copies());
-    }
-
-    /** Puts each copy button right after its value; buttons without a value on this line are hidden. */
-    private void placeMetricLine(MetricLine line, int x, int y, int width) {
-        line = fitMetricLine(line, width);
-        for (int i = 0; i < line.copies().size(); i++) if (i >= line.parts().size()) line.copies().get(i).visible = false;
-        for (int i = 0; i < line.parts().size(); i++) {
-            if (i > 0) x += mc.font.width(METRIC_SEPARATOR);
-            x += mc.font.width(line.parts().get(i));
-            if (i < line.copies().size()) {
-                place(line.copies().get(i), x + 3, y - 1, COPY_SIZE, COPY_SIZE);
-                x += 3 + COPY_SIZE;
-            }
-        }
-    }
-
-    private void drawMetricLine(GuiGraphics g, MetricLine line, int x, int y, int width, int color) {
-        line = fitMetricLine(line, width);
-        for (int i = 0; i < line.parts().size(); i++) {
-            if (i > 0) {
-                g.drawString(mc.font, METRIC_SEPARATOR, x, y, color);
-                x += mc.font.width(METRIC_SEPARATOR);
-            }
-            g.drawString(mc.font, line.parts().get(i), x, y, color);
-            x += mc.font.width(line.parts().get(i));
-            if (i < line.copies().size()) x += 3 + COPY_SIZE;
-        }
-    }
-
-    private String coordinateLine(SelectionBounds b, boolean first) {
-        if (b == null) return first ? "A: —" : "B: —";
-        return first ? "A: X " + b.x1() + "  Z " + b.z1() : "B: X " + b.x2() + "  Z " + b.z2();
-    }
-
-    private List<String> dimensionParts(SelectionBounds bounds, boolean includeChunks) {
-        List<String> parts = new ArrayList<>();
-        parts.add(tr("width", bounds == null ? "—" : bounds.width()).getString());
-        parts.add(tr("length", bounds == null ? "—" : bounds.length()).getString());
-        if (includeChunks && bounds != null) parts.add(tr("chunk_count", bounds.chunkCount()).getString());
-        return parts;
-    }
-
-    private List<String> dimensionText() { return dimensionParts(state.bounds(), chunks); }
-
-    /** The panel's metric lines; their y is relative to the panel top, as for line(). */
-    private List<Map.Entry<Integer, MetricLine>> panelMetricLines() {
-        List<Map.Entry<Integer, MetricLine>> lines = new ArrayList<>();
-        lines.add(Map.entry(compact ? 33 : 82, new MetricLine(dimensionText(), List.of(copyWidth, copyLength))));
-        if (metricsShift != 0) lines.add(Map.entry(compact ? 45 : 94, new MetricLine(
-                List.of(areaText().getString(), perimeterText().getString()), List.of(copyArea, copyPerimeter))));
-        else {
-            lines.add(Map.entry(compact ? 45 : 94, new MetricLine(List.of(areaText().getString()), List.of(copyArea))));
-            lines.add(Map.entry(compact ? 57 : 106, new MetricLine(List.of(perimeterText().getString()), List.of(copyPerimeter))));
-        }
-        return lines;
-    }
-
-    private void placePanelCopies() {
-        int scroll = compact ? 0 : panelScroll;
-        for (Map.Entry<Integer, MetricLine> line : panelMetricLines())
-            placeMetricLine(line.getValue(), PANEL_X + 8, PANEL_Y + line.getKey() - scroll, panelWidth - 16);
-    }
-
-    private void arrowRow(Button[] buttons, int x, int y, int width) {
-        place(undo, x, y, 20, 18); place(redo, x + 23, y, 20, 18);
-        mainRow(buttons, x + 46, y, width - 46, 18);
-    }
-
-    private Button arrowButton(String arrow, Runnable action) {
-        Button result = Button.builder(Component.literal(arrow), button -> action.run()).bounds(0, 0, 20, 18).build();
+    /** The position and size of every button come from its window's layout. */
+    private Button addButton(Component label, String tooltipKey, Runnable action) {
+        Button result = Button.builder(label, button -> action.run()).bounds(0, 0, 100, 18).build();
+        if (tooltipKey != null) result.setTooltip(Tooltip.create(tr(tooltipKey)));
         widgets.add(result);
         return result;
     }
 
-    private void mainRow(Button[] buttons, int x, int y, int width, int height) {
-        int step = (width + 3) / buttons.length;
-        for (int i = 0; i < buttons.length; i++)
-            place(buttons[i], x + step * i, y, i == buttons.length - 1 ? width - step * i : step - 3, height);
-    }
+    Button button(String key, Runnable action) { return addButton(tr(key), null, action); }
 
-    private int maxPanelScroll() {
-        return compact ? 0 : Math.max(0, contentHeight() - panelHeight + (panelHeight < contentHeight() ? 12 : 0));
-    }
+    Button button(String key, String tooltipKey, Runnable action) { return addButton(tr(key), tooltipKey, action); }
 
-    private Button button(String key, int x, int y, int width, Runnable action) {
-        Button result = Button.builder(tr(key), button -> action.run()).bounds(x, y, width, 18).build();
-        widgets.add(result);
-        return result;
-    }
+    Button iconButton(String tooltipKey, Runnable action) { return addButton(Component.empty(), tooltipKey, action); }
 
-    /** A small icon button placed right after the value it copies. */
-    private Button copyButton(String tooltipKey, Runnable action) {
-        Button result = Button.builder(Component.empty(), button -> action.run())
-                .bounds(0, 0, COPY_SIZE, COPY_SIZE).build();
-        result.setTooltip(Tooltip.create(tr(tooltipKey)));
-        widgets.add(result);
-        return result;
-    }
+    Button arrowButton(String arrow, Runnable action) { return addButton(Component.literal(arrow), null, action); }
 
-    private void openDialog(Dialog next) {
-        if (dirty || !polygonDraft.isEmpty() || holding() || (pending != null && next != Dialog.WAYPOINTS)) return;
-        polygonDraftUndo.clear(); polygonDraftRedo.clear();
-        polygonBefore = null;
-        dialog = next;
-        if (next == Dialog.AREAS) areaSearch.setValue("");
-        if (next == Dialog.SIZE) {
-            SelectionBounds b = state.bounds();
-            setDialogValue(0, b == null ? "1" : Long.toString(b.width()));
-            setDialogValue(1, b == null ? "1" : Long.toString(b.length()));
-        } else if (next == Dialog.MOVE) {
-            setDialogValue(2, "0"); setDialogValue(3, "0");
-        } else if (next == Dialog.CENTER) {
-            setDialogValue(6, tr("center_waypoint_default").getString());
-        } else if (next == Dialog.AREAS) {
-            // The window opens with nothing checked; properties apply only to areas the user picks.
-            selectedAreaIds.clear();
-            areaId = null;
-            areaAnchorId = null;
-            areaDraft.clear();
-            autosaveOpen = false;
-            areaDeleteConfirmation = groupDeleteConfirmation = false;
-            setDialogValue(4, "");
-            message = "";
-        } else if (next == Dialog.WAYPOINTS) {
-            setDialogValue(7, "");
-            visibilityFilter = 0; colorFilter = -1;
-            pointVisibility.setMessage(tr("filter_all")); pointColor.setMessage(tr("filter_color_all"));
-            chosenPoints.clear();
-            if (pending != null) for (WaypointAccess.Point p : pending.points()) chosenPoints.add(p.identity());
-        }
-        if (next == Dialog.SIZE) anchorButton.setMessage(tr(sizeFromCenter ? "anchor_center" : "anchor_lower_left"));
-        if (next == Dialog.MOVE) moveUnitsButton.setMessage(tr(moveInChunks ? "units_chunks" : "units_blocks"));
-        focus(null);
-        updateVisibility();
-    }
-
-    private void openGroupsWindow(Dialog returnTo) {
-        if (dirty || pending != null || !polygonDraft.isEmpty() || holding()) return;
-        polygonDraftUndo.clear(); polygonDraftRedo.clear();
-        polygonBefore = null;
-        groupsReturnDialog = returnTo;
-        dialog = Dialog.GROUPS;
-        groupDeleteConfirmation = false;
-        if (selectedGroup() == null && !areaStore.state().groups().isEmpty())
-            groupId = areaStore.state().groups().get(0).id();
-        message = "";
-        focus(null);
-        updateVisibility();
-    }
-
-    private void openAreaNameDialog() {
-        if (state.phase() != SelectionState.Phase.SELECTED || dirty || loadFailed) return;
-        dialog = Dialog.AREA_NAME;
-        newAreaGroupId = null;
-        setDialogValue(8, tr("area_default_name", areaStore.state().areas().size() + 1).getString());
-        setDialogValue(HEX_FIELD, AreaPalette.format(newAreaColor));
-        message = "";
-        updateVisibility();
-        focus(dialogFields[8]);
-    }
-
-    private void openGroupNameDialog(boolean rename) {
-        if (loadFailed || rename && selectedGroup() == null) return;
-        renamingGroup = rename;
-        dialog = Dialog.GROUP_NAME;
-        setDialogValue(5, rename ? selectedGroup().name() : "");
-        message = "";
-        updateVisibility();
-        focus(dialogFields[5]);
-    }
-
-    private void openGroupChooser() {
-        if (selectedAreaIds.isEmpty() || loadFailed) return;
-        assignmentTargets.clear();
-        assignmentTargets.addAll(selectedAreaIds);
-        assignmentScroll = 0;
-        dialog = Dialog.ASSIGN_GROUP;
-        message = "";
-        focus(null);
-        updateVisibility();
-    }
-
-    private void setDialogValue(int index, String value) {
+    void setDialogValue(int index, String value) {
         syncing = true; dialogFields[index].setValue(value); syncing = false;
-    }
-
-    private void cancelDialog() {
-        if (dialog == Dialog.AREAS && areaDeleteConfirmation) {
-            areaDeleteConfirmation = false;
-            message = "";
-            focus(null);
-            updateVisibility();
-            return;
-        }
-        if (dialog == Dialog.GROUPS && groupDeleteConfirmation) {
-            groupDeleteConfirmation = false;
-            focus(null);
-            updateVisibility();
-            return;
-        }
-        if (dialog == Dialog.WAYPOINTS) pending = null;
-        if (dialog == Dialog.AREAS) flushDraft();
-        dialog = switch (dialog) {
-            case AREA_NAME -> areaNameReturn;
-            case COLOR -> colorReturn;
-            case PICKER -> pickerReturn;
-            case ASSIGN_GROUP, IMPORT -> Dialog.AREAS;
-            case EXPORT -> exportReturn;
-            case GROUP_NAME -> Dialog.GROUPS;
-            case GROUPS -> groupsReturnDialog;
-            default -> Dialog.NONE;
-        };
-        focus(null);
-        updateVisibility();
-    }
-
-    private int[] dialogRect() {
-        int width = Math.min(switch (dialog) {
-            case AREAS, GROUPS -> 760;
-            case ASSIGN_GROUP, AREA_NAME, GROUP_NAME, COLOR, PICKER -> 420;
-            default -> 560;
-        }, screen.width - 20);
-        int height = switch (dialog) {
-            case SIZE, MOVE -> Math.min(180, screen.height - 16);
-            case CENTER -> Math.min(150, screen.height - 16);
-            case AREAS, GROUPS -> Math.min(460, screen.height - 16);
-            case ASSIGN_GROUP -> Math.min(330, screen.height - 16);
-            case AREA_NAME, PICKER -> Math.min(236, screen.height - 16);
-            case GROUP_NAME -> Math.min(140, screen.height - 16);
-            case COLOR -> Math.min(140, screen.height - 16);
-            case WAYPOINTS, IMPORT -> Math.min(330, screen.height - 16);
-            case EXPORT -> Math.min(exportWindow.hasTargetArea() ? 242 : 220, screen.height - 16);
-            default -> 0;
-        };
-        return new int[]{(screen.width - width) / 2, (screen.height - height) / 2, width, height};
-    }
-
-    private int areaDialogRows() {
-        return Math.max(1, Math.min(24, displayedAreas().size()));
-    }
-
-    private int groupDialogRows() {
-        return Math.max(1, Math.min(24, areaStore.state().groups().size()));
-    }
-
-    private int visibleAreaDialogRows(int height) {
-        // The list ends above the export/import, select, save and overlay rows at the bottom of the window.
-        int fitting = Math.max(1, (height - 148) / 20);
-        return Math.min(areaDialogRows(), fitting);
-    }
-
-    private int visibleGroupDialogRows(int height) {
-        int fitting = Math.max(1, (height - 100) / 20);
-        return Math.min(groupDialogRows(), fitting);
-    }
-
-    private int visibleAssignmentRows(int height) {
-        return Math.max(1, (height - 110) / 20);
     }
 
     static void place(AbstractWidget widget, int x, int y, int width, int height) {
         widget.setX(x); widget.setY(y); widget.setWidth(Math.max(1, width)); widget.setHeight(height);
-    }
-
-    private void layoutDialog() {
-        if (dialog == Dialog.NONE) return;
-        int[] r = dialogRect(); int x = r[0], y = r[1], w = r[2], h = r[3];
-        int buttonY = y + h - 28;
-        switch (dialog) {
-            case SIZE -> {
-                place(dialogFields[0], x + 18, y + 52, (w - 54) / 2, 18);
-                place(dialogFields[1], x + 36 + (w - 54) / 2, y + 52, (w - 54) / 2, 18);
-                place(anchorButton, x + 18, y + 82, w - 36, 18);
-                place(modalApply, x + w / 2 - 116, buttonY, 110, 18);
-                place(modalCancel, x + w / 2 + 6, buttonY, 110, 18);
-            }
-            case MOVE -> {
-                place(dialogFields[2], x + 18, y + 52, (w - 54) / 2, 18);
-                place(dialogFields[3], x + 36 + (w - 54) / 2, y + 52, (w - 54) / 2, 18);
-                place(moveUnitsButton, x + 18, y + 82, w - 36, 18);
-                place(modalApply, x + w / 2 - 116, buttonY, 110, 18);
-                place(modalCancel, x + w / 2 + 6, buttonY, 110, 18);
-            }
-            case CENTER -> {
-                place(dialogFields[6], x + 18, y + 58, w - 36, 18);
-                place(centerCopy, x + 18, buttonY, Math.max(70, (w - 48) / 2), 18);
-                place(centerCreate, x + 30 + (w - 48) / 2, buttonY, Math.max(70, (w - 48) / 2), 18);
-            }
-            case AREAS -> {
-                if (areaDeleteConfirmation) {
-                    place(confirm, x + w / 2 - 116, buttonY, 110, 18);
-                    place(cancel, x + w / 2 + 6, buttonY, 110, 18);
-                    break;
-                }
-                int col = (w - 36) / 2, right = x + w - col - 12, half = (col - 3) / 2;
-                place(managementUndo, x + w - 232, y + 7, 22, 18);
-                place(managementRedo, x + w - 207, y + 7, 22, 18);
-                place(manageGroups, x + w - 180, y + 7, 92, 18);
-                place(managementClose, x + w - 82, y + 7, 70, 18);
-                place(autosaveButton, x + w - 30, y + h - 24, 18, 16);
-                if (autosaveOpen) {
-                    place(autosaveToggle, right, y + 46, col, 18);
-                    int row = 0;
-                    for (Button button : autosaveFields.values()) place(button, right, y + 68 + 20 * row++, col, 18);
-                    // The autosave hint follows the switches (renderAreasDialog), then copy rounding and Close.
-                    place(roundingButton, right, y + 84 + 20 * row, col, 18);
-                    place(autosaveClose, right, y + 104 + 20 * row, col, 18);
-                } else {
-                    place(dialogFields[4], right, y + 46, col - 21, 18);
-                    place(areaCopies[0], right + col - 18, y + 46, 18, 18);
-                    place(groupAssign, right, y + 66, col, 18);
-                    place(areaColor, right, y + 86, half, 18);
-                    place(areaOpacity, right + half + 3, y + 86, col - half - 3, 18);
-                    place(areaLoad, right, y + 106, half, 18);
-                    place(areaExportButton, right + half + 3, y + 106, col - half - 3, 18);
-                    place(areaSaveChanges, right, y + 126, col, 18);
-                    placeAreaInfo(y, h, right, null, col);
-                    // "Selected" section: visibility and deletion of every checked area, apart from the territory above.
-                    int selectedTop = selectedSectionTop(y, h);
-                    place(areaVisibility, right, selectedTop + 12, half, 18);
-                    place(areaDelete, right + half + 3, selectedTop + 12, col - half - 3, 18);
-                }
-                place(openExportButton, right, y + h - 44, col, 16);
-                place(areaSortButton, x + 14 + col - 130, y + 27, 130, 16);
-                int[] search = areaSearchSpan(x, col);
-                place(areaSearch, search[0], y + 27, Math.max(1, search[1]), 16);
-                place(areaExportFile, x + 12, y + h - 92, half, 18);
-                place(areaImport, x + 15 + half, y + h - 92, col - half - 24, 18);
-                place(transferFolderButton, x + 12 + col - 18, y + h - 92, 18, 18);
-                place(areaSelectAll, x + 12, y + h - 72, half, 18);
-                place(areaClearSelection, x + 15 + half, y + h - 72, col - half - 3, 18);
-                place(areaSave, x + 12, y + h - 52, col, 18);
-                int third = (col - 6) / 3;
-                place(areaMapVisibility, x + 12, y + h - 32, third, 18);
-                place(areaMinimapVisibility, x + 15 + third, y + h - 32, third, 18);
-                place(areaNames, x + 18 + 2 * third, y + h - 32, col - 6 - 2 * third, 18);
-            }
-            case GROUPS -> {
-                if (groupDeleteConfirmation) {
-                    place(confirm, x + w / 2 - 116, buttonY, 110, 18);
-                    place(cancel, x + w / 2 + 6, buttonY, 110, 18);
-                    break;
-                }
-                int col = (w - 36) / 2, right = x + w - col - 12, half = (col - 3) / 2;
-                place(managementUndo, x + w - 154, y + 7, 22, 18);
-                place(managementRedo, x + w - 129, y + 7, 22, 18);
-                place(managementClose, x + w - 102, y + 7, 90, 18);
-                place(groupCreate, right, y + 78, col, 18);
-                place(groupRename, right, y + 100, col, 18);
-                place(groupVisibility, right, y + 122, col, 18);
-                place(groupDelete, right, y + 144, col, 18);
-                place(groupExport, right, y + 166, col - 21, 18);
-                place(transferFolderButton, right + col - 18, y + 166, 18, 18);
-                place(openExportButton, right, y + h - 44, col, 16);
-            }
-            case EXPORT -> {
-                exportWindow.layout(x, y, w, buttonY);
-                place(modalCancel, x + w / 2 + 6, buttonY, 110, 18);
-            }
-            case IMPORT -> {
-                place(managementClose, x + w - 82, y + 7, 70, 18);
-                place(importOpenFolder, x + 12, y + h - 28, 150, 18);
-            }
-            case ASSIGN_GROUP -> {
-                place(managementClose, x + w - 82, y + 7, 70, 18);
-                place(manageGroups, x + 12, y + h - 36, w - 24, 18);
-            }
-            case AREA_NAME, GROUP_NAME -> {
-                place(dialogFields[dialog == Dialog.AREA_NAME ? 8 : 5], x + 16, y + 48, w - 32, 18);
-                if (dialog == Dialog.AREA_NAME) {
-                    int half = (w - 35) / 2;
-                    place(newAreaGroup, x + 16, y + 72, half, 18);
-                    place(newAreaOpacityButton, x + 19 + half, y + 72, w - 35 - half, 18);
-                    // Custom color: the field ends where the preview takes the last palette column.
-                    int fieldX = x + 16 + mc.font.width(tr("area_custom_color")) + 6;
-                    place(dialogFields[HEX_FIELD], fieldX, y + 170, swatchX(x, w, AreaPalette.COLUMNS - 1) - 4 - fieldX, 18);
-                }
-                place(modalApply, x + w / 2 - 116, buttonY, 110, 18);
-                place(modalCancel, x + w / 2 + 6, buttonY, 110, 18);
-            }
-            case PICKER -> {
-                place(modalApply, x + w / 2 - 116, buttonY, 110, 18);
-                place(modalCancel, x + w / 2 + 6, buttonY, 110, 18);
-            }
-            case COLOR -> {
-                // The field leaves room for the preview, which opens the full picker.
-                place(dialogFields[HEX_FIELD], x + 12, y + 110, colorPreviewX(x, w) - 4 - (x + 12), 18);
-                place(colorHexApply, x + w - 102, y + 110, 90, 18);
-            }
-            case WAYPOINTS -> {
-                place(dialogFields[7], x + 12, y + 38, w - 24, 18);
-                int third = (w - 30) / 3;
-                place(pointVisibility, x + 12, y + 60, third, 18);
-                place(pointColor, x + 15 + third, y + 60, third, 18);
-                place(pointScope, x + 18 + 2 * third, y + 60, w - 30 - 2 * third, 18);
-                place(dialogFields[RENAME_FIELD], x + 12, y + h - 52, w - 140, 18);
-                place(pointRename, x + w - 122, y + h - 52, 110, 18);
-                int actionWidth = Math.min(110, (w - 30) / 3);
-                int start = x + (w - actionWidth * 3 - 6) / 2;
-                place(confirm, start, buttonY, actionWidth, 18);
-                place(pointRecolor, start + actionWidth + 3, buttonY, actionWidth, 18);
-                place(cancel, start + (actionWidth + 3) * 2, buttonY, actionWidth, 18);
-            }
-            default -> {}
-        }
-    }
-
-    private void applyDialog() {
-        if (dialog == Dialog.AREA_NAME) { saveArea(); return; }
-        if (dialog == Dialog.PICKER) { applyPicker(); return; }
-        if (dialog == Dialog.GROUP_NAME) {
-            if (renamingGroup) renameGroup(); else createGroup();
-            return;
-        }
-        try {
-            SelectionBounds current = state.bounds();
-            if (dialog == Dialog.SIZE) {
-                long width = positive(dialogFields[0].getValue());
-                long length = positive(dialogFields[1].getValue());
-                SelectionBounds next;
-                if (sizeFromCenter) {
-                    double cx = current == null ? SelectionBounds.block(bridge.exactselection$frame().cameraX()) + 0.5 : current.centerX();
-                    double cz = current == null ? SelectionBounds.block(bridge.exactselection$frame().cameraZ()) + 0.5 : current.centerZ();
-                    next = SelectionBounds.aroundCenter(cx, cz, width, length);
-                } else {
-                    int x = current == null ? SelectionBounds.block(bridge.exactselection$frame().cameraX()) : current.minX();
-                    int z = current == null ? SelectionBounds.block(bridge.exactselection$frame().cameraZ()) : current.maxZ();
-                    next = SelectionBounds.fromLowerLeft(x, z, width, length);
-                }
-                if (chunks) next = next.expandedToChunks();
-                setSelection(next, "resize");
-            } else if (dialog == Dialog.MOVE) {
-                if (current == null) throw new IllegalArgumentException();
-                long dx = Long.parseLong(dialogFields[2].getValue().trim());
-                long dz = Long.parseLong(dialogFields[3].getValue().trim());
-                if (moveInChunks) { dx = Math.multiplyExact(dx, 16); dz = Math.multiplyExact(dz, 16); }
-                if (state.geometry() instanceof PolygonGeometry) {
-                    SelectionState.Snapshot before = state.snapshot();
-                    state.setGeometry(state.geometry().translated(dx, dz));
-                    commitSelection(before, state.snapshot(), "move");
-                } else setSelection(current.translated(dx, dz), "move");
-            }
-            dialog = Dialog.NONE; focus(null); message = ""; updateVisibility();
-        } catch (Exception e) { message = tr("invalid_dimensions").getString(); }
-    }
-
-    private static long positive(String value) {
-        long n = Long.parseLong(value.trim());
-        if (n < 1 || n > 60_000_000L) throw new IllegalArgumentException();
-        return n;
-    }
-
-    private void copyCenter() {
-        SelectionBounds b = state.bounds();
-        if (b == null) return;
-        copyToClipboard(formatCenter(b.centerX()) + " " + formatCenter(b.centerZ()));
-    }
-
-    private static String formatCenter(double value) {
-        return value == Math.rint(value) ? Long.toString((long) value) : Double.toString(value);
-    }
-
-    private static String formatMetric(double value) {
-        return value == Math.rint(value) ? Long.toString((long) value) : Double.toString(value);
-    }
-
-    private void createCenterWaypoint() {
-        SelectionBounds b = state.bounds();
-        if (b == null || state.phase() != SelectionState.Phase.SELECTED || waypoints == null) { message = tr("minimap_missing").getString(); return; }
-        String name = dialogFields[6].getValue().trim();
-        if (name.isEmpty()) name = tr("center_waypoint_default").getString();
-        int x = (int) Math.floor(b.centerX()), z = (int) Math.floor(b.centerZ());
-        int y = mc.player == null ? 0 : mc.player.blockPosition().getY();
-        String finalName = name;
-        try {
-            WaypointAccess.Point[] point = {waypoints.create(context, x, y, z, finalName)};
-            history.recordApplied(new SelectionHistory.Action() {
-                @Override public void undo() throws Exception { waypoints.removeCreated(context, point[0]); }
-                @Override public void redo() throws Exception { point[0] = waypoints.recreate(context, point[0]); }
-                @Override public String label() { return tr("history_waypoint").getString(); }
-            });
-            message = tr("waypoint_created").getString(); dialog = Dialog.NONE; updateSelection();
-        } catch (Exception e) { message = tr("save_failed").getString(); }
-        focus(null); updateVisibility();
-    }
-
-    private boolean changeAreas(SavedAreaStore.State next, String label) {
-        SavedAreaStore.State before = areaStore.state();
-        if (before.equals(next)) return false;
-        try {
-            // Unsaved name, group, color and fill edits survive this write; undo and redo drop them in syncAreaSelection.
-            areaStore.replace(next);
-            history.recordApplied(new SelectionHistory.Action() {
-                @Override public void undo() throws Exception { areaStore.replace(before); syncAreaSelection(); }
-                @Override public void redo() throws Exception { areaStore.replace(next); syncAreaSelection(); }
-                @Override public String label() { return tr("history_" + label).getString(); }
-            });
-            return true;
-        } catch (Exception e) {
-            message = tr("area_save_failed").getString();
-            LoggerFactory.getLogger("Exact Selection for Xaero's map").error("Could not save saved areas", e);
-            return false;
-        }
-    }
-
-    private void syncAreaSelection() {
-        List<SavedAreaStore.Area> areas = areaStore.state().areas();
-        Set<String> existing = new HashSet<>();
-        for (SavedAreaStore.Area area : areas) existing.add(area.id());
-        selectedAreaIds.retainAll(existing);
-        if (!selectedAreaIds.contains(areaId)) areaId = selectedAreaIds.stream().reduce((first, last) -> last).orElse(null);
-        if (selectedGroup() == null) groupId = null;
-        // History replaced the stored areas; a draft based on the old values no longer applies.
-        areaDraft.clear();
-        setDialogValue(4, selectedAreaIds.size() == 1 && selectedArea() != null ? selectedArea().name() : "");
-    }
-
-    /** Writes the draft fields chosen by {@code fields} to every checked area as one undo step. */
-    private boolean commitDraft(java.util.function.Predicate<AutosaveSettings.Field> fields) {
-        if (loadFailed || selectedAreaIds.isEmpty()) return false;
-        if (areaDraft.groupSet && areaDraft.groupId != null && findGroup(areaDraft.groupId) == null) {
-            areaDraft.groupSet = false; areaDraft.groupId = null;
-        }
-        boolean any = false;
-        for (AutosaveSettings.Field field : AutosaveSettings.Field.values()) any |= fields.test(field) && areaDraft.pending(field);
-        if (!any) return false;
-        List<SavedAreaStore.Area> areas = areaDraft.apply(areaStore.state().areas(), Set.copyOf(selectedAreaIds), fields);
-        SavedAreaStore.State next = areaState(areas, areaStore.state().groups());
-        AreaDraft kept = new AreaDraft();
-        kept.name = areaDraft.name; kept.groupSet = areaDraft.groupSet; kept.groupId = areaDraft.groupId;
-        kept.color = areaDraft.color; kept.opacity = areaDraft.opacity;
-        if (!next.equals(areaStore.state()) && !changeAreas(next, "area_update")) return false;
-        // Keep only the fields that were not written.
-        kept.clear(fields);
-        areaDraft.name = kept.name; areaDraft.groupSet = kept.groupSet; areaDraft.groupId = kept.groupId;
-        areaDraft.color = kept.color; areaDraft.opacity = kept.opacity;
-        SavedAreaStore.Area single = selectedAreaIds.size() == 1 ? selectedArea() : null;
-        setDialogValue(4, areaDraft.name != null ? areaDraft.name : single == null ? "" : single.name());
-        message = tr("area_changes_saved").getString();
-        updateVisibility();
-        return true;
-    }
-
-    /** Before the checked areas change or the window closes: autosaved fields are written, the rest dropped. */
-    private void flushDraft() {
-        if (areaDraft.isEmpty()) return;
-        commitDraft(autosave::covers);
-        if (!areaDraft.isEmpty()) {
-            areaDraft.clear();
-            message = tr("area_changes_discarded").getString();
-        }
-    }
-
-    /** Records a changed draft field and writes it at once when autosave covers it. */
-    private void stage(AutosaveSettings.Field field) {
-        if (autosave.covers(field)) commitDraft(f -> f == field);
-        updateVisibility();
-    }
-
-    private SavedAreaStore.Area selectedArea() {
-        return areaStore.state().areas().stream().filter(a -> Objects.equals(a.id(), areaId)).findFirst().orElse(null);
-    }
-
-    private SavedAreaStore.Group selectedGroup() {
-        return findGroup(groupId);
-    }
-
-    private SavedAreaStore.Group findGroup(String id) {
-        return areaStore.state().groups().stream().filter(g -> Objects.equals(g.id(), id)).findFirst().orElse(null);
-    }
-
-    private List<SavedAreaStore.Area> selectedAreas() {
-        return areaStore.state().areas().stream().filter(a -> selectedAreaIds.contains(a.id())).toList();
-    }
-
-    private void saveArea() {
-        SelectionBounds b = state.bounds();
-        if (b == null || dirty || state.phase() != SelectionState.Phase.SELECTED) return;
-        flushDraft();
-        String name = dialogFields[8].getValue().trim();
-        if (name.isEmpty()) name = tr("area_default_name", areaStore.state().areas().size() + 1).getString();
-        AreaGeometry geometry = state.geometry() == null ? new RectangleGeometry(b) : state.geometry();
-        SavedAreaStore.Area area = SavedAreaStore.create(name, geometry, newAreaColor, newAreaOpacity,
-                findGroup(newAreaGroupId) == null ? null : newAreaGroupId);
-        List<SavedAreaStore.Area> areas = new ArrayList<>(areaStore.state().areas()); areas.add(area);
-        if (!changeAreas(areaState(areas, areaStore.state().groups()), "area_save")) return;
-        selectedAreaIds.clear(); selectedAreaIds.add(area.id()); areaId = area.id();
-        setDialogValue(4, area.name());
-        dialog = areaNameReturn;
-        if (dialog == Dialog.AREAS) {
-            List<SavedAreaStore.Area> shown = displayedAreas();
-            int index = shown.indexOf(area);
-            // Scroll so the new row is visible; a row the search hides leaves the list where it was.
-            if (index >= 0)
-                areaScroll = Math.max(0, Math.min(index, shown.size() - visibleAreaDialogRows(dialogRect()[3])));
-        }
-        // The saved shape now lives in the list; clearing it (its own undo step) frees the map for the next area.
-        reset();
-        message = tr(areaNameReturn == Dialog.NONE ? "area_saved_named" : "area_created", name).getString();
-        focus(null); updateVisibility();
-    }
-
-    private void loadArea() {
-        SavedAreaStore.Area area = selectedArea();
-        if (area == null) return;
-        flushDraft();
-        SelectionState.Snapshot before = state.snapshot();
-        state.load(area.geometry(), area.id());
-        polygonMode = false;
-        commitSelection(before, state.snapshot(), "area_load");
-        dialog = Dialog.NONE;
-        message = tr(state.geometry() instanceof PolygonGeometry ? "polygon_loaded" : "area_loaded").getString();
-        focus(null);
-        updateVisibility();
-    }
-
-    private SavedAreaStore.Area editedArea() {
-        return areaStore.state().areas().stream().filter(a -> Objects.equals(a.id(), state.source())).findFirst().orElse(null);
-    }
-
-    private void quickSave() {
-        if (editedArea() != null) applyEditedArea();
-        else { areaNameReturn = Dialog.NONE; openAreaNameDialog(); }
-    }
-
-    private void applyEditedArea() {
-        SavedAreaStore.Area area = editedArea();
-        AreaGeometry geometry = state.geometry();
-        if (area == null || geometry == null || dirty || !polygonDraft.isEmpty() || holding() || loadFailed
-                || state.phase() != SelectionState.Phase.SELECTED || area.geometry().equals(geometry)) return;
-        List<SavedAreaStore.Area> areas = areaStore.state().areas().stream()
-                .map(a -> a.id().equals(area.id()) ? a.withGeometry(geometry) : a).toList();
-        if (changeAreas(areaState(areas, areaStore.state().groups()), "area_update"))
-            message = tr("area_applied", area.name()).getString();
-        updateVisibility();
-    }
-
-    /** Opens the quick menu at the pointer when a right click (not a drag) lands inside the finished selection. */
-    private boolean openQuickMenu(MapBridge.Frame frame, double x, double y) {
-        if (frame == null || dialog != Dialog.NONE || gesture != null || dirty || !polygonDraft.isEmpty()
-                || !insideBounds(frame, x, y)) return false;
-        quickMenu = true;
-        quickMenuX = (int) x; quickMenuY = (int) y;
-        updateVisibility();
-        return true;
-    }
-
-    private List<Button> quickMenuButtons() {
-        List<Button> items = new ArrayList<>(editedArea() == null ? List.of(quickMenuSave) : List.of(quickMenuColor, quickMenuOpacity));
-        // A polygon has no width and length to set.
-        if (!(state.geometry() instanceof PolygonGeometry)) items.add(sizeButton);
-        items.addAll(List.of(moveButton, centerButton));
-        if (editedArea() != null) items.add(quickMenuDelete);
-        items.add(quickMenuClear);
-        return items;
-    }
-
-    /** The color window for the territory under edit; a swatch or hex applies at once. */
-    private void openQuickColor() {
-        SavedAreaStore.Area area = editedArea();
-        quickMenu = false;
-        if (area == null || loadFailed) return;
-        colorReturn = Dialog.NONE;
-        dialog = Dialog.COLOR;
-        setDialogValue(HEX_FIELD, AreaPalette.format(area.color()));
-        message = ""; focus(null); updateVisibility();
-    }
-
-    private void cycleNewAreaGroup() {
-        List<SavedAreaStore.Group> groups = areaStore.state().groups();
-        int index = -1;
-        for (int i = 0; i < groups.size(); i++) if (Objects.equals(groups.get(i).id(), newAreaGroupId)) index = i;
-        newAreaGroupId = index + 1 < groups.size() ? groups.get(index + 1).id() : null;
-        updateVisibility();
-    }
-
-    private void deleteArea() {
-        if (checkedFrame() == null || !enabled() || selectedAreas().isEmpty() || loadFailed) return;
-        areaDeleteConfirmation = true;
-        message = "";
-        updateVisibility();
-        focus(confirm);
-    }
-
-    private void confirmAreaDelete() {
-        if (checkedFrame() == null || !enabled() || dialog != Dialog.AREAS || !areaDeleteConfirmation || loadFailed) return;
-        List<SavedAreaStore.Area> targets = selectedAreas();
-        if (targets.isEmpty()) {
-            areaDeleteConfirmation = false;
-            updateVisibility();
-            return;
-        }
-        Set<String> ids = new HashSet<>(selectedAreaIds);
-        List<SavedAreaStore.Area> areas = new ArrayList<>(areaStore.state().areas());
-        areas.removeIf(area -> ids.contains(area.id()));
-        int count = targets.size();
-        if (!changeAreas(areaState(areas, areaStore.state().groups()), "area_delete")) return;
-        areaId = null;
-        selectedAreaIds.clear();
-        areaDraft.clear();
-        setDialogValue(4, "");
-        message = tr("area_deleted", count).getString();
-        areaDeleteConfirmation = false;
-        focus(null);
-        updateVisibility();
-    }
-
-    private void selectAllAreas() {
-        flushDraft();
-        selectedAreaIds.clear();
-        // With a search, All checks the areas it shows.
-        List<SavedAreaStore.Area> areas = displayedAreas();
-        for (SavedAreaStore.Area area : areas) selectedAreaIds.add(area.id());
-        areaId = areas.isEmpty() ? null : areas.get(areas.size() - 1).id();
-        setDialogValue(4, selectedAreaIds.size() == 1 && selectedArea() != null ? selectedArea().name() : "");
-        updateVisibility();
-    }
-
-    private void clearAreaSelection() {
-        flushDraft();
-        selectedAreaIds.clear();
-        areaId = null;
-        setDialogValue(4, "");
-        updateVisibility();
-    }
-
-    private void toggleArea() {
-        List<SavedAreaStore.Area> targets = selectedAreas();
-        if (targets.isEmpty()) return;
-        boolean visible = targets.stream().noneMatch(SavedAreaStore.Area::visible);
-        List<SavedAreaStore.Area> areas = areaStore.state().areas().stream().map(a -> selectedAreaIds.contains(a.id())
-                ? new SavedAreaStore.Area(a.id(), a.name(), a.x1(), a.z1(), a.x2(), a.z2(), a.color(), a.opacity(), a.groupId(), visible, a.vertices()) : a).toList();
-        if (changeAreas(areaState(areas, areaStore.state().groups()), "area_update"))
-            message = tr(visible ? "areas_shown" : "areas_hidden", targets.size()).getString();
-    }
-
-    private void openColorDialog(Dialog returnTo) {
-        if (returnTo == Dialog.AREAS && (selectedAreas().isEmpty() || loadFailed)) return;
-        if (returnTo == Dialog.WAYPOINTS && !validatePointSnapshot()) return;
-        if (returnTo == Dialog.WAYPOINTS && filteredChosenPoints().isEmpty()) return;
-        colorReturn = returnTo;
-        dialog = Dialog.COLOR;
-        SavedAreaStore.Area area = selectedArea();
-        if (area == null && !selectedAreas().isEmpty()) area = selectedAreas().get(0);
-        setDialogValue(HEX_FIELD, AreaPalette.format(areaDraft.color != null ? areaDraft.color
-                : area == null ? AreaPalette.DEFAULT : area.color()));
-        message = ""; focus(null); updateVisibility();
-    }
-
-    private void applyHexColor() {
-        int color = AreaPalette.parse(dialogFields[HEX_FIELD].getValue());
-        if (color < 0) { message = tr("color_invalid").getString(); return; }
-        applyColor(color);
-    }
-
-    private void applyColor(int color) {
-        if (colorReturn == Dialog.WAYPOINTS) {
-            editPoints(null, color);
-            return;
-        }
-        if (colorReturn == Dialog.NONE) {
-            SavedAreaStore.Area area = editedArea();
-            dialog = Dialog.NONE;
-            if (area != null) changeAreas(areaState(areaStore.state().areas().stream().map(a -> a != area ? a
-                    : new SavedAreaStore.Area(a.id(), a.name(), a.x1(), a.z1(), a.x2(), a.z2(), color, a.opacity(),
-                            a.groupId(), a.visible(), a.vertices())).toList(), areaStore.state().groups()), "area_update");
-            focus(null); updateVisibility();
-            return;
-        }
-        if (loadFailed) return;
-        areaDraft.color = color;
-        dialog = Dialog.AREAS; message = ""; focus(null);
-        stage(AutosaveSettings.Field.COLOR);
-    }
-
-    private AreaGeometry overlapGeometry;
-    private SavedAreaStore.State overlapState;
-    private Set<String> overlapIds = Set.of();
-
-    /** Ids of saved areas sharing a positive area with the finished selection; cached per selection and store state. */
-    private Set<String> areasInSelection() {
-        AreaGeometry geometry = state.phase() == SelectionState.Phase.SELECTED ? state.geometry() : null;
-        if (geometry != overlapGeometry || areaStore.state() != overlapState) {
-            overlapGeometry = geometry;
-            overlapState = areaStore.state();
-            Set<String> ids = new LinkedHashSet<>();
-            if (geometry != null) for (SavedAreaStore.Area area : overlapState.areas())
-                if (area.geometry().overlaps(geometry)) ids.add(area.id());
-            overlapIds = ids;
-        }
-        return overlapIds;
-    }
-
-    private void openAreasInSelection() {
-        Set<String> ids = areasInSelection();
-        if (ids.isEmpty()) return;
-        openDialog(Dialog.AREAS);
-        if (dialog != Dialog.AREAS) return;
-        selectedAreaIds.addAll(ids);
-        areaId = ids.stream().reduce((first, last) -> last).orElse(null);
-        setDialogValue(4, selectedAreaIds.size() == 1 && selectedArea() != null ? selectedArea().name() : "");
-        message = tr("zones_in_selection_opened", ids.size()).getString();
-        updateVisibility();
-    }
-
-    private int[] paletteColors() {
-        if (colorReturn != Dialog.WAYPOINTS) return AreaPalette.COLORS;
-        int[] colors = new int[WaypointAccess.COLOR_COUNT];
-        for (int i = 0; i < colors.length; i++) colors[i] = waypoints.colorRgb(i);
-        return colors;
-    }
-
-    /** The dialog's side margin; the swatch grid spans the same width as its fields. */
-    private int swatchMargin() { return dialog == Dialog.AREA_NAME ? 16 : 12; }
-
-    private int colorSampleWidth(int width) {
-        return (width - 2 * swatchMargin() - 4 * (AreaPalette.COLUMNS - 1)) / AreaPalette.COLUMNS;
-    }
-
-    /** Left edge of a swatch column; the rounding remainder is split evenly on both sides. */
-    private int swatchX(int x, int w, int column) {
-        int sw = colorSampleWidth(w), inner = w - 2 * swatchMargin();
-        int spare = inner - sw * AreaPalette.COLUMNS - 4 * (AreaPalette.COLUMNS - 1);
-        return x + swatchMargin() + spare / 2 + column * (sw + 4);
-    }
-
-    /** Top of the swatch grid: below the title in the color window, below group and fill in the new-area window. */
-    private int swatchTop(int y) { return y + (dialog == Dialog.AREA_NAME ? 98 : 34); }
-
-    /** The swatch under the pointer, or -1. */
-    private int swatchAt(int x, int y, int w, int count, double mouseX, double mouseY) {
-        int sw = colorSampleWidth(w);
-        for (int i = 0; i < count; i++) {
-            int sx = swatchX(x, w, i % AreaPalette.COLUMNS), sy = swatchTop(y) + (i / AreaPalette.COLUMNS) * 22;
-            if (mouseX >= sx && mouseX < sx + sw && mouseY >= sy && mouseY < sy + 18) return i;
-        }
-        return -1;
-    }
-
-    private void renderSwatches(GuiGraphics g, int x, int y, int w, int[] colors, int current) {
-        int sw = colorSampleWidth(w);
-        for (int i = 0; i < colors.length; i++) {
-            int sx = swatchX(x, w, i % AreaPalette.COLUMNS), sy = swatchTop(y) + (i / AreaPalette.COLUMNS) * 22;
-            g.fill(sx, sy, sx + sw, sy + 18, 0xFF000000 | colors[i]);
-            g.renderOutline(sx, sy, sw, 18, current == colors[i] ? -1 : 0xFF42636D);
-        }
-    }
-
-    /** The color window's preview, between the hex field and Apply. */
-    private static int colorPreviewX(int x, int w) { return x + w - 146; }
-
-    private void renderColorDialog(GuiGraphics g, int x, int y, int w, int h) {
-        List<WaypointAccess.Point> points = filteredChosenPoints();
-        int current = colorReturn == Dialog.WAYPOINTS
-                ? points.isEmpty() ? -1 : waypoints.colorRgb(points.get(0).color())
-                : AreaPalette.parse(dialogFields[HEX_FIELD].getValue());
-        renderSwatches(g, x, y, w, paletteColors(), current);
-        if (colorReturn != Dialog.WAYPOINTS) {
-            int px = colorPreviewX(x, w);
-            g.fill(px, y + 110, px + 40, y + 128, current < 0 ? 0xFF000000 : 0xFF000000 | current);
-            g.renderOutline(px, y + 110, 40, 18, current < 0 ? 0xFFFF5555 : -1);
-        }
-        if (!message.isEmpty()) g.drawString(mc.font, mc.font.plainSubstrByWidth(message, w - 24),
-                x + 12, y + (colorReturn == Dialog.WAYPOINTS ? 86 : 98), 0xFFFFCF62);
-    }
-
-    /** Opens the full color picker on {@code color}; Apply hands the color back to {@code returnTo}. */
-    private void openPicker(Dialog returnTo, int color) {
-        double[] hsv = AreaPalette.toHsv(color);
-        pickerHue = hsv[0]; pickerSat = hsv[1]; pickerValue = hsv[2];
-        pickerReturn = returnTo; pickerDrag = 0;
-        dialog = Dialog.PICKER;
-        message = ""; focus(null); updateVisibility();
-    }
-
-    private int pickerColor() { return AreaPalette.hsv(pickerHue, pickerSat, pickerValue); }
-
-    private void applyPicker() {
-        int color = pickerColor();
-        dialog = pickerReturn; pickerDrag = 0;
-        setDialogValue(HEX_FIELD, AreaPalette.format(color));
-        // The color window applies a choice at once, like a swatch.
-        if (pickerReturn == Dialog.COLOR) { applyColor(color); return; }
-        newAreaColor = color;
-        focus(null); updateVisibility();
-    }
-
-    /** Saturation and brightness: {x, y, width, height}; the hue bar stands to its right. */
-    private static int[] pickerSquare(int x, int y, int w, int h) { return new int[]{x + 16, y + 30, w - 58, h - 92}; }
-
-    private static int[] pickerHueBar(int x, int y, int w, int h) { return new int[]{x + w - 34, y + 30, 18, h - 92}; }
-
-    private static boolean inside(int[] r, double x, double y) {
-        return x >= r[0] && x < r[0] + r[2] && y >= r[1] && y < r[1] + r[3];
-    }
-
-    private void dragPicker(double mouseX, double mouseY) {
-        int[] r = dialogRect();
-        int[] square = pickerSquare(r[0], r[1], r[2], r[3]), hue = pickerHueBar(r[0], r[1], r[2], r[3]);
-        if (pickerDrag == 1) {
-            pickerSat = Math.max(0, Math.min(1, (mouseX - square[0]) / Math.max(1, square[2] - 1)));
-            pickerValue = 1 - Math.max(0, Math.min(1, (mouseY - square[1]) / Math.max(1, square[3] - 1)));
-        } else if (pickerDrag == 2) {
-            pickerHue = Math.max(0, Math.min(1, (mouseY - hue[1]) / Math.max(1, hue[3] - 1)));
-        }
-    }
-
-    private void renderPicker(GuiGraphics g, int x, int y, int w, int h) {
-        int[] square = pickerSquare(x, y, w, h), hue = pickerHueBar(x, y, w, h);
-        // Each column runs from its saturation at full brightness down to black.
-        for (int i = 0; i < square[2]; i++)
-            g.fillGradient(square[0] + i, square[1], square[0] + i + 1, square[1] + square[3],
-                    0xFF000000 | AreaPalette.hsv(pickerHue, i / (double) Math.max(1, square[2] - 1), 1), 0xFF000000);
-        for (int j = 0; j < hue[3]; j++)
-            g.fill(hue[0], hue[1] + j, hue[0] + hue[2], hue[1] + j + 1, 0xFF000000 | AreaPalette.hsv(j / (double) hue[3], 1, 1));
-        g.renderOutline(square[0] - 1, square[1] - 1, square[2] + 2, square[3] + 2, 0xFF42636D);
-        g.renderOutline(hue[0] - 1, hue[1] - 1, hue[2] + 2, hue[3] + 2, 0xFF42636D);
-        int mx = square[0] + (int) Math.round(pickerSat * (square[2] - 1));
-        int my = square[1] + (int) Math.round((1 - pickerValue) * (square[3] - 1));
-        g.renderOutline(mx - 3, my - 3, 7, 7, pickerValue > 0.5 ? 0xFF000000 : -1);
-        int hy = hue[1] + (int) Math.round(pickerHue * (hue[3] - 1));
-        g.renderOutline(hue[0] - 2, hy - 2, hue[2] + 4, 5, -1);
-        int color = pickerColor(), py = y + h - 54;
-        g.fill(x + 16, py, x + 56, py + 18, 0xFF000000 | color);
-        g.renderOutline(x + 16, py, 40, 18, -1);
-        g.drawString(mc.font, AreaPalette.format(color), x + 64, py + 5, -1);
-    }
-
-    private void cycleAreaOpacity() {
-        SavedAreaStore.Area a = selectedArea();
-        if (a == null && !selectedAreas().isEmpty()) a = selectedAreas().get(0);
-        if (a == null || loadFailed) return;
-        areaDraft.opacity = nextOpacity(areaDraft.opacity != null ? areaDraft.opacity : a.opacity());
-        stage(AutosaveSettings.Field.OPACITY);
-    }
-
-    /** The fill step after the one closest to {@code opacity}: 0 → 25 → 50 → 75 → 100 → 0. */
-    private static int nextOpacity(int opacity) {
-        int[] values = {0, 25, 50, 75, 100};
-        int index = 0;
-        for (int i = 1; i < values.length; i++) {
-            if (Math.abs(values[i] - opacity) < Math.abs(values[index] - opacity)) index = i;
-        }
-        return values[(index + 1) % values.length];
-    }
-
-    private void createGroup() {
-        String name = dialogFields[5].getValue().trim();
-        if (name.isEmpty() || loadFailed) return;
-        List<SavedAreaStore.Group> groups = new ArrayList<>(areaStore.state().groups());
-        SavedAreaStore.Group group = new SavedAreaStore.Group(UUID.randomUUID().toString(), name, true);
-        groups.add(group);
-        if (!changeAreas(areaState(areaStore.state().areas(), groups), "group_create")) return;
-        groupId = group.id();
-        dialog = Dialog.GROUPS;
-        groupScroll = Math.max(0, groups.size() - visibleGroupDialogRows(dialogRect()[3]));
-        message = tr("group_created", group.name()).getString();
-        focus(null); updateVisibility();
-    }
-
-    private void renameGroup() {
-        SavedAreaStore.Group current = selectedGroup();
-        String name = dialogFields[5].getValue().trim();
-        if (current == null || name.isEmpty() || loadFailed) return;
-        List<SavedAreaStore.Group> groups = new ArrayList<>(areaStore.state().groups());
-        groups.replaceAll(group -> group.id().equals(current.id())
-                ? new SavedAreaStore.Group(group.id(), name, group.visible()) : group);
-        SavedAreaStore.State next = areaState(areaStore.state().areas(), groups);
-        if (!areaStore.state().equals(next) && !changeAreas(next, "group_rename")) return;
-        dialog = Dialog.GROUPS;
-        message = tr("group_renamed").getString();
-        focus(null); updateVisibility();
-    }
-
-    private void assignGroup(String nextGroupId) {
-        if (dialog != Dialog.ASSIGN_GROUP || assignmentTargets.isEmpty() || loadFailed) return;
-        SavedAreaStore.Group group = findGroup(nextGroupId);
-        if (nextGroupId != null && group == null) return;
-        int count = assignmentTargets.size();
-        areaDraft.groupSet = true; areaDraft.groupId = nextGroupId;
-        dialog = Dialog.AREAS;
-        assignmentTargets.clear();
-        message = tr(autosave.covers(AutosaveSettings.Field.GROUP) ? "group_assigned" : "group_staged",
-                count, group == null ? tr("group_none").getString() : group.name()).getString();
-        focus(null);
-        stage(AutosaveSettings.Field.GROUP);
-    }
-
-    private void toggleGroup() {
-        SavedAreaStore.Group g = selectedGroup(); if (g == null || loadFailed) return;
-        List<SavedAreaStore.Group> groups = new ArrayList<>(areaStore.state().groups());
-        groups.replaceAll(v -> v.id().equals(g.id()) ? new SavedAreaStore.Group(v.id(), v.name(), !v.visible()) : v);
-        if (changeAreas(areaState(areaStore.state().areas(), groups), "group_toggle"))
-            message = tr(g.visible() ? "group_hidden" : "group_shown", g.name()).getString();
-    }
-
-    private void exportSelectedArea() {
-        MapBridge.Frame frame = checkedFrame();
-        SavedAreaStore.Area area = selectedArea();
-        if (area == null || frame == null || loadFailed || exportRunning) return;
-        flushDraft();
-        openExportDialog(area.geometry(), tr("export_what_area", area.name()), Dialog.AREAS, area.id());
-    }
-
-    private boolean canExportSelection() {
-        return enabled() && dialog == Dialog.NONE && state.phase() == SelectionState.Phase.SELECTED
-                && state.geometry() != null && !dirty && !dragging && gesture == null
-                && polygonDraft.isEmpty() && !loadFailed && !exportRunning;
-    }
-
-    private void exportCurrentSelection() {
-        MapBridge.Frame frame = checkedFrame();
-        if (frame == null || !canExportSelection()) return;
-        SavedAreaStore.Area edited = editedArea();
-        openExportDialog(state.geometry(), tr("export_what_selection"), Dialog.NONE, edited == null ? null : edited.id());
-    }
-
-    private void openExportDialog(AreaGeometry geometry, Component title, Dialog returnTo, String areaId) {
-        exportWindow.open(geometry, title, areaId);
-        exportReturn = returnTo;
-        dialog = Dialog.EXPORT;
-        message = "";
-        focus(null); updateVisibility();
-    }
-
-    /** Xaero's export folder, or the mod's exchange folder before the map has one. */
-    private Path defaultExportFolder() {
-        Path folder = AreaExportService.defaultFolder(bridge.exactselection$processor());
-        return folder != null ? folder : areaStore.root().resolve("xaero-exact-selection").resolve("map-exports").toAbsolutePath();
-    }
-
-    private void runExport() {
-        MapBridge.Frame frame = checkedFrame();
-        if (frame == null || exportRunning) return;
-        AreaExportService.Options options = exportWindow.options();
-        if (options == null) return;
-        dialog = exportReturn;
-        exportGeometry(frame, exportWindow.target(), options, exportWindow.unfilledArea());
-    }
-
-    private void exportGeometry(MapBridge.Frame frame, AreaGeometry geometry, AreaExportService.Options options, String unfilledArea) {
-        java.util.concurrent.CompletableFuture<AreaExportService.Result> pendingExport;
-        try {
-            pendingExport = AreaExportService.export(bridge.exactselection$processor(),
-                    frame.context(), geometry, areaStore.state().areas().stream().map(a -> !a.id().equals(unfilledArea) ? a
-                            : new SavedAreaStore.Area(a.id(), a.name(), a.x1(), a.z1(), a.x2(), a.z2(), a.color(), 0,
-                                    a.groupId(), a.visible(), a.vertices())).toList(), areaStore.state().groups(), options);
-        } catch (AreaExportService.TooLargeException e) {
-            message = tr("area_export_too_large", AreaExportService.MAX_PIXELS).getString();
-            updateVisibility();
-            return;
-        } catch (Exception e) {
-            exportFailed(e);
-            return;
-        }
-        exportRunning = true;
-        message = tr("area_exporting").getString();
-        // The image is composed in the background; the result returns to the client thread for the UI.
-        pendingExport.whenComplete((result, failure) -> mc.execute(() -> {
-            exportRunning = false;
-            if (failure == null) exportCompleted(result);
-            else exportFailed(failure instanceof java.util.concurrent.CompletionException && failure.getCause() != null
-                    ? failure.getCause() : failure);
-        }));
-        updateVisibility();
-    }
-
-    private void exportFailed(Throwable failure) {
-        message = tr("area_export_failed").getString();
-        LoggerFactory.getLogger("Exact Selection for Xaero's map").error("Could not export selected area", failure);
-        updateVisibility();
-    }
-
-    private void exportCompleted(AreaExportService.Result result) {
-        lastExport = result.file().toAbsolutePath().normalize();
-        exportNotice = tr("area_exported", result.width(), result.height()).getString();
-        message = exportNotice;
-        openExportButton.setTooltip(Tooltip.create(Component.literal(lastExport.getFileName().toString())
-                .append(" · ").append(exportNotice)));
-        layoutMainPanel();
-        layoutDialog();
-        updateVisibility();
-    }
-
-    private boolean hasExportNotice() {
-        return lastExport != null && !exportNotice.isEmpty() && message.equals(exportNotice);
-    }
-
-    private void openLastExport() {
-        if (lastExport == null) return;
-        if (!Files.isRegularFile(lastExport)) {
-            message = tr("export_file_missing").getString();
-            updateVisibility();
-            return;
-        }
-        try {
-            if (Desktop.isDesktopSupported()) {
-                Desktop desktop = Desktop.getDesktop();
-                if (desktop.isSupported(Desktop.Action.BROWSE_FILE_DIR)) {
-                    desktop.browseFileDirectory(lastExport.toFile());
-                    return;
-                }
-            }
-        } catch (RuntimeException unavailable) { }
-        net.minecraft.util.Util.getPlatform().openPath(lastExport.getParent());
-    }
-
-    /**
-     * The search field's x and width: between the checked count and the order button, over the count when the list
-     * column is narrow; a width under 40 hides it.
-     */
-    private static int[] areaSearchSpan(int x, int col) {
-        int end = x + 14 + col - 134;
-        int start = end - (x + 92) >= 60 ? x + 92 : x + 12;
-        return new int[]{start, end - start};
-    }
-
-    private SavedAreaStore.State sortedState;
-    private AreaSort sortedBy;
-    private String sortedQuery = "";
-    private List<SavedAreaStore.Area> sortedAreas = List.of();
-
-    /**
-     * Areas in the Areas window's display order, matching the search; rows, Shift ranges, Select all and scrolling all
-     * use it. Cached per store state, sort and search.
-     */
-    private List<SavedAreaStore.Area> displayedAreas() {
-        String query = areaSearch == null ? "" : areaSearch.getValue().trim().toLowerCase(Locale.ROOT);
-        if (areaStore.state() != sortedState || areaSort != sortedBy || !query.equals(sortedQuery)) {
-            sortedState = areaStore.state();
-            sortedBy = areaSort;
-            sortedQuery = query;
-            sortedAreas = sortAreas(sortedState.areas()).stream()
-                    .filter(area -> area.name().toLowerCase(Locale.ROOT).contains(query)).toList();
-        }
-        return sortedAreas;
-    }
-
-    private List<SavedAreaStore.Area> sortAreas(List<SavedAreaStore.Area> stored) {
-        java.text.Collator collator = java.text.Collator.getInstance();
-        collator.setStrength(java.text.Collator.SECONDARY);
-        Comparator<SavedAreaStore.Area> byName = (a, b) -> collator.compare(a.name(), b.name());
-        return switch (areaSort) {
-            case DATE -> stored;
-            case NAME -> stored.stream().sorted(byName).toList();
-            // Grouped areas by group name, then ungrouped ones.
-            case GROUP -> stored.stream().sorted(Comparator.<SavedAreaStore.Area, Boolean>comparing(a -> findGroup(a.groupId()) == null)
-                    .thenComparing((a, b) -> findGroup(a.groupId()) == null ? 0
-                            : collator.compare(findGroup(a.groupId()).name(), findGroup(b.groupId()).name()))
-                    .thenComparing(byName)).toList();
-            // Shown first; an area hidden by itself or by its group counts as hidden.
-            case VISIBILITY -> stored.stream().sorted(Comparator.<SavedAreaStore.Area, Boolean>comparing(a -> !shownOnMap(a))
-                    .thenComparing(byName)).toList();
-        };
-    }
-
-    private boolean shownOnMap(SavedAreaStore.Area area) {
-        SavedAreaStore.Group group = findGroup(area.groupId());
-        return area.visible() && (group == null || group.visible());
-    }
-
-    private Path transferFolder() { return AreaTransfer.folder(areaStore.root()); }
-
-    private void openTransferFolder() {
-        try { Files.createDirectories(transferFolder()); } catch (java.io.IOException ignored) { }
-        net.minecraft.util.Util.getPlatform().openPath(transferFolder());
-    }
-
-    /** Exports the checked areas, or every area of this world when none is checked. */
-    private void exportAreaFile() {
-        if (loadFailed) return;
-        List<SavedAreaStore.Area> areas = selectedAreas().isEmpty() ? areaStore.state().areas() : selectedAreas();
-        exportTransfer(selectedAreas().isEmpty() ? "areas" : areas.size() == 1 ? areas.get(0).name() : "areas", areas);
-    }
-
-    private void exportGroupFile() {
-        SavedAreaStore.Group group = selectedGroup();
-        if (group == null || loadFailed) return;
-        exportTransfer(group.name(), areaStore.state().areas().stream().filter(a -> Objects.equals(a.groupId(), group.id())).toList());
-    }
-
-    private void exportTransfer(String label, List<SavedAreaStore.Area> areas) {
-        if (areas.isEmpty()) return;
-        try {
-            Path file = AreaTransfer.export(transferFolder(), label, areas, areaStore.state().groups());
-            lastExport = file.toAbsolutePath().normalize();
-            exportNotice = tr("areas_exported", areas.size(), file.getFileName().toString()).getString();
-            message = exportNotice;
-            openExportButton.setTooltip(Tooltip.create(Component.literal(lastExport.toString())));
-        } catch (Exception e) {
-            message = tr("areas_export_failed").getString();
-            LoggerFactory.getLogger("Exact Selection for Xaero's map").error("Could not export areas", e);
-        }
-        layoutDialog(); updateVisibility();
-    }
-
-    private void openImport() {
-        if (loadFailed) return;
-        flushDraft();
-        try { importFiles = AreaTransfer.list(transferFolder()); }
-        catch (Exception e) { importFiles = List.of(); }
-        importScroll = 0;
-        dialog = Dialog.IMPORT;
-        message = "";
-        focus(null); updateVisibility();
-    }
-
-    private static int importRows(int height) { return Math.max(1, (height - 84) / 20); }
-
-    /** Adds a file's areas to this world as one undo step and returns to the Areas window. */
-    private void importFile(Path file) {
-        try {
-            AreaTransfer.Merge merge = AreaTransfer.merge(areaStore.state(), AreaTransfer.read(file));
-            if (merge.added() > 0 || merge.groupsAdded() > 0) {
-                if (!changeAreas(merge.state(), "area_import")) return;
-            }
-            dialog = Dialog.AREAS;
-            message = tr("areas_imported", merge.added(), merge.skipped()).getString();
-        } catch (Exception e) {
-            message = tr("areas_import_failed", file.getFileName().toString()).getString();
-            LoggerFactory.getLogger("Exact Selection for Xaero's map").warn("Could not import " + file, e);
-        }
-        focus(null); updateVisibility();
-    }
-
-    private void renderImportDialog(GuiGraphics g, int x, int y, int w, int h) {
-        g.drawString(mc.font, mc.font.plainSubstrByWidth(tr("import_hint").getString(), w - 24), x + 12, y + 32, 0xFF9BAAB7);
-        int rows = importRows(h);
-        importScroll = Math.min(importScroll, Math.max(0, importFiles.size() - rows));
-        g.fill(x + 10, y + 46, x + w - 10, y + 48 + rows * 20, 0xFF0C141D);
-        if (importFiles.isEmpty()) g.drawString(mc.font, tr("import_empty"), x + 16, y + 54, 0xFF9BAAB7);
-        java.time.format.DateTimeFormatter time = java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")
-                .withZone(java.time.ZoneId.systemDefault());
-        for (int i = 0; i < rows && i + importScroll < importFiles.size(); i++) {
-            Path file = importFiles.get(i + importScroll);
-            int rowY = y + 48 + i * 20;
-            String when;
-            try { when = time.format(Files.getLastModifiedTime(file).toInstant()); } catch (Exception e) { when = ""; }
-            g.drawString(mc.font, mc.font.plainSubstrByWidth(file.getFileName().toString(), w - 150), x + 16, rowY + 6, -1);
-            g.drawString(mc.font, when, x + w - 16 - mc.font.width(when), rowY + 6, 0xFF9BAAB7);
-        }
-        if (!message.isEmpty()) g.drawString(mc.font, mc.font.plainSubstrByWidth(message, w - 190), x + 172, y + h - 23, 0xFFFFCF62);
-    }
-
-    private void askDeleteGroup() {
-        if (selectedGroup() == null || loadFailed) return;
-        groupDeleteConfirmation = true;
-        updateVisibility();
-        focus(confirm);
-    }
-
-    private void confirmGroupDelete() {
-        SavedAreaStore.Group group = selectedGroup();
-        if (group == null || !groupDeleteConfirmation || loadFailed) return;
-        List<SavedAreaStore.Group> groups = areaStore.state().groups().stream()
-                .filter(g -> !g.id().equals(group.id())).toList();
-        List<SavedAreaStore.Area> areas = areaStore.state().areas().stream().map(area ->
-                Objects.equals(area.groupId(), group.id())
-                        ? new SavedAreaStore.Area(area.id(), area.name(), area.x1(), area.z1(), area.x2(), area.z2(),
-                                area.color(), area.opacity(), null, area.visible(), area.vertices()) : area).toList();
-        int affected = (int) areaStore.state().areas().stream().filter(a -> Objects.equals(a.groupId(), group.id())).count();
-        if (!changeAreas(areaState(areas, groups), "group_delete")) return;
-        groupId = null;
-        message = tr("group_deleted", affected).getString();
-        groupDeleteConfirmation = false;
-        focus(null);
-        updateVisibility();
-    }
-
-    private SavedAreaStore.State areaState(List<SavedAreaStore.Area> areas, List<SavedAreaStore.Group> groups) {
-        SavedAreaStore.State current = areaStore.state();
-        return new SavedAreaStore.State(areas, groups, current.showOnMap(), current.showOnMinimap(), current.showNames());
-    }
-
-    private void toggleAreaMapVisibility() {
-        SavedAreaStore.State current = areaStore.state();
-        changeAreas(new SavedAreaStore.State(current.areas(), current.groups(), !current.showOnMap(), current.showOnMinimap(),
-                current.showNames()), "area_map_visibility");
-    }
-
-    private void toggleAreaMinimapVisibility() {
-        SavedAreaStore.State current = areaStore.state();
-        changeAreas(new SavedAreaStore.State(current.areas(), current.groups(), current.showOnMap(), !current.showOnMinimap(),
-                current.showNames()), "area_minimap_visibility");
-    }
-
-    private void toggleAreaNames() {
-        SavedAreaStore.State current = areaStore.state();
-        changeAreas(new SavedAreaStore.State(current.areas(), current.groups(), current.showOnMap(), current.showOnMinimap(),
-                !current.showNames()), "area_names_visibility");
-    }
-
-    private void cycleVisibilityFilter() {
-        visibilityFilter = (visibilityFilter + 1) % 3;
-        pointVisibility.setMessage(tr(new String[]{"filter_all", "filter_visible", "filter_hidden"}[visibilityFilter]));
-    }
-
-    private void cycleColorFilter() {
-        colorFilter = colorFilter < 0 ? 0 : colorFilter >= 15 ? -1 : colorFilter + 1;
-        pointColor.setMessage(tr(colorFilter < 0 ? "filter_color_all" : "filter_color", colorFilter));
     }
 
     public boolean enabled() { return state.enabled(); }
@@ -1811,58 +211,7 @@ public final class ExactSelectionController {
         return screen.getFocused() instanceof EditBox field && widgets.contains(field);
     }
 
-    private SelectionBounds copyableBounds() {
-        return enabled() && !dirty && pending == null ? state.bounds() : null;
-    }
-
-    private void copyCoordinates() {
-        SelectionBounds bounds = copyableBounds();
-        if (bounds != null) copyToClipboard(cornerCoordinates(bounds, true));
-    }
-    private void copyArea() { copySelection(1); }
-    private void copyPerimeter() { copySelection(2); }
-    private void copyLength() { copySelection(3); }
-    private void copyWidth() { copySelection(4); }
-
-    private void copySelection(int kind) {
-        SelectionBounds b = copyableBounds();
-        if (b != null) copyMetric(kind, state.geometry(), b);
-    }
-
-    private static String cornerCoordinates(SelectionBounds bounds, boolean first) {
-        return first ? bounds.x1() + " " + bounds.z1() : bounds.x2() + " " + bounds.z2();
-    }
-
-    /** Copies one value: 0 corner A or polygon vertices, 1 area, 2 perimeter, 3 length, 4 width, 5 corner B. */
-    private void copyMetric(int kind, AreaGeometry geometry, SelectionBounds b) {
-        copyToClipboard(switch (kind) {
-            case 0 -> geometry instanceof PolygonGeometry polygon
-                    ? polygon.vertices().stream().map(p -> p.x() + " " + p.z()).collect(java.util.stream.Collectors.joining("; "))
-                    : cornerCoordinates(b, true);
-            case 1 -> autosave.rounding() == AutosaveSettings.Rounding.EXACT ? formatMetric(geometry.area()) : rounded(geometry.area());
-            case 2 -> autosave.rounding() == AutosaveSettings.Rounding.EXACT ? formatLength(geometry.perimeter()) : rounded(geometry.perimeter());
-            case 3 -> Long.toString(b.length());
-            case 5 -> cornerCoordinates(b, false);
-            default -> Long.toString(b.width());
-        });
-    }
-
-    /** Whole blocks for pasting; the small margin keeps a value computed a hair off an integer from gaining or losing a block. */
-    private String rounded(double value) {
-        return Long.toString(autosave.rounding() == AutosaveSettings.Rounding.UP
-                ? (long) Math.ceil(value - 1e-9) : (long) Math.floor(value + 1e-9));
-    }
-
-    private static String formatLength(double value) {
-        return value == Math.rint(value) ? Long.toString((long) value) : String.format(Locale.ROOT, "%.2f", value);
-    }
-
-    private void copyToClipboard(String value) {
-        mc.keyboardHandler.setClipboard(value);
-        message = tr("copied").getString();
-    }
-
-    private void toggle() {
+    void toggle() {
         if (enabled()) { disable(); return; }
         MapBridge.Frame frame = bridge.exactselection$frame();
         if (frame == null) return;
@@ -1872,292 +221,80 @@ public final class ExactSelectionController {
         context = frame.context();
         message = "";
         syncFields();
-        updateVisibility();
-    }
-
-    private void togglePolygonMode() {
-        if (!enabled() || holding()) return;
-        polygonDraftUndo.clear(); polygonDraftRedo.clear();
-        if (polygonMode) {
-            polygonMode = false;
-            polygonDraft.clear();
-            polygonCursor = null;
-            polygonBefore = null;
-            message = tr("polygon_cancelled").getString();
-        } else {
-            if (state.phase() == SelectionState.Phase.PREVIEW) {
-                if (!(gesture instanceof MapGesture.Corners corners && corners.cancel(gestureHost))) state.reset();
-                syncFields();
-            }
-            polygonMode = true;
-            polygonDraft.clear();
-            polygonCursor = null;
-            polygonBefore = state.snapshot();
-            message = tr("polygon_controls").getString();
-        }
-        updateSelection();
-        updateVisibility();
-    }
-
-    private GridPoint polygonPoint(MapBridge.Frame frame, double x, double y, GridPoint anchor) {
-        long wx = Math.round(frame.worldX(x)), wz = Math.round(frame.worldZ(y));
-        if (shiftDown && anchor != null) {
-            if (Math.abs(wx - anchor.x()) >= Math.abs(wz - anchor.z())) wz = anchor.z();
-            else wx = anchor.x();
-        }
-        return new GridPoint(wx, wz);
-    }
-
-    private int hitPolygonEdge(MapBridge.Frame frame, List<GridPoint> vertices, double x, double y) {
-        return hitPolygonEdge(frame, vertices, x, y, true);
-    }
-
-    /** The side under the pointer; an open contour has no side from its last vertex back to the first. */
-    private int hitPolygonEdge(MapBridge.Frame frame, List<GridPoint> vertices, double x, double y, boolean closed) {
-        if (hitVertex(frame, vertices, x, y) >= 0) return -1;
-        int nearest = -1;
-        double distance = 64;
-        for (int i = 0; i < (closed ? vertices.size() : vertices.size() - 1); i++) {
-            GridPoint a = vertices.get(i), b = vertices.get((i + 1) % vertices.size());
-            double ax = frame.screenX(a.x()), ay = frame.screenY(a.z());
-            double dx = frame.screenX(b.x()) - ax, dy = frame.screenY(b.z()) - ay;
-            double length = dx * dx + dy * dy;
-            if (length == 0) continue;
-            double t = Math.max(0, Math.min(1, ((x - ax) * dx + (y - ay) * dy) / length));
-            double ex = x - ax - t * dx, ey = y - ay - t * dy;
-            double candidate = ex * ex + ey * ey;
-            if (candidate <= distance) { nearest = i; distance = candidate; }
-        }
-        return nearest;
-    }
-
-    /** Adds a contour vertex on side {@code edge}, as a double click does on a finished shape. */
-    private void insertDraftPoint(MapBridge.Frame frame, int edge, double x, double y) {
-        if (polygonDraft.size() >= PolygonGeometry.MAX_VERTICES) { message = tr("polygon_too_many_points").getString(); return; }
-        GridPoint point;
-        try { point = onSide(frame, polygonDraft.get(edge), polygonDraft.get(edge + 1), x, y); }
-        catch (IllegalArgumentException e) { message = tr("invalid_coordinates").getString(); return; }
-        if (polygonDraft.contains(point)) { message = tr("polygon_duplicate_point").getString(); return; }
-        recordDraftChange(List.copyOf(polygonDraft));
-        polygonDraft.add(edge + 1, point);
-        updateSelection();
-        message = tr("polygon_draft_vertex_inserted").getString();
-        updateVisibility();
-    }
-
-    /**
-     * The block on side a–b nearest the pointer. The hit tolerance is in screen pixels, which can span many blocks
-     * when zoomed out; placing the vertex under the cursor would bend the side.
-     */
-    private static GridPoint onSide(MapBridge.Frame frame, GridPoint a, GridPoint b, double x, double y) {
-        double ex = b.x() - a.x(), ez = b.z() - a.z();
-        double t = ((frame.worldX(x) - a.x()) * ex + (frame.worldZ(y) - a.z()) * ez) / (ex * ex + ez * ez);
-        t = Math.max(0, Math.min(1, t));
-        return new GridPoint(Math.round(a.x() + t * ex), Math.round(a.z() + t * ez));
-    }
-
-    private void insertPolygonPoint(MapBridge.Frame frame, PolygonGeometry polygon, int edge, double x, double y) {
-        if (polygon.vertices().size() >= PolygonGeometry.MAX_VERTICES) {
-            message = tr("polygon_too_many_points").getString(); return;
-        }
-        try {
-            List<GridPoint> points = new ArrayList<>(polygon.vertices());
-            // Inserted on the side itself; Ctrl/Cmd-drag moves it afterwards.
-            GridPoint point = onSide(frame, points.get(edge), points.get((edge + 1) % points.size()), x, y);
-            if (points.contains(point)) { message = tr("polygon_duplicate_point").getString(); return; }
-            points.add(edge + 1, point);
-            PolygonGeometry next = new PolygonGeometry(points);
-            next.triangulate();
-            SelectionState.Snapshot before = state.snapshot();
-            state.setGeometry(next);
-            commitSelection(before, state.snapshot(), "vertex");
-            message = tr("polygon_vertex_inserted").getString();
-        } catch (IllegalArgumentException | IllegalStateException e) {
-            message = tr("polygon_invalid").getString();
-        }
-        updateVisibility();
-    }
-
-    private void addPolygonPoint(MapBridge.Frame frame, double mouseX, double mouseY) {
-        if (polygonDraft.size() >= 3) {
-            GridPoint first = polygonDraft.get(0);
-            double dx = frame.screenX(first.x()) - mouseX, dy = frame.screenY(first.z()) - mouseY;
-            if (dx * dx + dy * dy <= 64.0) { finishPolygon(); return; }
-        }
-        GridPoint point;
-        try { point = polygonPoint(frame, mouseX, mouseY, polygonDraft.isEmpty() ? null : polygonDraft.getLast()); }
-        catch (IllegalArgumentException e) { message = tr("invalid_coordinates").getString(); return; }
-        if (polygonDraft.contains(point)) { message = tr("polygon_duplicate_point").getString(); return; }
-        if (polygonDraft.size() >= PolygonGeometry.MAX_VERTICES) {
-            message = tr("polygon_too_many_points").getString(); return;
-        }
-        if (polygonDraft.isEmpty()) polygonBefore = state.snapshot();
-        recordDraftChange(List.copyOf(polygonDraft));
-        polygonDraft.add(point);
-        updateSelection();
-        message = polygonDraft.size() == 1 ? tr("polygon_draft_controls").getString()
-                : tr("polygon_point_count", polygonDraft.size()).getString();
-        updateVisibility();
-    }
-
-    private void finishPolygon() {
-        if (polygonDraft.size() < 3) { message = tr("polygon_minimum_points").getString(); return; }
-        try {
-            PolygonGeometry polygon = new PolygonGeometry(polygonDraft);
-            SelectionState.Snapshot before = polygonBefore == null ? state.snapshot() : polygonBefore;
-            // A new contour is a new selection: it no longer edits the area that was loaded.
-            state.load(polygon, null);
-            gesture = null;
-            polygonDraft.clear();
-            polygonDraftUndo.clear(); polygonDraftRedo.clear();
-            polygonCursor = null;
-            polygonBefore = null;
-            commitSelection(before, state.snapshot(), "polygon");
-            message = tr("polygon_created").getString();
-        } catch (IllegalArgumentException | IllegalStateException e) {
-            message = tr("polygon_invalid").getString();
-        }
-        updateVisibility();
-    }
-
-    private void recordDraftChange(List<GridPoint> before) {
-        polygonDraftUndo.push(before);
-        polygonDraftRedo.clear();
-        while (polygonDraftUndo.size() > 100) polygonDraftUndo.removeLast();
-    }
-
-    private void removeLastPolygonPoint() {
-        if (polygonDraft.isEmpty() || holding()) return;
-        recordDraftChange(List.copyOf(polygonDraft));
-        polygonDraft.remove(polygonDraft.size() - 1);
-        message = tr("polygon_point_removed").getString();
-        updateVisibility();
-    }
-
-    private int hitVertex(MapBridge.Frame frame, List<GridPoint> vertices, double x, double y) {
-        int nearest = -1;
-        double distance = 64;
-        for (int i = 0; i < vertices.size(); i++) {
-            GridPoint point = vertices.get(i);
-            double dx = frame.screenX(point.x()) - x, dy = frame.screenY(point.z()) - y;
-            double candidate = dx * dx + dy * dy;
-            if (candidate <= distance) { nearest = i; distance = candidate; }
-        }
-        return nearest;
-    }
-
-    private void deleteVertex(MapBridge.Frame frame, double x, double y) {
-        if (polygonMode && !polygonDraft.isEmpty()) {
-            int index = hitVertex(frame, polygonDraft, x, y);
-            if (index < 0) return;
-            recordDraftChange(List.copyOf(polygonDraft)); polygonDraft.remove(index); polygonCursor = null;
-            message = tr("polygon_vertex_deleted").getString(); updateSelection(); updateVisibility();
-            return;
-        }
-        if (state.phase() != SelectionState.Phase.SELECTED || state.geometry() == null) return;
-        List<GridPoint> points = new ArrayList<>(state.geometry().vertices());
-        int index = hitVertex(frame, points, x, y);
-        if (index < 0) return;
-        if (points.size() <= 3) { message = tr("polygon_minimum_points").getString(); return; }
-        try {
-            SelectionState.Snapshot before = state.snapshot(); points.remove(index);
-            PolygonGeometry next = new PolygonGeometry(points); next.triangulate();
-            state.setGeometry(next); commitSelection(before, state.snapshot(), "vertex_delete");
-            message = tr("polygon_vertex_deleted").getString();
-        } catch (IllegalArgumentException | IllegalStateException e) { message = tr("polygon_invalid").getString(); }
-        updateVisibility();
-    }
-
-    private void beginVertexDrag(MapBridge.Frame frame, double x, double y) {
-        List<GridPoint> points = polygonMode && !polygonDraft.isEmpty() ? polygonDraft
-                : state.geometry() != null && state.phase() == SelectionState.Phase.SELECTED ? state.geometry().vertices() : List.of();
-        int index = hitVertex(frame, points, x, y);
-        if (index < 0) return;
-        gesture = new MapGesture.VertexDrag(state.snapshot(), index, Math.round(frame.worldX(x)), Math.round(frame.worldZ(y)),
-                polygonMode && !polygonDraft.isEmpty() ? List.copyOf(points) : null);
-        polygonCursor = null;
-        message = tr("polygon_vertex_drag").getString();
-        updateVisibility();
     }
 
     /** Cancels the current gesture and resyncs the panel; false when there was none. */
-    private boolean cancelGesture() {
+    boolean cancelGesture() {
         MapGesture current = gesture;
         if (current == null || !current.cancel(gestureHost)) return false;
         refreshSelectionState();
         return true;
     }
 
-    private boolean holding() { return gesture instanceof MapGesture.Held; }
-
-    private void rememberClick(MouseButtonEvent event) {
-        clickAt = net.minecraft.util.Util.getMillis();
-        clickX = event.x(); clickY = event.y();
-    }
-
-    /** A gesture that is still a click until the pointer leaves the click zone. */
-    private static boolean clickable(MapGesture gesture) {
-        return gesture instanceof MapGesture.Drag || gesture instanceof MapGesture.VertexDrag;
-    }
+    boolean holding() { return gesture instanceof MapGesture.Held; }
 
     /** A change made while a two-click selection is open is recorded from before its first click. */
-    private SelectionState.Snapshot historyBase() {
+    SelectionState.Snapshot historyBase() {
         return state.phase() == SelectionState.Phase.PREVIEW && gesture instanceof MapGesture.Corners corners
                 ? corners.before : state.snapshot();
     }
 
     // A preview restored from history has no gesture; its first corner lies in the same chunk as the origin.
-    private int chunkOriginX() { return gesture instanceof MapGesture.Corners corners ? corners.originX : state.bounds().x1(); }
+    int chunkOriginX() { return gesture instanceof MapGesture.Corners corners ? corners.originX : state.bounds().x1(); }
 
-    private int chunkOriginZ() { return gesture instanceof MapGesture.Corners corners ? corners.originZ : state.bounds().z1(); }
+    int chunkOriginZ() { return gesture instanceof MapGesture.Corners corners ? corners.originZ : state.bounds().z1(); }
 
     public void disable() {
         if (enabled()) bridge.exactselection$clearNativeInput();
         if (state.bounds() != null) {
             var before = historyBase();
             state.disable();
-            history.recordApplied(selectionAction(before, state.snapshot(), "disable"));
+            // Undo brings the selection back into the reopened tool; redo only clears it again, leaving the tool on.
+            history.recordApplied(selectionAction(before, new SelectionState.Snapshot(SelectionState.Phase.READY, null), "clear"));
         } else state.disable();
-        selected = pending = null;
+        selected = waypointsWindow.pending = null;
         context = null;
         dragging = dirty = false;
         gesture = null;
-        polygonDraftUndo.clear(); polygonDraftRedo.clear();
-        polygonMode = false; polygonDraft.clear(); polygonCursor = null; polygonBefore = null;
+        polygonTool.discardDraft();
+        polygonTool.mode = false;
+        rulerTool.setRulerMode(false);
         dialog = Dialog.NONE;
         message = "";
         focus(null);
-        updateVisibility();
     }
 
-    private void reset() {
+    void reset() {
         var before = historyBase();
         state.reset();
         if (!before.equals(state.snapshot())) history.recordApplied(selectionAction(before, state.snapshot(), "clear"));
-        selected = pending = null;
-        polygonDraft.clear(); polygonCursor = null; polygonBefore = null;
-        polygonDraftUndo.clear(); polygonDraftRedo.clear();
+        selected = waypointsWindow.pending = null;
+        polygonTool.discardDraft();
         gesture = null;
         dirty = dragging = false;
         message = "";
         focus(null);
         syncFields();
-        updateVisibility();
     }
 
-    private MapBridge.Frame checkedFrame() {
+    MapBridge.Frame checkedFrame() {
         MapBridge.Frame frame = bridge.exactselection$frame();
-        if (enabled() && (frame == null || !Objects.equals(context, frame.context()))) disable();
+        if (frame != null) awaitingFrame = false;
+        if (enabled() && !awaitingFrame && (frame == null || !Objects.equals(context, frame.context()))) disable();
         if (frame != null && !Objects.equals(historyContext, frame.context())) {
             history.clear();
             historyContext = frame.context();
-            areaId = groupId = null; areaScroll = groupScroll = 0;
-            selectedAreaIds.clear();
+            areasWindow.areaId = groupsWindow.groupId = null; areasWindow.areaScroll = groupsWindow.groupScroll = 0;
+            areasWindow.selectedAreaIds.clear();
+            areasStale = true;
+        }
+        if (frame != null && areasStale) {
+            areasStale = false;
             try { areaStore.useContext(frame.context()); loadFailed = areaStore.loadFailed(); }
             catch (Exception e) {
                 loadFailed = true;
-                message = tr("area_load_failed").getString();
-                LoggerFactory.getLogger("Exact Selection for Xaero's map").error("Could not load saved areas", e);
+                say("area_load_failed");
+                LOG.error("Could not load saved areas", e);
             }
         }
         return frame;
@@ -2174,125 +311,90 @@ public final class ExactSelectionController {
 
     private void refreshSelectionState() {
         dirty = false;
-        if (holding()) gesture = null;
+        // History may have replaced the preview a two-click selection was waiting on.
+        if (holding() || state.phase() != SelectionState.Phase.PREVIEW) gesture = null;
         dragging = false;
         syncFields();
         updateSelection();
-        updateVisibility();
     }
 
-    private void commitSelection(SelectionState.Snapshot before, SelectionState.Snapshot after, String key) {
+    void commitSelection(SelectionState.Snapshot before, SelectionState.Snapshot after, String key) {
         if (!before.equals(after)) {
             SelectionHistory.Action action = selectionAction(before, after, key);
-            SavedAreaStore.Area edited = editedArea();
+            Area edited = areasWindow.editedArea();
             if (autosave.covers(AutosaveSettings.Field.GEOMETRY) && edited != null && !loadFailed
                     && after.phase() == SelectionState.Phase.SELECTED && after.geometry() != null
                     && Objects.equals(after.source(), edited.id()) && !edited.geometry().equals(after.geometry()))
-                action = withGeometryAutosave(action, edited, after.geometry());
+                action = areaEdits.withGeometryAutosave(action, edited, after.geometry());
             history.recordApplied(action);
             // A new change ends redoing an undone contour, which would otherwise keep blocking undo.
-            if (polygonDraft.isEmpty()) polygonDraftRedo.clear();
+            if (polygonTool.draft.isEmpty()) polygonTool.draftRedo.clear();
         }
         refreshSelectionState();
     }
 
-    /**
-     * Writes the edited territory's new shape at once and folds it into the selection step, so one undo restores
-     * both the selection and the saved area.
-     */
-    private SelectionHistory.Action withGeometryAutosave(SelectionHistory.Action selection, SavedAreaStore.Area area,
-                                                         AreaGeometry geometry) {
-        SavedAreaStore.State before = areaStore.state();
-        SavedAreaStore.State next = areaState(before.areas().stream()
-                .map(a -> a.id().equals(area.id()) ? a.withGeometry(geometry) : a).toList(), before.groups());
-        try {
-            areaStore.replace(next);
-        } catch (Exception e) {
-            message = tr("area_save_failed").getString();
-            LoggerFactory.getLogger("Exact Selection for Xaero's map").error("Could not autosave the edited territory", e);
-            return selection;
-        }
-        return new SelectionHistory.Action() {
-            @Override public void undo() throws Exception { areaStore.replace(before); syncAreaSelection(); selection.undo(); }
-            @Override public void redo() throws Exception { areaStore.replace(next); syncAreaSelection(); selection.redo(); }
-            @Override public String label() { return selection.label(); }
-        };
-    }
-
-    private void undo() {
+    void undo() {
         if (dialog == Dialog.NONE && gesture instanceof MapGesture.VertexDrag) {
-            cancelGesture(); message = tr("draft_cancelled").getString(); return;
+            cancelGesture(); say("draft_cancelled"); return;
         }
-        if (dialog == Dialog.NONE && polygonMode && !polygonDraftUndo.isEmpty()) {
-            polygonDraftRedo.push(List.copyOf(polygonDraft));
-            polygonDraft.clear(); polygonDraft.addAll(polygonDraftUndo.pop());
-            message = tr("history_undone").getString();
-            updateSelection(); updateVisibility();
-            return;
-        }
-        if (dialog == Dialog.NONE && polygonMode && polygonDraft.isEmpty() && !polygonDraftRedo.isEmpty()) return;
+        if (dialog == Dialog.NONE && polygonTool.mode && polygonTool.undoDraft()) return;
         if (dialog == Dialog.NONE && gesture instanceof MapGesture.Drag) {
-            cancelGesture(); message = tr("draft_cancelled").getString(); return;
+            cancelGesture(); say("draft_cancelled"); return;
         }
-        if (dialog == Dialog.NONE && dirty) { dirty = false; syncFields(); focus(null); message = tr("draft_cancelled").getString(); return; }
+        if (dialog == Dialog.NONE && dirty) { dirty = false; syncFields(); focus(null); say("draft_cancelled"); return; }
         if (dialog == Dialog.NONE && gesture instanceof MapGesture.Corners && state.phase() == SelectionState.Phase.PREVIEW) {
-            cancelGesture(); message = tr("draft_cancelled").getString(); return;
+            cancelGesture(); say("draft_cancelled"); return;
         }
         if (!history.canUndo()) return;
-        try { history.undo(); message = tr("history_undone").getString(); }
-        catch (Exception e) { message = tr("history_failed").getString(); }
+        try { history.undo(); say("history_undone"); }
+        catch (Exception e) { say("history_failed"); }
         refreshSelectionState();
     }
 
-    private void redo() {
-        if (dialog == Dialog.NONE && polygonMode && !polygonDraftRedo.isEmpty() && !holding() && !dirty) {
-            polygonDraftUndo.push(List.copyOf(polygonDraft));
-            polygonDraft.clear(); polygonDraft.addAll(polygonDraftRedo.pop());
-            message = tr("history_redone").getString();
-            updateSelection(); updateVisibility();
-            return;
-        }
+    void redo() {
+        if (dialog == Dialog.NONE && polygonTool.mode && !holding() && !dirty && polygonTool.redoDraft()) return;
         if (!history.canRedo() || dialog == Dialog.NONE
-                && (dirty || !polygonDraft.isEmpty() || gesture != null)) return;
-        try { history.redo(); message = tr("history_redone").getString(); }
-        catch (Exception e) { message = tr("history_failed").getString(); }
+                && (dirty || !polygonTool.draft.isEmpty() || gesture != null)) return;
+        try { history.redo(); say("history_redone"); }
+        catch (Exception e) { say("history_failed"); }
         refreshSelectionState();
     }
 
-    private void toggleChunks() {
+    void toggleChunks() {
         chunks = !chunks;
-        chunkMode.setMessage(tr(chunks ? "units_chunks" : "units_blocks"));
+        selectionPanel.chunkMode.setMessage(tr(chunks ? "units_chunks" : "units_blocks"));
         if (chunks && state.phase() == SelectionState.Phase.PREVIEW && gesture instanceof MapGesture.Corners corners) {
             corners.cancel(gestureHost);
             syncFields();
         }
-        if (state.phase() == SelectionState.Phase.SELECTED && state.bounds() != null && chunks) {
+        // A saved area being edited keeps its shape until the user changes it; only new edits snap.
+        if (state.phase() == SelectionState.Phase.SELECTED && state.bounds() != null && chunks && areasWindow.editedArea() == null) {
             try {
                 SelectionBounds next = state.bounds().expandedToChunks();
                 if (!next.equals(state.bounds())) setSelection(next, "snap_chunks");
             } catch (IllegalArgumentException e) {
                 chunks = false;
-                chunkMode.setMessage(tr("units_blocks"));
-                message = tr("invalid_coordinates").getString();
+                selectionPanel.chunkMode.setMessage(tr("units_blocks"));
+                say("invalid_coordinates");
             }
         }
     }
 
-    private void setSelection(SelectionBounds bounds, String key) {
+    void setSelection(SelectionBounds bounds, String key) {
         var before = historyBase();
         state.set(bounds);
         gesture = null;
         commitSelection(before, state.snapshot(), key);
     }
 
-    private MapGesture.Handle hitHandle(MapBridge.Frame frame, double x, double y) {
+    MapGesture.Handle hitHandle(MapBridge.Frame frame, double x, double y) {
         SelectionBounds b = state.bounds();
         if (b == null || state.phase() != SelectionState.Phase.SELECTED
                 || state.geometry() instanceof PolygonGeometry) return null;
         return MapGesture.Drag.handleAt(frame, b, x, y);
     }
 
-    private boolean insideBounds(MapBridge.Frame frame, double x, double y) {
+    boolean insideBounds(MapBridge.Frame frame, double x, double y) {
         AreaGeometry geometry = state.geometry();
         if (geometry == null || state.phase() != SelectionState.Phase.SELECTED) return false;
         return geometry.containsPoint(frame.worldX(x), frame.worldZ(y));
@@ -2301,25 +403,17 @@ public final class ExactSelectionController {
     public void beforeRender(int renderMouseX, int renderMouseY) {
         if (!enabled()) return;
         double mouseX = pointerX(renderMouseX), mouseY = pointerY(renderMouseY);
-        if (scrollbarDragging) {
-            if (dialog == Dialog.WAYPOINTS) dragWaypointScrollbar(mouseY); else scrollbarDragging = false;
+        if (waypointsWindow.scrollbarDragging) {
+            if (dialog == Dialog.WAYPOINTS) waypointsWindow.dragWaypointScrollbar(mouseY); else waypointsWindow.scrollbarDragging = false;
         }
-        if (pickerDrag != 0) {
-            if (dialog == Dialog.PICKER) dragPicker(mouseX, mouseY); else pickerDrag = 0;
+        if (colorWindows.pickerDrag != 0) {
+            if (dialog == Dialog.PICKER) colorWindows.dragPicker(mouseX, mouseY); else colorWindows.pickerDrag = 0;
         }
         MapBridge.Frame frame = checkedFrame();
-        if (frame != null && enabled() && dragging && pending == null && dialog == Dialog.NONE)
+        if (frame != null && enabled() && dragging && waypointsWindow.pending == null && dialog == Dialog.NONE)
             bridge.exactselection$pan(mouseX - lastMouseX, mouseY - lastMouseY);
-        // A move or resize follows the pointer only once it leaves the click zone, so a jittery click does not jump.
-        if (clickable(gesture) && !dragMoved
-                && Math.hypot(mouseX - pressX, mouseY - pressY) >= CLICK_SLOP) dragMoved = true;
-        if (frame != null && gesture instanceof MapGesture.Held held && dialog == Dialog.NONE
-                && (dragMoved || !clickable(held)))
-            held.update(gestureHost, frame, mouseX, mouseY);
-        if (frame != null && polygonMode && !(gesture instanceof MapGesture.VertexDrag) && !overPanel(mouseX, mouseY)) {
-            try { polygonCursor = polygonPoint(frame, mouseX, mouseY, polygonDraft.isEmpty() ? null : polygonDraft.getLast()); }
-            catch (IllegalArgumentException e) { polygonCursor = null; }
-        }
+        mapPointer.followPointer(frame, mouseX, mouseY);
+        if (frame != null) { polygonTool.trackPolygonCursor(frame, mouseX, mouseY); rulerTool.trackRulerCursor(frame, mouseX, mouseY); }
         lastMouseX = mouseX;
         lastMouseY = mouseY;
     }
@@ -2338,1009 +432,108 @@ public final class ExactSelectionController {
         return Math.abs(exact - renderMouseY) < 1 ? exact : renderMouseY;
     }
 
-    private void updateSelection() {
-        selected = waypoints == null || !polygonDraft.isEmpty() || state.phase() != SelectionState.Phase.SELECTED
+    void updateSelection() {
+        selected = waypoints == null || !polygonTool.draft.isEmpty() || state.phase() != SelectionState.Phase.SELECTED
                 ? null : waypoints.select(context, state.geometry());
     }
 
     public void renderMapOverlays(GuiGraphics g, int renderMouseX, int renderMouseY) {
         double mouseX = pointerX(renderMouseX), mouseY = pointerY(renderMouseY);
         MapBridge.Frame frame = checkedFrame();
-        if (frame == null || !enabled() && (!areaStore.state().showOnMap() || areaStore.state().areas().isEmpty())) return;
+        if (frame == null || !enabled() && (!areaStore.state().showOnMap() || areas().isEmpty())) return;
         List<MapLabel> mapLabels = new ArrayList<>();
         g.nextStratum();
         if (enabled()) {
-            if (dialog == Dialog.NONE && !dirty && !overPanel(mouseX, mouseY) && !overNativeWidget(mouseX, mouseY)) {
+            // Only the second corner of a selection follows the pointer.
+            if (state.phase() == SelectionState.Phase.PREVIEW && dialog == Dialog.NONE && !dirty && !rulerTool.mode
+                    && !selectionPanel.overPanel(mouseX, mouseY) && !overNativeWidget(mouseX, mouseY)) {
                 try {
-                    int wx = SelectionBounds.block(frame.worldX(mouseX)), wz = SelectionBounds.block(frame.worldZ(mouseY));
-                    if (chunks && state.phase() == SelectionState.Phase.PREVIEW) {
+                    int[] corner = zoneSnap.block(frame, mouseX, mouseY);
+                    int wx = corner[0], wz = corner[1];
+                    if (chunks) {
                         int originX = chunkOriginX(), originZ = chunkOriginZ();
                         int ax = ChunkSelection.anchor(originX, wx), az = ChunkSelection.anchor(originZ, wz);
                         int ex = ChunkSelection.endpoint(wx, originX), ez = ChunkSelection.endpoint(wz, originZ);
                         state.hover(ax, az, ex, ez);
                     } else state.hover(wx, wz);
-                    if (state.phase() == SelectionState.Phase.PREVIEW) syncFields();
+                    syncFields();
                 } catch (IllegalArgumentException ignored) { /* Cursor outside world bounds. */ }
             }
             updateSelection();
-            if (areaStore.state().showOnMap()) {
-                g.nextStratum();
-                renderSavedAreas(g, frame, mapLabels);
-            }
-            if (polygonMode && !polygonDraft.isEmpty()) {
-                GeometryScreenRenderer.drawPolyline(g, frame, polygonDraft, polygonCursor,
-                        screen.width, screen.height, ACCENT);
-                for (int i = 0; i < polygonDraft.size(); i++) {
-                    GridPoint point = polygonDraft.get(i);
-                    double px = frame.screenX(point.x()), py = frame.screenY(point.z());
-                    if (px < -5 || px > screen.width + 5 || py < -5 || py > screen.height + 5) continue;
-                    boolean closing = i == 0 && polygonDraft.size() >= 3 && !(gesture instanceof MapGesture.VertexDrag)
-                            && Math.hypot(px - mouseX, py - mouseY) <= 8;
-                    int color = vertexColor(i, i == 0 ? 0xFF80FF95 : ACCENT);
-                    g.fill((int) px - 3, (int) py - 3, (int) px + 4, (int) py + 4, 0xFF101922);
-                    g.renderOutline((int) px - 3, (int) py - 3, 7, 7, color);
-                    if (closing) {
-                        g.renderOutline((int) px - 5, (int) py - 5, 11, 11, -1);
-                        label(g, tr("polygon_close"), (int) px, (int) py - 16);
-                    }
-                }
-            }
-            if (state.bounds() != null && polygonDraft.isEmpty()) renderBounds(g, frame);
+            // With the tool on, saved areas always show: the Map switch is for the overlay outside it.
+            g.nextStratum();
+            mapOverlays.renderSavedAreas(g, frame, mapLabels);
+            if (polygonTool.mode && !polygonTool.draft.isEmpty()) polygonTool.renderDraft(g, frame, mouseX, mouseY);
+            if (state.bounds() != null && polygonTool.draft.isEmpty()) mapOverlays.renderBounds(g, frame);
         }
         if (!enabled() && areaStore.state().showOnMap()) {
             g.nextStratum();
-            renderSavedAreas(g, frame, mapLabels);
+            mapOverlays.renderSavedAreas(g, frame, mapLabels);
         }
         g.nextStratum();
-        for (MapLabel entry : mapLabels) label(g, entry.text(), entry.x(), entry.y(), entry.color());
+        for (MapLabel entry : mapLabels) mapOverlays.label(g, entry.text(), entry.x(), entry.y(), entry.color());
         g.nextStratum();
+        // Above area names, so the measurement stays readable over saved areas.
+        if (enabled() && rulerTool.mode) {
+            rulerTool.renderRuler(g, frame);
+            g.nextStratum();
+        } else if (hoverable(mouseX, mouseY)) mapOverlays.renderAreaHover(g, frame, mouseX, mouseY);
+    }
+
+    /** Nothing under the pointer that a tooltip would get in the way of. */
+    private boolean hoverable(double x, double y) {
+        return dialog == Dialog.NONE && !rightClickMenu.quickMenu && gesture == null && !polygonTool.mode
+                && !selectionPanel.overPanel(x, y) && !selectionPanel.toggle.isMouseOver(x, y) && !overNativeWidget(x, y);
     }
 
     public void render(GuiGraphics g, int mouseX, int mouseY, float delta) {
         MapBridge.Frame frame = checkedFrame();
-        if (enabled() && frame != null && dialog == Dialog.NONE) renderPanel(g);
         updateVisibility();
-        toggle.active = enabled() || frame != null;
-        toggle.setMessage(Component.literal(enabled() ? "■" : "□"));
-        if (dialog != Dialog.NONE) renderDialog(g);
-        List<Button> menu = quickMenu ? quickMenuButtons() : List.of();
+        if (enabled() && frame != null && dialog == Dialog.NONE) selectionPanel.renderPanel(g);
+        selectionPanel.toggle.active = enabled() || frame != null;
+        if (dialog != Dialog.NONE) windows.renderDialog(g);
+        List<Button> menu = rightClickMenu.quickMenu ? rightClickMenu.quickMenuButtons() : List.of();
         for (AbstractWidget widget : widgets) {
             if (widget.visible && !menu.contains(widget)) widget.render(g, mouseX, mouseY, delta);
         }
         g.nextStratum();
-        if (panelModeButton.visible) renderIcon(g, compact ? EXPAND : COLLAPSE, panelModeButton, 0xFFE0E0E0);
-        if (autosaveButton.visible) renderIcon(g, GEAR, autosaveButton, autosaveOpen ? ACCENT : 0xFFE0E0E0);
-        if (transferFolderButton.visible) renderIcon(g, FOLDER, transferFolderButton, 0xFFE0E0E0);
-        for (Button copy : List.of(copyCoordinates, copyCornerB, copyArea, copyPerimeter, copyLength, copyWidth))
-            if (copy.visible) renderIcon(g, COPY, copy, copy.active ? 0xFFE0E0E0 : 0xFF8A8A8A);
-        for (Button copy : areaCopies) if (copy.visible) renderIcon(g, COPY, copy, copy.active ? 0xFFE0E0E0 : 0xFF8A8A8A);
+        if (selectionPanel.panelModeButton.visible) PixelIcons.renderIcon(g, selectionPanel.compact ? PixelIcons.EXPAND : PixelIcons.COLLAPSE, selectionPanel.panelModeButton, 0xFFE0E0E0);
+        if (areasWindow.autosaveButton.visible) PixelIcons.renderIcon(g, PixelIcons.GEAR, areasWindow.autosaveButton, areasWindow.autosaveOpen ? ACCENT : 0xFFE0E0E0);
+        if (transferWindow.transferFolderButton.visible) PixelIcons.renderIcon(g, PixelIcons.FOLDER, transferWindow.transferFolderButton, 0xFFE0E0E0);
+        if (selectionPanel.rulerButton.visible) PixelIcons.renderIcon(g, PixelIcons.RULER, selectionPanel.rulerButton, !selectionPanel.rulerButton.active ? 0xFF8A8A8A : rulerTool.mode ? RulerTool.COLOR : 0xFFE0E0E0);
+        if (areasWindow.areaShow.visible) PixelIcons.renderIcon(g, PixelIcons.TARGET, areasWindow.areaShow, 0xFFE0E0E0);
+        for (Button copy : List.of(selectionPanel.copyCoordinates, selectionPanel.copyCornerB, selectionPanel.copyArea, selectionPanel.copyPerimeter, selectionPanel.copyLength, selectionPanel.copyWidth, selectionPanel.copyRulerDistance))
+            if (copy.visible) PixelIcons.renderIcon(g, PixelIcons.COPY, copy, copy.active ? 0xFFE0E0E0 : 0xFF8A8A8A);
+        for (Button copy : areasWindow.areaCopies) if (copy.visible) PixelIcons.renderIcon(g, PixelIcons.COPY, copy, copy.active ? 0xFFE0E0E0 : 0xFF8A8A8A);
         exportWindow.renderPlaceholder(g, screen.getFocused() == exportWindow.folder);
-        if (quickMenu) renderQuickMenu(g, menu, mouseX, mouseY);
-        if (enabled() && frame != null && dialog == Dialog.NONE) renderToast(g);
+        if (rightClickMenu.quickMenu) rightClickMenu.renderQuickMenu(g, menu, mouseX, mouseY);
+        if (enabled() && frame != null && dialog == Dialog.NONE) selectionPanel.renderToast(g);
     }
 
     /**
-     * Drawn like Xaero's own right-click menu (XaeroLib's drop-down): a white frame, a grey title row and 11-pixel
-     * rows that turn grey under the pointer. The row buttons only take the clicks.
+     * What every widget shows and allows, from the state. It runs after each input event and each frame, so the code
+     * that changes the state does not call it.
      */
-    private void renderQuickMenu(GuiGraphics g, List<Button> items, int mouseX, int mouseY) {
-        Button first = items.get(0);
-        int x = first.getX(), w = first.getWidth(), top = first.getY() - MENU_ROW;
-        g.nextStratum();
-        g.fill(x, top, x + w, top + MENU_ROW, 0xFF606060);
-        g.drawCenteredString(mc.font, tr("quick_menu_title"), x + w / 2, top + 2, 0xFFFFFFFF);
-        for (Button item : items) {
-            int y = item.getY();
-            boolean hovered = item.active && mouseX >= x && mouseX < x + w && mouseY >= y && mouseY < y + MENU_ROW;
-            g.fill(x, y, x + w, y + MENU_ROW, hovered ? 0xFF323232 : 0xC8000000);
-            g.hLine(x, x + w - 1, y + MENU_ROW - 1, 0xFF323232);
-            g.drawCenteredString(mc.font, item.getMessage(), x + w / 2, y + 2, item.active ? 0xFFFFFFFF : 0xFF808080);
-        }
-        g.renderOutline(x - 1, top - 1, w + 2, (items.size() + 1) * MENU_ROW + 2, 0xFFFFFFFF);
-    }
-
-    /** The latest message, centred near the bottom of the screen for a few seconds instead of cut short in the panel. */
-    private void renderToast(GuiGraphics g) {
-        long now = net.minecraft.util.Util.getMillis();
-        if (!message.equals(toastText)) { toastText = message; toastShownAt = now; }
-        if (message.isEmpty()) return;
-        if (now - toastShownAt > TOAST_MILLIS) {
-            // The export notice also keeps the panel's "Show file" button; only the toast hides.
-            if (!hasExportNotice()) { message = ""; toastText = ""; }
-            return;
-        }
-        List<net.minecraft.util.FormattedCharSequence> lines = mc.font.split(Component.literal(message), Math.min(360, screen.width - 40));
-        if (lines.size() > 3) lines = lines.subList(0, 3);
-        int w = 0;
-        for (var line : lines) w = Math.max(w, mc.font.width(line));
-        int boxW = w + 16, boxH = lines.size() * 10 + 10, x = (screen.width - boxW) / 2, y = screen.height - 52 - boxH;
-        g.nextStratum();
-        g.fill(x, y, x + boxW, y + boxH, 0xEE101922);
-        g.renderOutline(x, y, boxW, boxH, 0xFF42636D);
-        for (int i = 0; i < lines.size(); i++)
-            g.drawCenteredString(mc.font, lines.get(i), screen.width / 2, y + 6 + i * 10, 0xFFFFCF62);
-    }
-
-    private static final String[] COPY = {
-            "####...",
-            "#..#...",
-            "#.#####",
-            "#.#...#",
-            "###...#",
-            "..#...#",
-            "..#####",
-    };
-
-    /** Double chevrons: down to expand the panel, up to make it compact. */
-    private static final String[] EXPAND = {
-            "##.....##",
-            ".##...##.",
-            "..##.##..",
-            "...###...",
-            "....#....",
-            "##.....##",
-            ".##...##.",
-            "..##.##..",
-            "...###...",
-            "....#....",
-    };
-
-    private static final String[] COLLAPSE = {
-            "....#....",
-            "...###...",
-            "..##.##..",
-            ".##...##.",
-            "##.....##",
-            "....#....",
-            "...###...",
-            "..##.##..",
-            ".##...##.",
-            "##.....##",
-    };
-
-    private static final String[] FOLDER = {
-            "###......",
-            "#########",
-            "#.......#",
-            "#.......#",
-            "#.......#",
-            "#.......#",
-            "#########",
-    };
-
-    private static final String[] GEAR = {
-            "....#....",
-            ".#.###.#.",
-            "..#####..",
-            ".###.###.",
-            "###...###",
-            ".###.###.",
-            "..#####..",
-            ".#.###.#.",
-            "....#....",
-    };
-
-    /** A pixel icon centred on an empty button, with a one-pixel shadow like the button labels. */
-    private static void renderIcon(GuiGraphics g, String[] icon, Button button, int color) {
-        int x = button.getX() + (button.getWidth() - icon[0].length()) / 2;
-        int y = button.getY() + (button.getHeight() - icon.length) / 2;
-        int shadow = 0xFF000000 | (color & 0xFCFCFC) >> 2;
-        for (int pass = 0; pass < 2; pass++) {
-            int offset = pass == 0 ? 1 : 0;
-            for (int row = 0; row < icon.length; row++)
-                for (int column = 0; column < icon[row].length(); column++)
-                    if (icon[row].charAt(column) == '#')
-                        g.fill(x + column + offset, y + row + offset, x + column + offset + 1, y + row + offset + 1,
-                                pass == 0 ? shadow : color);
-        }
-    }
-
-    private void renderSavedAreas(GuiGraphics g, MapBridge.Frame frame, List<MapLabel> mapLabels) {
-        Map<String, SavedAreaStore.Group> groups = new HashMap<>();
-        for (SavedAreaStore.Group group : areaStore.state().groups()) groups.put(group.id(), group);
-        boolean names = areaStore.state().showNames();
-        for (SavedAreaStore.Area area : areaStore.state().areas()) {
-            if (!area.visible()) continue;
-            SavedAreaStore.Group group = groups.get(area.groupId());
-            if (group != null && !group.visible()) continue;
-            AreaGeometry geometry = area.geometry();
-            GeometryBounds geometryBounds = geometry.bounds();
-            // Cull by screen bounds first: projecting and clipping every triangle of an off-screen polygon is costly.
-            if (frame.screenX(geometryBounds.maxX()) <= 0 || frame.screenX(geometryBounds.minX()) >= screen.width
-                    || frame.screenY(geometryBounds.maxZ()) <= 0 || frame.screenY(geometryBounds.minZ()) >= screen.height)
-                continue;
-            // The stored shape of the territory being edited fades behind its live bounds, so old and new are told apart.
-            boolean superseded = enabled() && state.phase() == SelectionState.Phase.SELECTED
-                    && Objects.equals(area.id(), state.source());
-            int rgb = area.color() & 0xFFFFFF;
-            int fillAlpha = area.opacity() * 255 / 100 / (superseded ? 3 : 1);
-            int fill = (fillAlpha << 24) | rgb, outline = (superseded ? 0x60000000 : 0xFF000000) | rgb;
-            int labelColor = (superseded ? 0x99000000 : 0xFF000000) | rgb;
-            if (area.vertices().size() > 0) {
-                GeometryScreenRenderer.draw(g, frame, geometry, screen.width, screen.height, fill, outline, superseded ? 1.0 : 1.5);
-                ScreenPoint anchor = polygonLabelAnchor(frame, (PolygonGeometry) geometry, geometryBounds);
-                if (anchor != null && names) mapLabels.add(new MapLabel(Component.literal(area.name()),
-                        clamp(anchor.x(), 0, screen.width - 1), clamp(anchor.y(), 0, screen.height - 1), labelColor));
-                continue;
-            }
-            SelectionBounds b = area.bounds();
-            double left = frame.screenX(b.minX()), top = frame.screenY(b.minZ());
-            double right = frame.screenX((long) b.maxX() + 1), bottom = frame.screenY((long) b.maxZ() + 1);
-            int x1 = clamp(left, 0, screen.width), y1 = clamp(top, 0, screen.height);
-            int x2 = clamp(right, 0, screen.width), y2 = clamp(bottom, 0, screen.height);
-            GeometryScreenRenderer.draw(g, frame, geometry, screen.width, screen.height, fill, outline, 1.0);
-            if (names && (x2 - x1) > 50 && (y2 - y1) > 14)
-                mapLabels.add(new MapLabel(Component.literal(area.name()), (x1 + x2) / 2, y1 + 3, labelColor));
-        }
-    }
-
-    private ScreenPoint polygonLabelAnchor(MapBridge.Frame frame, PolygonGeometry geometry, GeometryBounds bounds) {
-        double left = frame.screenX(bounds.minX()), right = frame.screenX(bounds.maxX());
-        double top = frame.screenY(bounds.minZ()), bottom = frame.screenY(bounds.maxZ());
-        if (right <= 0 || left >= screen.width || bottom <= 0 || top >= screen.height) return null;
-        // Same minimum visible size as rectangle labels, so zoomed-out maps are not covered by names.
-        if (clamp(right, 0, screen.width) - clamp(left, 0, screen.width) <= 50
-                || clamp(bottom, 0, screen.height) - clamp(top, 0, screen.height) <= 14) return null;
-        double bestArea = 0;
-        ScreenPoint best = null;
-        for (List<GridPoint> triangle : geometry.triangulate()) {
-            List<ScreenPoint> visible = new ArrayList<>(3);
-            for (GridPoint point : triangle)
-                visible.add(new ScreenPoint(frame.screenX(point.x()), frame.screenY(point.z())));
-            for (int edge = 0; edge < 4 && !visible.isEmpty(); edge++)
-                visible = clipLabelPolygon(visible, edge);
-            if (visible.size() < 3) continue;
-            double twiceArea = 0, centerX = 0, centerY = 0;
-            for (int i = 0; i < visible.size(); i++) {
-                ScreenPoint a = visible.get(i), b = visible.get((i + 1) % visible.size());
-                double cross = a.x() * b.y() - b.x() * a.y();
-                twiceArea += cross;
-                centerX += (a.x() + b.x()) * cross;
-                centerY += (a.y() + b.y()) * cross;
-            }
-            double area = Math.abs(twiceArea) / 2.0;
-            if (area > bestArea && Math.abs(twiceArea) > 1.0E-9) {
-                bestArea = area;
-                best = new ScreenPoint(centerX / (3 * twiceArea), centerY / (3 * twiceArea));
-            }
-        }
-        return best;
-    }
-
-    private List<ScreenPoint> clipLabelPolygon(List<ScreenPoint> input, int edge) {
-        double boundary = edge == 0 ? 0 : edge == 1 ? screen.width : edge == 2 ? 0 : screen.height;
-        List<ScreenPoint> output = new ArrayList<>();
-        ScreenPoint previous = input.getLast();
-        boolean previousInside = insideLabelBoundary(previous, edge, boundary);
-        for (ScreenPoint current : input) {
-            boolean currentInside = insideLabelBoundary(current, edge, boundary);
-            if (currentInside != previousInside) {
-                double t = edge < 2 ? (boundary - previous.x()) / (current.x() - previous.x())
-                        : (boundary - previous.y()) / (current.y() - previous.y());
-                output.add(edge < 2
-                        ? new ScreenPoint(boundary, previous.y() + (current.y() - previous.y()) * t)
-                        : new ScreenPoint(previous.x() + (current.x() - previous.x()) * t, boundary));
-            }
-            if (currentInside) output.add(current);
-            previous = current;
-            previousInside = currentInside;
-        }
-        return output;
-    }
-
-    private static boolean insideLabelBoundary(ScreenPoint point, int edge, double boundary) {
-        return switch (edge) {
-            case 0 -> point.x() >= boundary;
-            case 1 -> point.x() <= boundary;
-            case 2 -> point.y() >= boundary;
-            default -> point.y() <= boundary;
-        };
-    }
-
-    private void renderBounds(GuiGraphics g, MapBridge.Frame frame) {
-        SelectionBounds b = state.bounds();
-        if (state.geometry() instanceof PolygonGeometry polygon) {
-            GeometryScreenRenderer.draw(g, frame, polygon, screen.width, screen.height, 0x4059E3CE, ACCENT, 2.0);
-            for (int i = 0; i < polygon.vertices().size(); i++) {
-                GridPoint point = polygon.vertices().get(i);
-                double px = frame.screenX(point.x()), py = frame.screenY(point.z());
-                if (px < -5 || px > screen.width + 5 || py < -5 || py > screen.height + 5) continue;
-                int x = (int) Math.floor(px), y = (int) Math.floor(py);
-                g.fill(x - 3, y - 3, x + 4, y + 4, 0xFF101922);
-                g.renderOutline(x - 3, y - 3, 7, 7, vertexColor(i, ACCENT));
-            }
-        }
-        double left = frame.screenX(b.minX()), top = frame.screenY(b.minZ());
-        double right = frame.screenX((long) b.maxX() + 1), bottom = frame.screenY((long) b.maxZ() + 1);
-        int x1 = clamp(left, 0, screen.width), y1 = clamp(top, 0, screen.height);
-        int x2 = clamp(right, 0, screen.width), y2 = clamp(bottom, 0, screen.height);
-        if (!(state.geometry() instanceof PolygonGeometry)) {
-            GeometryScreenRenderer.draw(g, frame, state.geometry(), screen.width, screen.height,
-                    0x2459E3CE, ACCENT, 1.0);
-        }
-        if (left < screen.width && right > 0 && top < screen.height && bottom > 0
-                && x1 == x2 && y1 == y2) {
-            int markerX = clamp((left + right) / 2, 0, screen.width - 1);
-            int markerY = clamp((top + bottom) / 2, 0, screen.height - 1);
-            g.fill(markerX, markerY, markerX + 1, markerY + 1, ACCENT);
-        }
-        if (!(state.geometry() instanceof PolygonGeometry) && x1 < x2 && y1 < y2) {
-            label(g, tr("width", b.width()), (x1 + x2) / 2, Math.max(2, y1 + 3));
-            label(g, tr("length", b.length()), Math.min(screen.width - 60, x2 - 36), (y1 + y2) / 2);
-        }
-        if (!(state.geometry() instanceof PolygonGeometry)) renderHandles(g, frame, b);
-        SavedAreaStore.Area editing = editedArea();
-        // Above the frame; with no room there, below the width label instead of over it.
-        if (editing != null && x1 < x2 && y1 < y2)
-            label(g, tr("editing_area", editing.name()), (x1 + x2) / 2, y1 >= 16 ? y1 - 14 : y1 + 16, 0xFFFFCF62);
-        if (selected != null) {
-            g.enableScissor(0, 0, screen.width, screen.height);
-            // Xaero draws the icon above its point, 30 (43 for longer symbols) by 43 units, in window pixels scaled
-            // by its waypoint scale and by the window size above 1080; the frame goes around that icon.
-            double unit = Math.max(1, Math.min(frame.pixelWidth(), frame.pixelHeight()) / 1080.0)
-                    * waypointIconScale() / frame.guiScale();
-            for (WaypointAccess.Point point : selected.points()) {
-                double scale = waypoints.dimensionScale();
-                double px = frame.screenX(WaypointAccess.mapBlock(point.x(), scale) + 0.5);
-                double py = frame.screenY(WaypointAccess.mapBlock(point.z(), scale) + 0.5);
-                double half = (point.symbol() != null && point.symbol().length() > 1 ? 43 : 30) / 2.0 * unit;
-                int iconLeft = (int) Math.floor(px - half) - 1, iconRight = (int) Math.ceil(px + half) + 1;
-                int iconTop = (int) Math.floor(py - 42 * unit) - 1, iconBottom = (int) Math.ceil(py + unit) + 1;
-                if (iconRight < 0 || iconLeft > screen.width || iconBottom < 0 || iconTop > screen.height) continue;
-                g.renderOutline(iconLeft, iconTop, iconRight - iconLeft, iconBottom - iconTop, 0xFFFFCF62);
-            }
-            g.disableScissor();
-        }
-    }
-
-    /** Xaero's world map waypoint scale setting; 1 when it cannot be read. */
-    private static double waypointIconScale() {
-        try {
-            return ((Number) xaero.map.WorldMap.INSTANCE.getConfigs().getClientConfigManager()
-                    .getEffective(xaero.map.common.config.option.WorldMapProfiledConfigOptions.WAYPOINT_SCALE)).doubleValue();
-        } catch (Throwable unavailable) {
-            return 1;
-        }
-    }
-
-    /** White for the dragged vertex, red while its position is rejected. */
-    private int vertexColor(int index, int idle) {
-        return gesture instanceof MapGesture.VertexDrag vertex && vertex.index == index
-                ? vertex.invalid ? 0xFFFF5573 : -1 : idle;
-    }
-
-    private static int clamp(double value, int min, int max) {
-        return (int) Math.max(min, Math.min(max, Math.floor(value)));
-    }
-
-    private void label(GuiGraphics g, Component text, int x, int y) {
-        label(g, text, x, y, ACCENT);
-    }
-
-    private void label(GuiGraphics g, Component text, int x, int y, int color) {
-        int w = mc.font.width(text);
-        x = Math.max(w / 2 + 2, Math.min(screen.width - w / 2 - 2, x));
-        g.fill(x - w / 2 - 2, y - 1, x + (w + 1) / 2 + 2, y + 10, 0xB0101820);
-        g.drawCenteredString(mc.font, text, x, y, color);
-    }
-
-    private void renderHandles(GuiGraphics g, MapBridge.Frame frame, SelectionBounds b) {
-        double left = frame.screenX(b.minX()), right = frame.screenX((long) b.maxX() + 1);
-        double top = frame.screenY(b.minZ()), bottom = frame.screenY((long) b.maxZ() + 1);
-        int[][] points = {{(int) left, (int) top}, {(int) ((left + right) / 2), (int) top}, {(int) right, (int) top},
-                {(int) left, (int) ((top + bottom) / 2)}, {(int) right, (int) ((top + bottom) / 2)},
-                {(int) left, (int) bottom}, {(int) ((left + right) / 2), (int) bottom}, {(int) right, (int) bottom}};
-        for (int[] p : points) if (p[0] >= -5 && p[0] <= screen.width + 5 && p[1] >= -5 && p[1] <= screen.height + 5)
-            g.fill(p[0] - 3, p[1] - 3, p[0] + 4, p[1] + 4, 0xFF101922);
-        for (int[] p : points) if (p[0] >= -4 && p[0] <= screen.width + 4 && p[1] >= -4 && p[1] <= screen.height + 4)
-            g.renderOutline(p[0] - 3, p[1] - 3, 7, 7, ACCENT);
-    }
-
-    private void renderPanel(GuiGraphics g) {
-        g.nextStratum();
-        g.fill(PANEL_X, PANEL_Y, PANEL_X + panelWidth, PANEL_Y + panelHeight, 0xEE101922);
-        g.renderOutline(PANEL_X, PANEL_Y, panelWidth, panelHeight, 0xFF42636D);
-        int titleEnd = (compact && quickSave.visible ? quickSave : panelModeButton).getX() - 4;
-        g.drawString(mc.font, fitHint(tr("title").getString(), titleEnd - PANEL_X - 8),
-                PANEL_X + 8, PANEL_Y + 7, ACCENT);
-        String hint = polygonMode ? compact ? "polygon_controls_short" : "polygon_controls"
-                : state.geometry() instanceof PolygonGeometry ? "polygon_edit_controls"
-                : state.source() != null && state.phase() == SelectionState.Phase.SELECTED ? "rectangle_edit_controls"
-                : state.phase() == SelectionState.Phase.PREVIEW ? "second_corner"
-                : state.phase() == SelectionState.Phase.SELECTED ? "new_selection" : "first_corner";
-        // Two pixels below the mode button so the line never touches it.
-        g.drawString(mc.font, fitHint(tr(hint).getString(), panelWidth - 16), PANEL_X + 8, PANEL_Y + 22, 0xFFD0DBE2);
-        g.enableScissor(PANEL_X + 1, PANEL_Y + 32, PANEL_X + panelWidth - 1,
-                PANEL_Y + panelHeight - (maxPanelScroll() > 0 ? 16 : 3));
-        // The compact panel leaves the corners to the expanded one.
-        if (!compact) {
-            int labelX = fields[0].getX() - fieldGap - coordinateLabelWidth;
-            int zX = fields[1].getX() - fieldGap - zLabelWidth;
-            g.drawString(mc.font, "A: X", labelX, PANEL_Y + 39 - panelScroll, -1);
-            g.drawString(mc.font, "Z", zX, PANEL_Y + 39 - panelScroll, -1);
-            g.drawString(mc.font, "B: X", labelX, PANEL_Y + 63 - panelScroll, -1);
-            g.drawString(mc.font, "Z", zX, PANEL_Y + 63 - panelScroll, -1);
-        }
-        int sh = metricsShift;
-        boolean first = true;
-        for (Map.Entry<Integer, MetricLine> metric : panelMetricLines()) {
-            drawMetricLine(g, metric.getValue(), PANEL_X + 8, PANEL_Y + metric.getKey() - (compact ? 0 : panelScroll), panelWidth - 16,
-                    first ? -1 : ACCENT);
-            first = false;
-        }
-        int lineY = PANEL_Y + sh + (compact ? 70 : 120 - panelScroll);
-        g.fill(PANEL_X + 8, lineY, PANEL_X + panelWidth - 8, lineY + 1, 0xFF42636D);
-        if (!compact) {
-            int n = selected == null ? 0 : selected.points().size();
-            Component count = waypoints == null ? tr("minimap_missing") : selected == null
-                    ? tr("waypoints_unavailable") : tr("count", n, setNameDisplay(selected.setName()));
-            line(g, count, 194 + sh, 0xFFFFCF62);
-            line(g, tr(loadFailed ? "area_load_failed" : "scope"), 206 + sh, 0xFF9BAAB7);
-        }
-        SavedAreaStore.Area editing = editedArea();
-        // Messages go to the bottom of the screen (renderToast); the panel keeps the controls or the edited area.
-        // The compact panel has no scope line, so it keeps the load failure in the status line.
-        boolean loadWarning = compact && loadFailed;
-        Component status = loadWarning ? tr("area_load_failed")
-                : editing == null ? tr("controls") : tr("editing_area", editing.name());
-        if (!hasExportNotice()) line(g, status, (compact ? 96 : 221) + sh, loadWarning ? 0xFFFFCF62 : 0xFF9BAAB7);
-        g.disableScissor();
-        if (maxPanelScroll() > 0)
-            g.drawString(mc.font, tr("panel_scroll"), PANEL_X + 8, PANEL_Y + panelHeight - 12, 0xFF9BAAB7);
-    }
-
-    /**
-     * Keeps whole " · "-separated hints that fit, so a narrow panel drops trailing hints instead of cutting a word;
-     * a single hint that is still too wide ends with an ellipsis.
-     */
-    private String fitHint(String text, int width) {
-        if (mc.font.width(text) <= width) return text;
-        String[] parts = text.split(" · ");
-        String fitted = parts[0];
-        for (int i = 1; i < parts.length && mc.font.width(fitted + " · " + parts[i]) <= width; i++) fitted += " · " + parts[i];
-        if (mc.font.width(fitted) <= width) return fitted;
-        return mc.font.plainSubstrByWidth(fitted, width - mc.font.width("…")).stripTrailing() + "…";
-    }
-
-    private void line(GuiGraphics g, Component text, int y, int color) {
-        g.drawString(mc.font, mc.font.plainSubstrByWidth(text.getString(), panelWidth - 16), PANEL_X + 8,
-                PANEL_Y + y - (compact ? 0 : panelScroll), color);
-    }
-
-    private static Component setNameDisplay(String name) {
-        return "gui.xaero_default".equals(name) ? Component.translatable(name) : Component.literal(name);
-    }
-
-    private void updateVisibility() {
-        if (toggle == null) return;
-        if ((perimeterInline() ? -12 : 0) != metricsShift) layoutMainPanel();
+    void updateVisibility() {
+        if (selectionPanel.toggle == null) return;
+        if ((selectionPanel.perimeterInline() ? -12 : 0) != selectionPanel.metricsShift) selectionPanel.layoutMainPanel();
         for (AbstractWidget widget : widgets) widget.visible = false;
-        boolean main = enabled() && dialog == Dialog.NONE;
-        show(main, panelModeButton, copyArea, copyPerimeter, copyLength, copyWidth, undo, redo, polygonModeButton);
-        show(main, areasButton);
-        show(main && (!compact || state.phase() == SelectionState.Phase.SELECTED), quickSave);
-        show(main && !compact, fields[0], fields[1], fields[2], fields[3], apply, chunkMode, copyCoordinates, copyCornerB, clear,
-                zonesButton, pointsButton, selectionExportButton);
-        if (main && hasExportNotice()) {
-            place(openExportButton, PANEL_X + 8, PANEL_Y + metricsShift + (compact ? 93 : 218 - panelScroll),
-                    panelWidth - 16, 16);
-            show(true, openExportButton);
-        }
-        SavedAreaStore.Area editing = editedArea();
-        boolean autoGeometry = editing != null && autosave.covers(AutosaveSettings.Field.GEOMETRY);
-        quickSave.setMessage(tr(editing == null ? "quick_save" : autoGeometry ? "quick_autosaved" : "quick_apply"));
-        quickSave.setTooltip(Tooltip.create(editing == null ? tr("quick_save_tooltip")
-                : autoGeometry ? tr("quick_autosaved_tooltip", editing.name()) : tr("quick_apply_tooltip", editing.name())));
-        quickSave.active = state.phase() == SelectionState.Phase.SELECTED && !dirty && polygonDraft.isEmpty()
-                && !holding() && !loadFailed && (editing == null || !editing.geometry().equals(state.geometry()));
-        // Compact: in the header beside the mode icon; expanded: under Apply, beside the second coordinate row.
-        int saveWidth = Math.max(40, mc.font.width(quickSave.getMessage()) + 10);
-        if (compact) place(quickSave, panelModeButton.getX() - 3 - saveWidth, PANEL_Y + 3, saveWidth, 18);
-        else place(quickSave, apply.getX(), apply.getY() - 24, apply.getWidth(), 18);
-        panelModeButton.setMessage(Component.empty());
-        panelModeButton.setTooltip(Tooltip.create(tr(compact ? "panel_expand_tooltip" : "panel_compact_tooltip")));
-        if (main) placePanelCopies();
-        if (main && !compact) {
-            for (AbstractWidget widget : widgets) {
-                if (widget.visible && widget != panelModeButton)
-                    widget.visible = widget.getY() >= PANEL_Y + 32
-                            && widget.getY() + widget.getHeight() <= PANEL_Y + panelHeight - (maxPanelScroll() > 0 ? 16 : 3);
-            }
-        }
-        if (quickMenu && (!main || state.phase() != SelectionState.Phase.SELECTED || gesture != null)) quickMenu = false;
-        if (quickMenu) {
-            List<Button> items = quickMenuButtons();
-            SavedAreaStore.Area edited = editedArea();
-            if (edited != null) quickMenuOpacity.setMessage(tr("area_new_opacity", edited.opacity() + "%"));
-            // As wide as its longest line, like Xaero's menu; the rows start under the title row.
-            int w = mc.font.width(tr("quick_menu_title"));
-            for (Button item : items) w = Math.max(w, mc.font.width(item.getMessage()));
-            w += 8;
-            int x = Math.max(3, Math.min(screen.width - w - 3, quickMenuX));
-            int y = Math.max(3, Math.min(screen.height - 3 - (items.size() + 1) * MENU_ROW, quickMenuY));
-            for (int i = 0; i < items.size(); i++) {
-                place(items.get(i), x, y + (i + 1) * MENU_ROW, w, MENU_ROW);
-                items.get(i).visible = true;
-            }
-        }
-        boolean contourDraft = !polygonDraft.isEmpty();
-        boolean polygonSelection = state.geometry() instanceof PolygonGeometry;
-        for (EditBox field : fields) field.active = !polygonSelection && !contourDraft && !holding();
-        boolean draftHistory = !polygonDraftUndo.isEmpty() || !polygonDraftRedo.isEmpty();
-        undo.active = (draftHistory ? !polygonDraftUndo.isEmpty() : history.canUndo())
-                || dirty || gesture != null;
-        redo.active = (!polygonDraftRedo.isEmpty() || !contourDraft && history.canRedo())
-                && !dirty && gesture == null;
-        // Name the stored action only when the button would apply it rather than discard a draft or gesture.
-        boolean historyStep = !draftHistory && !dirty && gesture == null;
-        undo.setTooltip(historyTooltip("undo_tooltip", historyStep ? history.undoLabel() : ""));
-        redo.setTooltip(historyTooltip("redo_tooltip", historyStep && redo.active ? history.redoLabel() : ""));
-        managementUndo.setTooltip(historyTooltip("undo_tooltip", history.undoLabel()));
-        managementRedo.setTooltip(historyTooltip("redo_tooltip", history.redoLabel()));
-        chunkMode.setMessage(tr(chunks ? "units_chunks" : "units_blocks"));
-        selectionExportButton.active = canExportSelection();
-        toggle.visible = dialog == Dialog.NONE;
-        toggle.setMessage(Component.literal(enabled() ? "■" : "□"));
-        polygonModeButton.setMessage(tr(polygonMode ? "polygon_mode_on" : "polygon_mode"));
-        polygonModeButton.active = enabled() && !dirty && !holding() && dialog == Dialog.NONE;
-        polygonModeButton.setTooltip(Tooltip.create(tr(polygonMode ? "polygon_controls" : "polygon_mode_tooltip")));
-        boolean finished = state.phase() == SelectionState.Phase.SELECTED && state.bounds() != null;
-        sizeButton.active = finished && !(state.geometry() instanceof PolygonGeometry) && !dirty && !contourDraft && !holding();
-        chunkMode.active = !(state.geometry() instanceof PolygonGeometry) && !contourDraft && !holding();
-        moveButton.active = centerButton.active = finished && !dirty && !contourDraft && !holding();
-        areasButton.active = !dirty && !contourDraft && !holding();
-        int framed = compact ? 0 : areasInSelection().size();
-        zonesButton.setMessage(tr("zones_in_selection", framed));
-        zonesButton.active = framed > 0 && !dirty && !contourDraft && !holding();
-        if (dialog == Dialog.SIZE) show(true, dialogFields[0], dialogFields[1], anchorButton, modalApply, modalCancel);
-        if (dialog == Dialog.MOVE) show(true, dialogFields[2], dialogFields[3], moveUnitsButton, modalApply, modalCancel);
-        if (dialog == Dialog.CENTER) show(true, dialogFields[6], centerCopy, centerCreate);
-        if (dialog == Dialog.AREA_NAME) show(true, dialogFields[8], dialogFields[HEX_FIELD], newAreaGroup, newAreaOpacityButton,
-                modalApply, modalCancel);
-        if (dialog == Dialog.COLOR) {
-            // A swatch or Apply chooses the color; Esc leaves without one.
-            if (colorReturn != Dialog.WAYPOINTS) show(true, dialogFields[HEX_FIELD], colorHexApply);
-        }
-        if (dialog == Dialog.GROUP_NAME) show(true, dialogFields[5], modalApply, modalCancel);
-        if (dialog == Dialog.PICKER) show(true, modalApply, modalCancel);
-        if (dialog == Dialog.ASSIGN_GROUP) show(true, manageGroups, managementClose);
-        if (dialog == Dialog.AREAS) {
-            if (areaDeleteConfirmation) show(true, confirm, cancel);
-            else {
-                show(true, managementClose, manageGroups, managementUndo, managementRedo, areaSave, areaExportFile, areaImport,
-                        transferFolderButton, areaSortButton, areaSearch,
-                        areaSelectAll, areaClearSelection, areaMapVisibility, areaMinimapVisibility, areaNames, autosaveButton);
-                int[] r = dialogRect();
-                areaSearch.visible = areaSearchSpan(r[0], (r[2] - 36) / 2)[1] >= 40;
-                if (autosaveOpen) {
-                    show(true, autosaveToggle, autosaveClose, roundingButton);
-                    roundingButton.setMessage(SettingsScreen.roundingLabel(autosave.rounding()));
-                    show(true, autosaveFields.values().toArray(AbstractWidget[]::new));
-                } else {
-                    show(true, dialogFields[4], groupAssign, areaLoad, areaExportButton, areaDelete,
-                            areaVisibility, areaColor, areaOpacity);
-                    // Save disappears under autosave unless a change outside its fields still waits.
-                    show(areaSaveShown(), areaSaveChanges);
-                    show(selectedAreaIds.size() == 1 && selectedArea() != null, areaCopies);
-                }
-            }
-            if (!areaDeleteConfirmation && hasExportNotice()) show(true, openExportButton);
-        }
-        if (dialog == Dialog.GROUPS) {
-            if (groupDeleteConfirmation) show(true, confirm, cancel);
-            else {
-                show(true, managementClose, managementUndo, managementRedo, groupCreate, groupRename, groupVisibility,
-                        groupDelete, groupExport, transferFolderButton);
-                show(hasExportNotice(), openExportButton);
-            }
-        }
-        if (dialog == Dialog.WAYPOINTS) show(true, dialogFields[7], dialogFields[RENAME_FIELD],
-                pointVisibility, pointColor, pointScope, pointRename, pointRecolor, confirm, cancel);
-        apply.active = enabled() && !polygonSelection && !contourDraft && !holding() && (dirty || state.bounds() != null);
-        clear.active = state.bounds() != null || dirty || contourDraft;
-        int pointCount = selected == null ? 0 : selected.points().size();
-        pointsButton.setMessage(state.phase() == SelectionState.Phase.SELECTED ? tr("waypoints_button", pointCount) : tr("waypoints_all"));
-        pointsButton.active = waypoints != null && !dirty && !contourDraft && !holding();
-        pointScope.setMessage(tr(pointsInSelection ? "point_scope_selection" : "point_scope_all"));
-        pointScope.active = state.phase() == SelectionState.Phase.SELECTED;
-        pointRename.active = !filteredChosenPoints().isEmpty() && !dialogFields[RENAME_FIELD].getValue().trim().isEmpty();
-        pointRecolor.active = !filteredChosenPoints().isEmpty();
-        if (dialog == Dialog.WAYPOINTS) {
-            confirm.setMessage(tr("delete_count", filteredChosenPoints().size()));
-            cancel.setMessage(tr("done"));
-        }
-        colorHexApply.active = true;
-        SavedAreaStore.Group newGroup = findGroup(newAreaGroupId);
-        newAreaGroup.setMessage(tr("area_group_button", newGroup == null ? tr("group_none").getString() : newGroup.name()));
-        newAreaOpacityButton.setMessage(tr("area_new_opacity", newAreaOpacity + "%"));
-        boolean canCopy = enabled() && !dirty && !contourDraft && !holding() && dialog == Dialog.NONE && state.bounds() != null;
-        copyCoordinates.active = copyCornerB.active = copyArea.active = copyPerimeter.active = copyLength.active = copyWidth.active = canCopy;
-        if (dialog == Dialog.WAYPOINTS && pending != null) confirm.active = !filteredChosenPoints().isEmpty();
-        if (areaDeleteConfirmation && dialog == Dialog.AREAS || groupDeleteConfirmation && dialog == Dialog.GROUPS) {
-            confirm.setMessage(tr(groupDeleteConfirmation ? "group_delete_confirm_button" : "area_delete_confirm_button"));
-            cancel.setMessage(tr("cancel"));
-            confirm.active = (groupDeleteConfirmation ? selectedGroup() != null : !selectedAreas().isEmpty()) && !loadFailed;
-        }
-        centerCopy.active = state.bounds() != null;
-        centerCreate.active = state.phase() == SelectionState.Phase.SELECTED && waypoints != null;
-        managementUndo.active = history.canUndo();
-        managementRedo.active = history.canRedo();
-        managementClose.setMessage(tr(dialog == Dialog.AREAS || dialog == Dialog.GROUPS && groupsReturnDialog == Dialog.NONE
-                ? "back_to_map" : "back"));
-        modalCancel.setMessage(tr("cancel"));
-        modalApply.setMessage(tr(dialog == Dialog.AREA_NAME ? "area_create_button"
-                : dialog == Dialog.GROUP_NAME ? renamingGroup ? "save_name" : "group_create" : "apply"));
-        modalApply.active = switch (dialog) {
-            case AREA_NAME -> !dialogFields[8].getValue().trim().isEmpty() && !loadFailed;
-            case GROUP_NAME -> !dialogFields[5].getValue().trim().isEmpty() && !loadFailed;
-            default -> true;
-        };
-        int selectedCount = selectedAreas().size();
-        boolean singleArea = selectedCount == 1;
-        SavedAreaStore.Area area = selectedArea();
-        SavedAreaStore.Group group = selectedGroup();
-        boolean editingThis = area != null && Objects.equals(area.id(), state.source());
-        areaLoad.active = singleArea && !editingThis;
-        areaLoad.setMessage(tr(editingThis ? "area_editing_now" : "area_edit"));
-        areaSaveChanges.active = !areaDraft.isEmpty() && selectedCount > 0 && !loadFailed;
-        for (Button copy : areaCopies) copy.active = singleArea;
-        areaCopies[1].setTooltip(Tooltip.create(tr(area != null && area.geometry() instanceof PolygonGeometry
-                ? "copy_coordinates_tooltip" : "copy_corner_nw_tooltip")));
-        autosaveToggle.setMessage(tr(autosave.enabled() ? "autosave_on" : "autosave_off"));
-        autosaveFields.forEach((field, button) -> {
-            button.setMessage(tr("autosave_field", tr("autosave_field_" + field.name().toLowerCase(Locale.ROOT)),
-                    tr(autosave.includes(field) ? "state_on" : "state_off")));
-            button.active = autosave.enabled();
-        });
-        areaExportButton.active = singleArea && !loadFailed && !exportRunning;
-        areaDelete.active = selectedCount > 0 && !loadFailed;
-        areaColor.active = areaOpacity.active = selectedCount > 0 && !loadFailed;
-        areaVisibility.active = selectedCount > 0 && !loadFailed;
-        groupAssign.active = selectedCount > 0 && !loadFailed;
-        areaSave.active = state.phase() == SelectionState.Phase.SELECTED && !dirty && !loadFailed;
-        dialogFields[4].active = singleArea && !loadFailed;
-        groupCreate.active = !loadFailed;
-        groupRename.active = groupVisibility.active = groupDelete.active = group != null && !loadFailed;
-        groupExport.active = group != null && !loadFailed
-                && areaStore.state().areas().stream().anyMatch(a -> Objects.equals(a.groupId(), group.id()));
-        areaExportFile.active = !loadFailed && !areaStore.state().areas().isEmpty();
-        areaExportFile.setMessage(selectedCount > 0 ? tr("areas_export_count", selectedCount) : tr("areas_export"));
-        areaImport.active = !loadFailed;
-        areaSortButton.setMessage(tr("area_sort_" + areaSort.name().toLowerCase(Locale.ROOT)));
-        if (dialog == Dialog.IMPORT) show(true, managementClose, importOpenFolder);
-        if (dialog == Dialog.EXPORT) {
-            exportWindow.show(exportRunning);
-            show(true, modalCancel);
-        }
-        groupVisibility.setMessage(tr(group != null && group.visible() ? "group_hide" : "group_show"));
-        boolean hideAreas = selectedAreas().stream().anyMatch(SavedAreaStore.Area::visible);
-        areaVisibility.setMessage(tr(hideAreas ? "area_hide_selected" : "area_show_selected", selectedCount));
-        // Unsaved values show with a trailing asterisk until Save or autosave writes them.
-        SavedAreaStore.Area primary = area != null ? area : selectedAreas().isEmpty() ? null : selectedAreas().get(0);
-        areaOpacity.setMessage(primary == null ? tr("area_fill") : Component.literal(
-                (areaDraft.opacity != null ? areaDraft.opacity : primary.opacity()) + "%" + (areaDraft.opacity != null ? " *" : "")));
-        String draftGroup = !areaDraft.groupSet ? selectedGroupName() : findGroup(areaDraft.groupId) == null
-                ? tr("group_none").getString() : findGroup(areaDraft.groupId).name();
-        groupAssign.setMessage(Component.literal(tr("area_group_button", draftGroup).getString() + (areaDraft.groupSet ? " *" : "")));
-        areaColor.setMessage(Component.literal(tr("area_color").getString() + (areaDraft.color != null ? " *" : "")));
-        areaMapVisibility.setMessage(tr(areaStore.state().showOnMap() ? "area_map_on" : "area_map_off"));
-        areaMinimapVisibility.setMessage(tr(areaStore.state().showOnMinimap() ? "area_minimap_on" : "area_minimap_off"));
-        areaNames.setMessage(tr(areaStore.state().showNames() ? "area_names_on" : "area_names_off"));
-        areaMapVisibility.active = areaMinimapVisibility.active = areaNames.active = !loadFailed;
-        areaDelete.setMessage(tr("area_delete_count", selectedCount));
-        areaSelectAll.active = !loadFailed
-                && displayedAreas().stream().anyMatch(a -> !selectedAreaIds.contains(a.id()));
-        areaClearSelection.active = selectedCount > 0;
-        areaSave.setTooltip(Tooltip.create(tr(loadFailed ? "area_load_failed" : "area_save_tooltip")));
+        selectionPanel.updatePanelWidgets();
+        windows.showWindowWidgets();
+        selectionPanel.updatePanelActions();
+        waypointsWindow.updateWaypointWidgets();
+        windows.updateWindowWidgets();
+        if (dialog == Dialog.AREA_NAME) newAreaWindow.updateNewAreaWidgets();
+        if (dialog == Dialog.AREAS) areasWindow.updateAreaWidgets();
+        if (dialog == Dialog.GROUPS) groupsWindow.updateGroupWidgets();
+        windows.layoutDialog();
     }
 
-    private Tooltip historyTooltip(String key, String label) {
-        return Tooltip.create(label.isEmpty() ? tr(key + "_plain") : tr(key, label));
-    }
-
-    private String selectedGroupName() {
-        List<SavedAreaStore.Area> areas = selectedAreas();
-        if (areas.isEmpty()) return tr("group_none").getString();
-        String id = areas.get(0).groupId();
-        if (areas.stream().anyMatch(area -> !Objects.equals(id, area.groupId()))) return tr("group_mixed").getString();
-        SavedAreaStore.Group group = findGroup(id);
-        return group == null ? tr("group_none").getString() : group.name();
-    }
-
-    private void show(boolean visible, AbstractWidget... targets) {
+    void show(boolean visible, AbstractWidget... targets) {
         for (AbstractWidget widget : targets) widget.visible = visible;
     }
 
-    private List<WaypointAccess.Point> filteredPoints() {
-        if (pending == null) return List.of();
-        String query = dialogFields[7].getValue().trim().toLowerCase(java.util.Locale.ROOT);
-        return pending.points().stream().filter(WaypointAccess.Point::editable)
-                .filter(p -> query.isEmpty() || p.name().toLowerCase(java.util.Locale.ROOT).contains(query))
-                .filter(p -> visibilityFilter == 0 || (visibilityFilter == 1 && !p.disabled()) || (visibilityFilter == 2 && p.disabled()))
-                .filter(p -> colorFilter < 0 || p.color() == colorFilter)
-                .toList();
-    }
-
-    private List<WaypointAccess.Point> filteredChosenPoints() {
-        return filteredPoints().stream().filter(p -> chosenPoints.contains(p.identity())).toList();
-    }
-
-    private void renderDialog(GuiGraphics g) {
-        layoutDialog();
-        int[] r = dialogRect(); int x = r[0], y = r[1], w = r[2], h = r[3];
-        g.nextStratum(); g.fill(0, 0, screen.width, screen.height, 0xC0080D12);
-        g.fill(x, y, x + w, y + h, 0xFF141E29); g.renderOutline(x, y, w, h, 0xFF42636D);
-        String title = switch (dialog) {
-            case SIZE -> "dialog_size"; case MOVE -> "dialog_move"; case CENTER -> "dialog_center";
-            case AREAS -> "areas_window"; case GROUPS -> "groups_window";
-            case ASSIGN_GROUP -> "group_picker_title"; case AREA_NAME -> "area_new_title";
-            case GROUP_NAME -> renamingGroup ? "group_rename_title" : "group_new_title";
-            case WAYPOINTS -> "dialog_waypoints"; case COLOR -> "color_title"; case PICKER -> "picker_title";
-            case IMPORT -> "import_title"; case EXPORT -> "export_title"; default -> "title";
-        };
-        if (dialog == Dialog.AREAS || dialog == Dialog.GROUPS || dialog == Dialog.ASSIGN_GROUP || dialog == Dialog.IMPORT)
-            g.drawString(mc.font, tr(title), x + 12, y + 12, ACCENT);
-        else g.drawCenteredString(mc.font, tr(title), x + w / 2, y + 10, ACCENT);
-        switch (dialog) {
-            case SIZE -> {
-                g.drawString(mc.font, tr("width_field"), x + 18, y + 38, -1);
-                g.drawString(mc.font, tr("length_field"), x + 36 + (w - 54) / 2, y + 38, -1);
-                SelectionBounds b = state.bounds();
-                if (b != null) g.drawString(mc.font, tr("current_anchor", formatCenter(sizeFromCenter ? b.centerX() : b.minX()),
-                        formatCenter(sizeFromCenter ? b.centerZ() : b.maxZ())), x + 18, y + 108, 0xFF9BAAB7);
-                g.drawString(mc.font, tr("lower_left_axes"), x + 18, y + 124, 0xFF9BAAB7);
-            }
-            case MOVE -> {
-                g.drawString(mc.font, tr("offset_x"), x + 18, y + 38, -1);
-                g.drawString(mc.font, tr("offset_z"), x + 36 + (w - 54) / 2, y + 38, -1);
-                g.drawString(mc.font, tr("move_note"), x + 18, y + 108, 0xFF9BAAB7);
-            }
-            case CENTER -> {
-                SelectionBounds b = state.bounds();
-                g.drawString(mc.font, b == null ? tr("no_selection") : tr("center_value", formatCenter(b.centerX()), formatCenter(b.centerZ())), x + 18, y + 34, -1);
-                g.drawString(mc.font, tr("center_waypoint_y"), x + 18, y + 82, 0xFF9BAAB7);
-            }
-            case AREAS -> renderAreasDialog(g, x, y, w, h);
-            case GROUPS -> renderGroupsDialog(g, x, y, w, h);
-            case ASSIGN_GROUP -> renderGroupChooser(g, x, y, w, h);
-            case IMPORT -> renderImportDialog(g, x, y, w, h);
-            case EXPORT -> exportWindow.render(g, x, y, w, message);
-            case AREA_NAME, GROUP_NAME -> {
-                g.drawString(mc.font, tr(dialog == Dialog.AREA_NAME ? "area_name" : "group_name"), x + 16, y + 32, -1);
-                if (dialog == Dialog.AREA_NAME) {
-                    renderSwatches(g, x, y, w, AreaPalette.COLORS, newAreaColor);
-                    g.drawString(mc.font, tr("area_custom_color"), x + 16, y + 175, 0xFF9BAAB7);
-                    int px = swatchX(x, w, AreaPalette.COLUMNS - 1), sw = colorSampleWidth(w);
-                    String hex = dialogFields[HEX_FIELD].getValue().trim();
-                    g.fill(px, y + 170, px + sw, y + 188, 0xFF000000 | newAreaColor);
-                    // A red frame marks text that is not a color yet; the preview keeps the last valid one.
-                    g.renderOutline(px, y + 170, sw, 18, !hex.isEmpty() && AreaPalette.parse(hex) < 0 ? 0xFFFF5555 : -1);
-                }
-                if (!message.isEmpty()) g.drawString(mc.font, mc.font.plainSubstrByWidth(message, w - 32), x + 16, y + (dialog == Dialog.AREA_NAME ? 194 : 80), 0xFFFFCF62);
-            }
-            case WAYPOINTS -> renderWaypointsDialog(g, x, y, w, h);
-            case COLOR -> renderColorDialog(g, x, y, w, h);
-            case PICKER -> renderPicker(g, x, y, w, h);
-            default -> {}
-        }
-    }
-
-    private void renderAreasDialog(GuiGraphics g, int x, int y, int w, int h) {
-        if (areaDeleteConfirmation) {
-            g.drawCenteredString(mc.font, tr("area_delete_confirm", selectedAreas().size()), x + w / 2, y + h / 2 - 12, -1);
-            g.drawCenteredString(mc.font, tr("area_delete_undoable"), x + w / 2, y + h / 2 + 6, 0xFF9BAAB7);
-            return;
-        }
-        int col = (w - 36) / 2, right = x + w - col - 12;
-        List<SavedAreaStore.Area> areas = displayedAreas();
-        int rows = visibleAreaDialogRows(h);
-        areaScroll = Math.min(areaScroll, Math.max(0, areas.size() - rows));
-        int[] search = areaSearchSpan(x, col);
-        if (search[0] > x + 12 || search[1] < 40)
-            g.drawString(mc.font, mc.font.plainSubstrByWidth(tr("area_list_count", selectedAreaIds.size()).getString(), 76),
-                    x + 12, y + 34, 0xFF9BAAB7);
-        g.fill(x + 10, y + 46, x + 14 + col, y + h - 98, 0xFF0C141D);
-        if (areas.isEmpty()) g.drawString(mc.font, tr(areaStore.state().areas().isEmpty() ? "areas_empty" : "area_search_empty"),
-                x + 16, y + 54, 0xFF9BAAB7);
-        for (int i = 0; i < rows && i + areaScroll < areas.size(); i++) {
-            SavedAreaStore.Area area = areas.get(i + areaScroll);
-            int rowY = y + 48 + i * 20;
-            boolean checked = selectedAreaIds.contains(area.id());
-            if (checked) g.fill(x + 10, rowY, x + 14 + col, rowY + 20, 0x8842636D);
-            g.renderOutline(x + 14, rowY + 4, 9, 9, checked ? ACCENT : 0xFF64717A);
-            if (checked) g.drawString(mc.font, "x", x + 16, rowY + 4, ACCENT);
-            g.fill(x + 28, rowY + 4, x + 34, rowY + 10, 0xFF000000 | area.color());
-            g.drawString(mc.font, mc.font.plainSubstrByWidth(area.name(), col - 30), x + 39, rowY + 1, -1);
-            g.drawString(mc.font, mc.font.plainSubstrByWidth(areaVisibilityDescription(area), col - 30), x + 39, rowY + 11, 0xFF9BAAB7);
-        }
-        if (autosave.enabled()) {
-            String indicator = "● " + tr("autosave_indicator").getString();
-            g.drawString(mc.font, indicator, x + w - 36 - mc.font.width(indicator), y + h - 20, ACCENT);
-        }
-        if (autosaveOpen) {
-            g.drawString(mc.font, tr("autosave_title"), right, y + 34, ACCENT);
-            g.drawString(mc.font, mc.font.plainSubstrByWidth(tr("autosave_hint").getString(), col),
-                    right, y + 68 + 20 * autosaveFields.size() + 4, 0xFF9BAAB7);
-            renderManagementStatus(g, x, y, w, h, "areas_selection_hint");
-            return;
-        }
-        g.drawString(mc.font, tr("area_name"), right, y + 34, 0xFF9BAAB7);
-        int selectedTop = selectedSectionTop(y, h);
-        dialogSection(g, tr("selected_header"), right, selectedTop, col);
-        placeAreaInfo(y, h, right, g, col);
-        renderManagementStatus(g, x, y, w, h, "areas_selection_hint");
-    }
-
-    /** Save stays under Edit and Export unless autosave covers every waiting change. */
-    private boolean areaSaveShown() { return !autosave.enabled() || areaDraft.needsSave(autosave); }
-
-    /** The area's details follow its buttons and close the gap a hidden Save leaves. */
-    private int areaInfoTop(int y) { return y + (areaSaveShown() ? 152 : 132); }
-
-    /** The Selected section sits at the bottom of the column, clear of the territory's own controls. */
-    private int selectedSectionTop(int y, int h) {
-        return Math.max(y + h - 84, areaInfoTop(y) + 4);
-    }
-
-    /** Details of the single checked area with copy buttons after the values; lines that do not fit are left out. */
-    private List<MetricLine> areaInfo(SavedAreaStore.Area area) {
-        List<MetricLine> info = new ArrayList<>();
-        info.add(new MetricLine(List.of(areaVisibilityDescription(area)), List.of()));
-        SelectionBounds b = area.bounds();
-        if (area.geometry() instanceof PolygonGeometry polygon)
-            info.add(new MetricLine(List.of(tr("vertices_count", polygon.vertices().size()).getString()), List.of(areaCopies[1])));
-        else {
-            // North is -Z and west is -X, as in Minecraft.
-            info.add(new MetricLine(List.of(cornerText(b, 0), cornerText(b, 1)), List.of(areaCopies[1], areaCopies[7])));
-            info.add(new MetricLine(List.of(cornerText(b, 2), cornerText(b, 3)), List.of(areaCopies[8], areaCopies[6])));
-        }
-        if (area.geometry() instanceof RectangleGeometry)
-            info.add(new MetricLine(dimensionParts(b, false), List.of(areaCopies[5], areaCopies[4])));
-        info.add(new MetricLine(List.of(tr("area", formatMetric(area.geometry().area())).getString()), List.of(areaCopies[2])));
-        info.add(new MetricLine(List.of(tr("perimeter", formatLength(area.geometry().perimeter())).getString()), List.of(areaCopies[3])));
-        return info;
-    }
-
-    /** The label key and "X Z" of a rectangle corner: 0 north-west, 1 north-east, 2 south-west, 3 south-east. */
-    private static String[] compassCorner(SelectionBounds b, int corner) {
-        int x = corner % 2 == 0 ? b.minX() : b.maxX(), z = corner < 2 ? b.minZ() : b.maxZ();
-        return new String[]{new String[]{"corner_nw", "corner_ne", "corner_sw", "corner_se"}[corner], x + " " + z};
-    }
-
-    private String cornerText(SelectionBounds b, int corner) {
-        String[] c = compassCorner(b, corner);
-        return tr(c[0], c[1]).getString();
-    }
-
-    /** Lays out (g == null) or draws the area details. */
-    private void placeAreaInfo(int y, int h, int right, GuiGraphics g, int col) {
-        SavedAreaStore.Area area = selectedAreaIds.size() == 1 ? selectedArea() : null;
-        if (area == null) return;
-        if (g == null) for (int i = 1; i < areaCopies.length; i++) areaCopies[i].visible = false;
-        int lineY = areaInfoTop(y), limit = selectedSectionTop(y, h) - 6;
-        for (MetricLine line : areaInfo(area)) {
-            if (lineY + 9 > limit) break;
-            if (g == null) {
-                for (Button copy : line.copies()) copy.visible = true;
-                placeMetricLine(line, right, lineY, col);
-            } else drawMetricLine(g, line, right, lineY, col, 0xFF9BAAB7);
-            lineY += 12;
-        }
-    }
-
-    /** A titled divider inside a window column. */
-    private void dialogSection(GuiGraphics g, Component text, int x, int y, int width) {
-        g.drawString(mc.font, text, x, y, 0xFF9BAAB7);
-        int start = x + 4 + mc.font.width(text);
-        g.fill(start, y + 4, x + width, y + 5, 0xFF42636D);
-    }
-
-    private String areaVisibilityDescription(SavedAreaStore.Area area) {
-        SavedAreaStore.Group group = findGroup(area.groupId());
-        if (!area.visible()) return tr("area_state_hidden").getString();
-        if (group != null && !group.visible()) return tr("area_hidden_by_group", group.name()).getString();
-        return tr("area_state_shown").getString() + " · " + (group == null ? tr("group_none").getString() : group.name());
-    }
-
-    private void renderGroupsDialog(GuiGraphics g, int x, int y, int w, int h) {
-        if (groupDeleteConfirmation) {
-            SavedAreaStore.Group group = selectedGroup();
-            int count = group == null ? 0 : (int) areaStore.state().areas().stream()
-                    .filter(area -> Objects.equals(area.groupId(), group.id())).count();
-            String name = group == null ? "" : mc.font.plainSubstrByWidth(group.name(), w / 3);
-            g.drawCenteredString(mc.font, tr("group_delete_confirm", name, count), x + w / 2, y + h / 2 - 12, -1);
-            g.drawCenteredString(mc.font, tr("group_delete_ungroup_note"), x + w / 2, y + h / 2 + 6, 0xFF9BAAB7);
-            return;
-        }
-        int col = (w - 36) / 2, right = x + w - col - 12;
-        List<SavedAreaStore.Group> groups = areaStore.state().groups();
-        int rows = visibleGroupDialogRows(h);
-        groupScroll = Math.min(groupScroll, Math.max(0, groups.size() - rows));
-        g.drawString(mc.font, tr("groups_list_title"), x + 12, y + 34, 0xFF9BAAB7);
-        g.fill(x + 10, y + 46, x + 14 + col, y + h - 52, 0xFF0C141D);
-        if (groups.isEmpty()) g.drawString(mc.font, tr("groups_empty"), x + 16, y + 54, 0xFF9BAAB7);
-        for (int i = 0; i < rows && i + groupScroll < groups.size(); i++) {
-            SavedAreaStore.Group group = groups.get(i + groupScroll);
-            int rowY = y + 48 + i * 20;
-            if (Objects.equals(group.id(), groupId)) g.fill(x + 10, rowY, x + 14 + col, rowY + 20, 0x8842636D);
-            g.fill(x + 14, rowY + 5, x + 22, rowY + 13, group.visible() ? ACCENT : 0xFF64717A);
-            g.drawString(mc.font, mc.font.plainSubstrByWidth(group.name(), col - 22), x + 28, rowY + 1, -1);
-            long count = areaStore.state().areas().stream().filter(area -> Objects.equals(area.groupId(), group.id())).count();
-            String details = tr(group.visible() ? "group_state_shown" : "group_state_hidden").getString()
-                    + " · " + tr("group_member_count", count).getString();
-            g.drawString(mc.font, mc.font.plainSubstrByWidth(details, col - 22), x + 28, rowY + 11, 0xFF9BAAB7);
-        }
-        SavedAreaStore.Group group = selectedGroup();
-        g.drawString(mc.font, tr("group_selected"), right, y + 34, 0xFF9BAAB7);
-        g.drawString(mc.font, mc.font.plainSubstrByWidth(group == null ? tr("group_not_selected").getString() : group.name(), col), right, y + 48, -1);
-        renderManagementStatus(g, x, y, w, h, "groups_window_hint");
-    }
-
-    private void renderGroupChooser(GuiGraphics g, int x, int y, int w, int h) {
-        g.drawString(mc.font, tr("group_picker_count", assignmentTargets.size()), x + 12, y + 32, 0xFF9BAAB7);
-        int rows = visibleAssignmentRows(h), count = areaStore.state().groups().size() + 1;
-        assignmentScroll = Math.min(assignmentScroll, Math.max(0, count - rows));
-        List<SavedAreaStore.Area> targets = areaStore.state().areas().stream().filter(a -> assignmentTargets.contains(a.id())).toList();
-        for (int i = 0; i < rows && i + assignmentScroll < count; i++) {
-            int index = i + assignmentScroll;
-            SavedAreaStore.Group group = index == 0 ? null : areaStore.state().groups().get(index - 1);
-            String id = group == null ? null : group.id();
-            int rowY = y + 48 + i * 20;
-            if (areaDraft.groupSet ? Objects.equals(areaDraft.groupId, id)
-                    : !targets.isEmpty() && targets.stream().allMatch(a -> Objects.equals(a.groupId(), id)))
-                g.fill(x + 10, rowY, x + w - 10, rowY + 20, 0x8842636D);
-            String name = group == null ? tr("group_none").getString() : group.name();
-            if (group != null && !group.visible()) name += " · " + tr("group_state_hidden").getString();
-            g.drawString(mc.font, mc.font.plainSubstrByWidth(name, w - 32), x + 16, rowY + 5, -1);
-        }
-        if (!message.isEmpty()) renderManagementStatus(g, x, y, w, h, "group_picker_tooltip");
-    }
-
-    private void renderManagementStatus(GuiGraphics g, int x, int y, int w, int h, String hint) {
-        String text = message.isEmpty() ? tr(loadFailed ? "area_load_failed" : hint).getString() : message;
-        // In Areas the right half of the bottom row holds the autosave button.
-        int textWidth = dialog == Dialog.AREAS ? (w - 36) / 2 : w - 24;
-        g.drawString(mc.font, mc.font.plainSubstrByWidth(text, textWidth), x + 12, y + h - 12,
-                message.isEmpty() && !loadFailed ? 0xFF9BAAB7 : 0xFFFFCF62);
-    }
-
-    private void renderWaypointsDialog(GuiGraphics g, int x, int y, int w, int h) {
-        if (pending == null) return;
-        List<WaypointAccess.Point> points = filteredPoints();
-        int rows = waypointRows(h);
-        modalScroll = Math.min(modalScroll, Math.max(0, points.size() - rows));
-        int chosen = filteredChosenPoints().size();
-        g.drawString(mc.font, tr("waypoint_filter_count", chosen, points.size()), x + 12, y + 29, 0xFF9BAAB7);
-        boolean scrollable = points.size() > rows;
-        int rowRight = x + w - (scrollable ? 18 : 9);
-        for (int i = 0; i < rows && i + modalScroll < points.size(); i++) {
-            WaypointAccess.Point p = points.get(i + modalScroll); int rowY = y + 83 + i * 14;
-            boolean checked = chosenPoints.contains(p.identity());
-            if (checked) g.fill(x + 9, rowY - 2, rowRight, rowY + 12, 0x3342636D);
-            String text = (checked ? "[x] " : "[ ] ") + p.name() + "  " + p.x() + ", " + p.y() + ", " + p.z();
-            g.drawString(mc.font, mc.font.plainSubstrByWidth(text, rowRight - x - 17), x + 13, rowY, p.disabled() ? 0xFF9BAAB7 : -1);
-        }
-        if (scrollable) {
-            int[] thumb = waypointThumb(y, rows, points.size());
-            g.fill(x + w - 14, y + 81, x + w - 10, y + 81 + rows * 14, 0xFF0C141D);
-            g.fill(x + w - 14, thumb[0], x + w - 10, thumb[0] + thumb[1], scrollbarDragging ? -1 : 0xFF9BAAB7);
-        }
-        String hint = message.isEmpty() ? tr("waypoint_modal_hint").getString() : message;
-        g.drawString(mc.font, mc.font.plainSubstrByWidth(hint, w - 24), x + 12, y + h - 70, message.isEmpty() ? 0xFF9BAAB7 : 0xFFFFCF62);
-        confirm.setMessage(tr("delete_count", chosen));
-        confirm.active = chosen > 0;
-    }
-
-    private int areaScroll, groupScroll;
-    /** The waypoint list scrollbar follows the pointer while the left button stays down. */
-    private boolean scrollbarDragging;
-
-    private boolean overPanel(double x, double y) {
-        return enabled() && x >= PANEL_X && x < PANEL_X + panelWidth
-                && y >= PANEL_Y && y < PANEL_Y + panelHeight;
-    }
-
-    private boolean overNativeWidget(double x, double y) {
+    boolean overNativeWidget(double x, double y) {
         for (var child : screen.children()) {
             if (child instanceof AbstractWidget widget && !widgets.contains(widget) && widget.visible
                     && widget.isMouseOver(x, y)) return true;
@@ -3348,587 +541,50 @@ public final class ExactSelectionController {
         return false;
     }
 
-    public boolean mouseClicked(MouseButtonEvent event, boolean twice) {
-        shiftDown = (event.modifiers() & GLFW.GLFW_MOD_SHIFT) != 0;
-        checkedFrame();
-        if (dialog != Dialog.NONE) {
-            layoutDialog();
-            for (AbstractWidget widget : widgets) {
-                if (widget.visible && widget.mouseClicked(event, twice)) {
-                    if (widget.visible) focus(widget);
-                    return true;
-                }
-            }
-            if (event.button() == GLFW.GLFW_MOUSE_BUTTON_LEFT) {
-                int[] r = dialogRect(); int x = r[0], y = r[1], w = r[2], h = r[3];
-                int col = (w - 36) / 2;
-                if (dialog == Dialog.COLOR) {
-                    int px = colorPreviewX(x, w);
-                    if (colorReturn != Dialog.WAYPOINTS && event.x() >= px && event.x() < px + 40
-                            && event.y() >= y + 110 && event.y() < y + 128) {
-                        int typed = AreaPalette.parse(dialogFields[HEX_FIELD].getValue());
-                        openPicker(Dialog.COLOR, typed < 0 ? AreaPalette.DEFAULT : typed);
-                        return true;
-                    }
-                    int[] colors = paletteColors();
-                    int i = swatchAt(x, y, w, colors.length, event.x(), event.y());
-                    if (i >= 0) applyColor(colorReturn == Dialog.WAYPOINTS ? i : colors[i]);
-                    return true;
-                }
-                if (dialog == Dialog.PICKER) {
-                    int[] square = pickerSquare(x, y, w, h), hue = pickerHueBar(x, y, w, h);
-                    pickerDrag = inside(square, event.x(), event.y()) ? 1 : inside(hue, event.x(), event.y()) ? 2 : 0;
-                    dragPicker(event.x(), event.y());
-                    return true;
-                }
-                if (dialog == Dialog.IMPORT) {
-                    int rows = importRows(h);
-                    if (event.x() >= x + 10 && event.x() < x + w - 10 && event.y() >= y + 48 && event.y() < y + 48 + rows * 20) {
-                        int index = importScroll + (int) ((event.y() - y - 48) / 20);
-                        if (index < importFiles.size()) importFile(importFiles.get(index));
-                    }
-                    return true;
-                }
-                if (dialog == Dialog.AREA_NAME) {
-                    // The preview of the chosen color opens the full picker.
-                    int px = swatchX(x, w, AreaPalette.COLUMNS - 1);
-                    if (event.x() >= px && event.x() < px + colorSampleWidth(w) && event.y() >= y + 170 && event.y() < y + 188) {
-                        openPicker(Dialog.AREA_NAME, newAreaColor);
-                        return true;
-                    }
-                    int i = swatchAt(x, y, w, AreaPalette.COLORS.length, event.x(), event.y());
-                    if (i >= 0) {
-                        newAreaColor = AreaPalette.COLORS[i];
-                        setDialogValue(HEX_FIELD, AreaPalette.format(newAreaColor));
-                        focus(null); updateVisibility();
-                    }
-                    return true;
-                }
-                if (dialog == Dialog.AREAS && !areaDeleteConfirmation) {
-                    int rows = visibleAreaDialogRows(h);
-                    if (event.x() >= x + 10 && event.x() < x + 14 + col
-                            && event.y() >= y + 48 && event.y() < y + 48 + rows * 20) {
-                        int index = areaScroll + (int) ((event.y() - y - 48) / 20);
-                        List<SavedAreaStore.Area> areas = displayedAreas();
-                        if (index < areas.size()) {
-                            SavedAreaStore.Area area = areas.get(index);
-                            flushDraft();
-                            // Like file managers: Ctrl/Cmd (or the checkbox) toggles one row, Shift checks the range
-                            // from the last plainly clicked row, and both together add that range.
-                            boolean toggle = event.x() < x + 27
-                                    || (event.modifiers() & (GLFW.GLFW_MOD_CONTROL | GLFW.GLFW_MOD_SUPER)) != 0;
-                            boolean range = (event.modifiers() & GLFW.GLFW_MOD_SHIFT) != 0;
-                            int anchor = -1;
-                            for (int i = 0; i < areas.size(); i++) if (areas.get(i).id().equals(areaAnchorId)) anchor = i;
-                            if (range && anchor >= 0) {
-                                if (!toggle) selectedAreaIds.clear();
-                                for (int i = Math.min(anchor, index); i <= Math.max(anchor, index); i++) selectedAreaIds.add(areas.get(i).id());
-                            } else {
-                                if (!toggle) selectedAreaIds.clear();
-                                if (!selectedAreaIds.remove(area.id()) || !toggle) selectedAreaIds.add(area.id());
-                                areaAnchorId = area.id();
-                            }
-                            areaId = selectedAreaIds.contains(area.id()) ? area.id()
-                                    : selectedAreaIds.stream().reduce((first, last) -> last).orElse(null);
-                            setDialogValue(4, selectedAreaIds.size() == 1 && selectedArea() != null ? selectedArea().name() : "");
-                            focus(null); updateVisibility();
-                        }
-                        return true;
-                    }
-                } else if (dialog == Dialog.GROUPS && !groupDeleteConfirmation) {
-                    int rows = visibleGroupDialogRows(h);
-                    if (event.x() >= x + 10 && event.x() < x + 14 + col
-                            && event.y() >= y + 48 && event.y() < y + 48 + rows * 20) {
-                        int index = groupScroll + (int) ((event.y() - y - 48) / 20);
-                        if (index < areaStore.state().groups().size()) {
-                            groupId = areaStore.state().groups().get(index).id();
-                            if (event.x() < x + 26) toggleGroup();
-                            focus(null); updateVisibility();
-                        }
-                        return true;
-                    }
-                } else if (dialog == Dialog.ASSIGN_GROUP) {
-                    int rows = visibleAssignmentRows(h);
-                    if (event.x() >= x + 10 && event.x() < x + w - 10
-                            && event.y() >= y + 48 && event.y() < y + 48 + rows * 20) {
-                        int index = assignmentScroll + (int) ((event.y() - y - 48) / 20);
-                        if (index <= areaStore.state().groups().size())
-                            assignGroup(index == 0 ? null : areaStore.state().groups().get(index - 1).id());
-                        return true;
-                    }
-                }
-            }
-            if (event.button() == GLFW.GLFW_MOUSE_BUTTON_LEFT && dialog == Dialog.WAYPOINTS && pending != null) {
-                int[] r = dialogRect(); int x = r[0], y = r[1], w = r[2], h = r[3];
-                int rows = waypointRows(h);
-                List<WaypointAccess.Point> points = filteredPoints();
-                boolean scrollable = points.size() > rows;
-                if (scrollable && event.x() >= x + w - 17 && event.x() < x + w - 7
-                        && event.y() >= y + 81 && event.y() < y + 81 + rows * 14) {
-                    scrollbarDragging = true;
-                    dragWaypointScrollbar(event.y());
-                    return true;
-                }
-                // Row i is drawn over [y + 81 + 14i, y + 95 + 14i); a taller hit area would toggle a hidden row.
-                if (event.x() >= x + 8 && event.x() < x + w - (scrollable ? 18 : 8) && event.y() >= y + 81 && event.y() < y + 81 + rows * 14) {
-                    int index = modalScroll + (int) ((event.y() - (y + 81)) / 14);
-                    if (index >= 0 && index < points.size()) {
-                        Object identity = points.get(index).identity();
-                        if (!chosenPoints.add(identity)) chosenPoints.remove(identity);
-                    }
-                    updateVisibility(); return true;
-                }
-            }
-            return true;
-        }
-        if (toggle.mouseClicked(event, twice)) return true;
-        if (!enabled()) return false;
-        if (quickMenu) {
-            for (Button item : quickMenuButtons()) if (item.visible && item.mouseClicked(event, twice)) return true;
-            quickMenu = false;
-            updateVisibility();
-            return true;
-        }
-        if (overPanel(event.x(), event.y())) {
-            focus(null);
-            for (AbstractWidget widget : widgets) {
-                if (widget != toggle && widget.visible && widget.mouseClicked(event, twice)) {
-                    if (enabled() && pending == null && widget.visible) focus(widget);
-                    break;
-                }
-            }
-            return true;
-        }
-        focus(null);
-        if (overNativeWidget(event.x(), event.y())) return false;
-        MapBridge.Frame frame = checkedFrame();
-        if (!enabled() || frame == null) return true;
-        if (event.button() == GLFW.GLFW_MOUSE_BUTTON_RIGHT) {
-            dragging = true;
-            lastMouseX = rightPressX = event.x(); lastMouseY = rightPressY = event.y();
-        } else if (event.button() == GLFW.GLFW_MOUSE_BUTTON_LEFT) {
-            vertexOnClick = false;
-            if (dirty || holding()) return true;
-            pressX = event.x(); pressY = event.y();
-            dragMoved = false;
-            boolean ctrl = (event.modifiers() & (GLFW.GLFW_MOD_CONTROL | GLFW.GLFW_MOD_SUPER)) != 0;
-            // Minecraft reports a double click only within 250 ms, shorter than the system's double-click time; a
-            // second press within 500 ms on the side or vertex just clicked is a double click too.
-            if (!twice && net.minecraft.util.Util.getMillis() - clickAt < 500
-                    && Math.hypot(event.x() - clickX, event.y() - clickY) < CLICK_SLOP * 2) twice = true;
-            clickAt = 0;
-            sidePress = false;
-            if (!ctrl && !twice && (polygonMode && !polygonDraft.isEmpty() || state.geometry() instanceof PolygonGeometry)) {
-                // Holding the button on a contour or polygon vertex drags it; without movement it stays a click, which
-                // closes a contour on its first vertex, or on a finished shape in contour mode starts a new one.
-                vertexOnClick = polygonMode;
-                beginVertexDrag(frame, event.x(), event.y());
-                if (holding()) return true;
-                vertexOnClick = false;
-            }
-            if (ctrl && (polygonMode || state.geometry() instanceof PolygonGeometry
-                            || state.geometry() instanceof RectangleGeometry && state.phase() == SelectionState.Phase.SELECTED)) {
-                if (twice) deleteVertex(frame, event.x(), event.y());
-                else beginVertexDrag(frame, event.x(), event.y());
-                // Away from a vertex the Polygon tool still adds one, Ctrl/Cmd held or not.
-                if (holding() || twice || !polygonMode && !(state.geometry() instanceof RectangleGeometry)) return true;
-            }
-            if (state.source() != null && state.geometry() instanceof RectangleGeometry rectangle
-                    && state.phase() == SelectionState.Phase.SELECTED && polygonDraft.isEmpty() && !polygonMode) {
-                int edge = hitPolygonEdge(frame, rectangle.vertices(), event.x(), event.y());
-                // A press inside moves the territory; only a double click or a press just outside acts on the side.
-                if (edge >= 0 && (twice || (hitHandle(frame, event.x(), event.y()) == null
-                        && !insideBounds(frame, event.x(), event.y())))) {
-                    if (twice) insertPolygonPoint(frame, new PolygonGeometry(rectangle.vertices()), edge, event.x(), event.y());
-                    else { message = tr("rectangle_edit_controls").getString(); rememberClick(event); }
-                    return true;
-                }
-            }
-            if (polygonDraft.isEmpty() && state.geometry() instanceof PolygonGeometry polygon) {
-                // On a side a click only shows the controls and a double click adds a vertex, also with the Polygon tool
-                // on (a contour just closed): it does not start a new contour there. Just inside, a drag still moves it.
-                boolean nearOutside = !insideBounds(frame, event.x(), event.y());
-                int edge = hitPolygonEdge(frame, polygon.vertices(), event.x(), event.y());
-                sidePress = edge >= 0;
-                if (edge >= 0 && (twice || nearOutside)) {
-                    if (twice) insertPolygonPoint(frame, polygon, edge, event.x(), event.y());
-                    else { message = tr("polygon_edit_controls").getString(); rememberClick(event); }
-                    return true;
-                }
-                nearOutside &= !polygonMode;
-                if (hitVertex(frame, polygon.vertices(), event.x(), event.y()) >= 0 && nearOutside) {
-                    message = tr("polygon_edit_controls").getString();
-                    return true;
-                }
-            }
-            if (polygonMode && !polygonDraft.isEmpty() && !ctrl) {
-                // As on a finished shape: a click on a side of the contour only shows the controls, a double click
-                // adds a vertex there.
-                int edge = hitPolygonEdge(frame, polygonDraft, event.x(), event.y(), false);
-                if (edge >= 0) {
-                    if (twice) insertDraftPoint(frame, edge, event.x(), event.y());
-                    else { message = tr("polygon_draft_controls").getString(); rememberClick(event); }
-                    return true;
-                }
-            }
-            // In contour mode a press inside a finished shape may become a move; a click without movement still
-            // adds the first vertex when the button is released.
-            if (polygonMode && (!polygonDraft.isEmpty() || !insideBounds(frame, event.x(), event.y()))) {
-                addPolygonPoint(frame, event.x(), event.y());
-                return true;
-            }
-            vertexOnClick = polygonMode && !sidePress;
-            try {
-                MapGesture.Handle handle = hitHandle(frame, event.x(), event.y());
-                int worldX = SelectionBounds.block(frame.worldX(event.x()));
-                int worldZ = SelectionBounds.block(frame.worldZ(event.y()));
-                boolean moveWhole = insideBounds(frame, event.x(), event.y());
-                if (handle != null || moveWhole) {
-                    // Handles resize; Shift still moves the whole shape even from a handle.
-                    boolean shift = (event.modifiers() & GLFW.GLFW_MOD_SHIFT) != 0;
-                    gesture = MapGesture.Drag.start(state.snapshot(), handle == null || moveWhole && shift ? MapGesture.Handle.MOVE : handle,
-                            frame, event.x(), event.y());
-                    return true;
-                }
-                boolean finishing = state.phase() == SelectionState.Phase.PREVIEW;
-                SelectionState.Snapshot before = historyBase();
-                if (finishing && chunks) {
-                    int originX = chunkOriginX(), originZ = chunkOriginZ();
-                    int anchorX = ChunkSelection.anchor(originX, worldX);
-                    int anchorZ = ChunkSelection.anchor(originZ, worldZ);
-                    worldX = ChunkSelection.endpoint(worldX, originX);
-                    worldZ = ChunkSelection.endpoint(worldZ, originZ);
-                    state.hover(anchorX, anchorZ, worldX, worldZ);
-                } else if (!finishing) {
-                    int originX = worldX, originZ = worldZ;
-                    if (chunks) {
-                        worldX = ChunkSelection.anchor(originX, originX);
-                        worldZ = ChunkSelection.anchor(originZ, originZ);
-                    }
-                    gesture = new MapGesture.Corners(before, originX, originZ);
-                }
-                state.click(worldX, worldZ);
-                if (finishing && !(gesture instanceof MapGesture.Corners corners && corners.finish(gestureHost)))
-                    commitSelection(before, state.snapshot(), "select");
-                message = "";
-                syncFields();
-                updateSelection();
-            } catch (IllegalArgumentException e) { message = tr("invalid_coordinates").getString(); }
-        }
-        return true;
+    public boolean mouseClicked(MouseButtonEvent event, boolean twice) { return refreshed(input.mouseClicked(event, twice)); }
+
+    public boolean mouseReleased(MouseButtonEvent event) { return refreshed(input.mouseReleased(event)); }
+
+    public boolean mouseScrolled(double x, double y, double vertical) { return refreshed(input.mouseScrolled(x, y, vertical)); }
+
+    public void keyReleased(KeyEvent event) { input.keyReleased(event); }
+
+    public boolean keyPressed(KeyEvent event) { return refreshed(input.keyPressed(event)); }
+
+    public boolean charTyped(CharacterEvent event) { return refreshed(input.charTyped(event)); }
+
+    /** At a low frame rate several events fall into one frame: each must find the widgets as the last one left them. */
+    private boolean refreshed(boolean handled) {
+        updateVisibility();
+        return handled;
     }
 
-    public boolean mouseReleased(MouseButtonEvent event) {
-        if (event.button() == GLFW.GLFW_MOUSE_BUTTON_RIGHT && dragging) {
-            dragging = false;
-            // A right click that did not pan the map opens the quick actions of the selection under it.
-            if (Math.hypot(event.x() - rightPressX, event.y() - rightPressY) < 4 && enabled()
-                    && openQuickMenu(checkedFrame(), event.x(), event.y())) return true;
-        }
-        if (event.button() == GLFW.GLFW_MOUSE_BUTTON_LEFT && pickerDrag != 0) {
-            dragPicker(event.x(), event.y());
-            pickerDrag = 0;
-            return true;
-        }
-        if (event.button() == GLFW.GLFW_MOUSE_BUTTON_LEFT && scrollbarDragging) {
-            dragWaypointScrollbar(event.y());
-            scrollbarDragging = false;
-            return true;
-        }
-        if (event.button() == GLFW.GLFW_MOUSE_BUTTON_LEFT && gesture instanceof MapGesture.Held held) {
-            // A lost or changed map context disables the tool, which drops the gesture; update and finish then do nothing.
-            MapBridge.Frame frame = checkedFrame();
-            // A move or resize that barely left its press point is a click: the shape stays as it was (zoomed out, a
-            // jitter of a pixel is many blocks), and in contour mode the click adds a vertex there.
-            boolean click = clickable(held) && !dragMoved
-                    && Math.hypot(event.x() - pressX, event.y() - pressY) < CLICK_SLOP;
-            boolean vertex = click && vertexOnClick && polygonMode;
-            vertexOnClick = false;
-            if (click && frame != null) {
-                cancelGesture();
-                if (sidePress) {
-                    message = tr("polygon_edit_controls").getString();
-                    rememberClick(event);
-                }
-                if (held instanceof MapGesture.VertexDrag drag) {
-                    message = "";
-                    rememberClick(event);
-                    // On a contour vertex a click only closes the contour on its first one.
-                    if (vertex && !polygonDraft.isEmpty()) {
-                        if (drag.index == 0 && polygonDraft.size() >= 3) finishPolygon();
-                        return true;
-                    }
-                }
-                if (vertex) addPolygonPoint(frame, event.x(), event.y());
-                return true;
-            }
-            if (frame != null) held.update(gestureHost, frame, event.x(), event.y());
-            held.finish(gestureHost);
-            return true;
-        }
-        // Native release clears held toolbar buttons, even when released outside them.
-        // Its map press flags stay false, so it cannot create a native map click.
-        return false;
-    }
-
-    public boolean mouseScrolled(double x, double y, double vertical) {
-        // Zooming moves the selection away from the menu, which stays where it opened.
-        if (quickMenu) { quickMenu = false; updateVisibility(); }
-        if (dialog == Dialog.WAYPOINTS && pending != null) {
-            modalScroll = Math.max(0, Math.min(Math.max(0, filteredPoints().size() - waypointRows(dialogRect()[3])),
-                    modalScroll - (vertical > 0 ? 1 : vertical < 0 ? -1 : 0)));
-            return true;
-        }
-        int step = vertical > 0 ? 1 : vertical < 0 ? -1 : 0;
-        if (dialog == Dialog.IMPORT) {
-            importScroll = Math.max(0, Math.min(Math.max(0, importFiles.size() - importRows(dialogRect()[3])), importScroll - step));
-            return true;
-        }
-        if (dialog == Dialog.AREAS || dialog == Dialog.GROUPS || dialog == Dialog.ASSIGN_GROUP) {
-            if (areaDeleteConfirmation || groupDeleteConfirmation) return true;
-            int[] r = dialogRect();
-            if (dialog == Dialog.AREAS) {
-                areaScroll = Math.max(0, Math.min(Math.max(0, displayedAreas().size() - visibleAreaDialogRows(r[3])), areaScroll - step));
-            } else if (dialog == Dialog.GROUPS) {
-                groupScroll = Math.max(0, Math.min(Math.max(0, areaStore.state().groups().size() - visibleGroupDialogRows(r[3])), groupScroll - step));
-            } else {
-                assignmentScroll = Math.max(0, Math.min(Math.max(0, areaStore.state().groups().size() + 1 - visibleAssignmentRows(r[3])), assignmentScroll - step));
-            }
-            return true;
-        }
-        if (dialog != Dialog.NONE) return true;
-        if (enabled() && overPanel(x, y)) {
-            if (!compact && step != 0) {
-                panelScroll = Math.max(0, Math.min(maxPanelScroll(), panelScroll - step * 20));
-                layoutMainPanel();
-                updateVisibility();
-                if (screen.getFocused() instanceof AbstractWidget widget && widgets.contains(widget) && !widget.visible)
-                    focus(null);
-            }
-            return true;
-        }
-        return false;
-    }
-
-    private void focus(AbstractWidget target) {
+    void focus(AbstractWidget target) {
         for (AbstractWidget widget : widgets) widget.setFocused(widget == target);
         screen.setFocused(target);
     }
 
-    public void keyReleased(KeyEvent event) {
-        shiftDown = event.key() != GLFW.GLFW_KEY_LEFT_SHIFT && event.key() != GLFW.GLFW_KEY_RIGHT_SHIFT
-                && (event.modifiers() & GLFW.GLFW_MOD_SHIFT) != 0;
-    }
-
-    public boolean keyPressed(KeyEvent event) {
-        shiftDown = event.key() == GLFW.GLFW_KEY_LEFT_SHIFT || event.key() == GLFW.GLFW_KEY_RIGHT_SHIFT
-                || (event.modifiers() & GLFW.GLFW_MOD_SHIFT) != 0;
-        if (!enabled()) return false;
-        if (event.key() == GLFW.GLFW_KEY_ESCAPE) {
-            if (quickMenu) { quickMenu = false; updateVisibility(); }
-            else if (gesture instanceof MapGesture.VertexDrag) { cancelGesture(); message = tr("draft_cancelled").getString(); }
-            else if (gesture instanceof MapGesture.Drag) cancelGesture();
-            else if (dialog != Dialog.NONE) cancelDialog();
-            else if (polygonMode) {
-                polygonDraft.clear(); polygonCursor = null; polygonBefore = null; polygonMode = false;
-                polygonDraftUndo.clear(); polygonDraftRedo.clear();
-                message = tr("polygon_cancelled").getString(); updateSelection(); updateVisibility();
-            }
-            else if (dirty) { dirty = false; syncFields(); focus(null); }
-            else if (gesture instanceof MapGesture.Corners && state.phase() == SelectionState.Phase.PREVIEW) cancelGesture();
-            else if (state.bounds() != null) reset();
-            else disable();
-            return true;
-        }
-        boolean editing = screen.getFocused() instanceof EditBox field && widgets.contains(field);
-        if (polygonMode && dialog == Dialog.NONE && !editing && event.key() == GLFW.GLFW_KEY_BACKSPACE) {
-            removeLastPolygonPoint();
-            return true;
-        }
-        if (polygonMode && !holding() && dialog == Dialog.NONE && !editing && (event.key() == GLFW.GLFW_KEY_ENTER || event.key() == GLFW.GLFW_KEY_KP_ENTER)) {
-            finishPolygon();
-            return true;
-        }
-        if (!editing && (event.modifiers() & (GLFW.GLFW_MOD_CONTROL | GLFW.GLFW_MOD_SUPER)) != 0) {
-            if (event.key() == GLFW.GLFW_KEY_Z) {
-                if ((event.modifiers() & GLFW.GLFW_MOD_SHIFT) != 0) redo(); else undo();
-                return true;
-            }
-            if (event.key() == GLFW.GLFW_KEY_Y) { redo(); return true; }
-        }
-        if (event.key() == GLFW.GLFW_KEY_TAB) {
-            List<AbstractWidget> available = widgets.stream().filter(w -> w.visible && w.active).toList();
-            int index = available.indexOf(screen.getFocused());
-            int step = (event.modifiers() & GLFW.GLFW_MOD_SHIFT) != 0 ? -1 : 1;
-            if (!available.isEmpty()) focus(available.get(index < 0
-                    ? step > 0 ? 0 : available.size() - 1
-                    : Math.floorMod(index + step, available.size())));
-            return true;
-        }
-        if (screen.getFocused() instanceof EditBox field && widgets.contains(field)) {
-            if (event.key() == GLFW.GLFW_KEY_ENTER || event.key() == GLFW.GLFW_KEY_KP_ENTER) {
-                if ((dialog == Dialog.SIZE || dialog == Dialog.MOVE || dialog == Dialog.AREA_NAME || dialog == Dialog.GROUP_NAME)
-                        && modalApply.active) applyDialog();
-                else if (dialog == Dialog.AREAS && field == dialogFields[4])
-                    commitDraft(autosave.covers(AutosaveSettings.Field.NAME) ? f -> f == AutosaveSettings.Field.NAME : f -> true);
-                else if (dialog == Dialog.CENTER) createCenterWaypoint();
-                else if (dialog == Dialog.COLOR && field == dialogFields[HEX_FIELD]) applyHexColor();
-                else if (dialog == Dialog.WAYPOINTS && field == dialogFields[RENAME_FIELD] && pointRename.active) renamePoints();
-                else if (dialog == Dialog.NONE) applyFields();
-            }
-            else field.keyPressed(event);
-        } else if (screen.getFocused() instanceof AbstractWidget widget && widgets.contains(widget)) {
-            widget.keyPressed(event);
-        }
-        return true;
-    }
-
-    public boolean charTyped(CharacterEvent event) {
-        if (!enabled()) return false;
-        if (screen.getFocused() instanceof EditBox field && widgets.contains(field)) field.charTyped(event);
-        return true;
-    }
-
-    private void syncFields() {
-        if (fields[0] == null) return;
+    void syncFields() {
+        if (selectionPanel.fields[0] == null) return;
         SelectionBounds b = state.bounds();
         int[] values = b == null ? null : new int[]{b.x1(), b.z1(), b.x2(), b.z2()};
         syncing = true;
-        for (int i = 0; i < 4; i++) fields[i].setValue(values == null ? "" : Integer.toString(values[i]));
+        for (int i = 0; i < 4; i++) selectionPanel.fields[i].setValue(values == null ? "" : Integer.toString(values[i]));
         syncing = false;
         dirty = false;
     }
 
-    private void applyFields() {
-        if (state.geometry() instanceof PolygonGeometry || !polygonDraft.isEmpty() || holding()) return;
+    void applyFields() {
+        if (state.geometry() instanceof PolygonGeometry || !polygonTool.draft.isEmpty() || holding()) return;
         try {
             SelectionState.Snapshot before = historyBase();
             int[] c = new int[4];
-            for (int i = 0; i < 4; i++) c[i] = SelectionBounds.block(Integer.parseInt(fields[i].getValue().trim()));
+            for (int i = 0; i < 4; i++) c[i] = SelectionBounds.block(Integer.parseInt(selectionPanel.fields[i].getValue().trim()));
             state.set(new SelectionBounds(c[0], c[1], c[2], c[3]));
             gesture = null;
             commitSelection(before, state.snapshot(), "coordinates");
             focus(null);
             message = "";
-        } catch (IllegalArgumentException e) { message = tr("invalid_coordinates").getString(); }
+        } catch (IllegalArgumentException e) { say("invalid_coordinates"); }
     }
-
-    private static int waypointRows(int height) { return Math.max(1, (height - 150) / 14); }
-
-    /** Scrollbar thumb {top, height} for a list of {@code total} rows showing {@code rows} from {@code modalScroll}. */
-    private int[] waypointThumb(int y, int rows, int total) {
-        int track = rows * 14, size = Math.max(10, track * rows / total);
-        int range = total - rows, top = y + 81 + (range <= 0 ? 0 : (track - size) * modalScroll / range);
-        return new int[]{top, size};
-    }
-
-    /** Scrolls so the thumb centre follows the pointer along the track. */
-    private void dragWaypointScrollbar(double mouseY) {
-        int[] r = dialogRect(); int rows = waypointRows(r[3]), total = filteredPoints().size();
-        if (total <= rows) return;
-        int size = waypointThumb(r[1], rows, total)[1], track = rows * 14;
-        double ratio = (mouseY - (r[1] + 81) - size / 2.0) / Math.max(1, track - size);
-        modalScroll = (int) Math.round(Math.max(0, Math.min(1, ratio)) * (total - rows));
-    }
-
-    private WaypointAccess.Snapshot scopeSnapshot() {
-        return waypoints == null ? null : pointsInSelection ? waypoints.select(context, state.geometry()) : waypoints.all(context);
-    }
-
-    private void openWaypoints() {
-        if (waypoints == null) { message = tr("minimap_missing").getString(); return; }
-        if (dirty || holding() || !polygonDraft.isEmpty() || checkedFrame() == null || !enabled()) return;
-        pointsInSelection = state.phase() == SelectionState.Phase.SELECTED;
-        pending = waypoints.captureSet(scopeSnapshot());
-        if (pending == null) { message = tr("waypoints_unavailable").getString(); return; }
-        modalScroll = 0; chosenPoints.clear();
-        if (pointsInSelection) for (WaypointAccess.Point p : pending.points()) if (p.editable()) chosenPoints.add(p.identity());
-        setDialogValue(7, ""); setDialogValue(RENAME_FIELD, "");
-        visibilityFilter = 0; colorFilter = -1;
-        pointVisibility.setMessage(tr("filter_all")); pointColor.setMessage(tr("filter_color_all"));
-        dragging = false; message = ""; dialog = Dialog.WAYPOINTS;
-        updateVisibility(); focus(cancel);
-    }
-
-    private void togglePointScope() {
-        if (state.phase() != SelectionState.Phase.SELECTED) return;
-        pointsInSelection = !pointsInSelection;
-        refreshPending(pointsInSelection);
-        updateVisibility();
-    }
-
-    private void refreshPending(boolean selectAll) {
-        pending = waypoints.captureSet(scopeSnapshot());
-        Set<Object> existing = new HashSet<>();
-        if (pending != null) for (WaypointAccess.Point p : pending.points()) if (p.editable()) existing.add(p.identity());
-        chosenPoints.retainAll(existing);
-        if (selectAll) chosenPoints.addAll(existing);
-        modalScroll = 0;
-    }
-
-    private boolean validatePointSnapshot() {
-        if (checkedFrame() == null || !enabled() || waypoints == null || pending == null) return false;
-        WaypointAccess.Snapshot current = waypoints.captureSet(scopeSnapshot());
-        if (pending.equals(current)) return true;
-        pending = current;
-        Set<Object> existing = new HashSet<>();
-        if (pending != null) for (WaypointAccess.Point p : pending.points()) if (p.editable()) existing.add(p.identity());
-        chosenPoints.retainAll(existing);
-        modalScroll = 0; message = tr("changed").getString();
-        if (dialog == Dialog.COLOR) dialog = Dialog.WAYPOINTS;
-        focus(cancel); updateVisibility();
-        return false;
-    }
-
-    private void renamePoints() {
-        String name = dialogFields[RENAME_FIELD].getValue().trim();
-        if (!name.isEmpty()) editPoints(name, null);
-    }
-
-    private void editPoints(String name, Integer color) {
-        if (!validatePointSnapshot()) return;
-        List<WaypointAccess.Point> from = filteredChosenPoints();
-        if (from.isEmpty()) return;
-        List<WaypointAccess.Point> to = from.stream().map(p -> p.with(name == null ? p.name() : name, color == null ? p.color() : color)).toList();
-        WaypointAccess.Snapshot target = pending;
-        try {
-            waypoints.edit(target, from, to);
-            history.recordApplied(new SelectionHistory.Action() {
-                @Override public void undo() throws Exception { waypoints.edit(target, to, from); }
-                @Override public void redo() throws Exception { waypoints.edit(target, from, to); }
-                @Override public String label() { return tr("history_waypoint_edit", from.size()).getString(); }
-            });
-            message = tr("waypoints_edited", from.size()).getString();
-            dialog = Dialog.WAYPOINTS; refreshPending(false);
-        } catch (Exception e) {
-            message = tr("save_failed").getString();
-            LoggerFactory.getLogger("Exact Selection for Xaero's map").error("Could not edit waypoints", e);
-        }
-        focus(null); updateSelection(); updateVisibility();
-    }
-
-    private void confirmDelete() {
-        if (dialog == Dialog.GROUPS && groupDeleteConfirmation) { confirmGroupDelete(); return; }
-        if (dialog == Dialog.AREAS && areaDeleteConfirmation) { confirmAreaDelete(); return; }
-        if (dialog != Dialog.WAYPOINTS || !validatePointSnapshot()) return;
-        List<WaypointAccess.Point> targets = filteredChosenPoints();
-        if (targets.isEmpty()) return;
-        WaypointAccess.Snapshot deletion = new WaypointAccess.Snapshot(pending.world(), pending.set(), pending.setName(), targets, pending.setPoints());
-        int count = targets.size();
-        try {
-            waypoints.delete(deletion);
-            history.recordApplied(new SelectionHistory.Action() {
-                @Override public void undo() throws Exception { waypoints.restore(deletion); }
-                @Override public void redo() throws Exception { waypoints.delete(deletion); }
-                @Override public String label() { return tr("history_delete_waypoints", count).getString(); }
-            });
-            message = tr("deleted", count).getString();
-            refreshPending(false);
-        } catch (Exception e) {
-            LoggerFactory.getLogger("Exact Selection for Xaero's map").error("Could not save waypoint deletion; restored in-memory set", e);
-            message = tr("save_failed").getString();
-        }
-        focus(null); updateSelection(); updateVisibility();
-    }
-
 }

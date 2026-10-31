@@ -6,7 +6,8 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import org.slf4j.LoggerFactory;
+import java.util.Arrays;
+import static dev.exactselection.ModLog.LOG;
 
 /** The PNG export window's last choices, shared by all worlds: folder, day or night, scale, areas, labels and the exported area's own fill. */
 final class ExportPreferences {
@@ -30,12 +31,12 @@ final class ExportPreferences {
             preferences.folder = json.has("folder") ? json.get("folder").getAsString() : "";
             preferences.night = json.has("night") && json.get("night").getAsBoolean();
             int scale = json.has("scale") ? json.get("scale").getAsInt() : 4;
-            preferences.scale = java.util.Arrays.stream(SCALES).anyMatch(s -> s == scale) ? scale : 4;
+            preferences.scale = Arrays.stream(SCALES).anyMatch(s -> s == scale) ? scale : 4;
             preferences.labels = !json.has("labels") || json.get("labels").getAsBoolean();
             preferences.areas = !json.has("areas") || json.get("areas").getAsBoolean();
             preferences.ownFill = !json.has("ownFill") || json.get("ownFill").getAsBoolean();
         } catch (Exception e) {
-            LoggerFactory.getLogger("Exact Selection for Xaero's map").warn("Could not read export preferences; using defaults", e);
+            LOG.warn("Could not read export preferences; using defaults", e);
         }
         return preferences;
     }
@@ -51,7 +52,7 @@ final class ExportPreferences {
         try {
             SavedAreaStore.writeAtomically(file, json.toString());
         } catch (IOException e) {
-            LoggerFactory.getLogger("Exact Selection for Xaero's map").warn("Could not save export preferences", e);
+            LOG.warn("Could not save export preferences", e);
         }
     }
 }

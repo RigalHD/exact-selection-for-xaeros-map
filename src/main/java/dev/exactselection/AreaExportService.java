@@ -1,5 +1,6 @@
 package dev.exactselection;
 
+import dev.exactselection.SavedAreaStore.Group;
 import dev.exactselection.mixin.MapSaveLoadAccessor;
 import dev.exactselection.mixin.PNGExporterAccessor;
 import java.awt.AlphaComposite;
@@ -7,7 +8,9 @@ import java.awt.BasicStroke;
 import java.awt.Color;
 import java.awt.Font;
 import java.awt.Graphics2D;
+import java.awt.Rectangle;
 import java.awt.RenderingHints;
+import java.awt.geom.Area;
 import java.awt.geom.Path2D;
 import java.awt.geom.Rectangle2D;
 import java.awt.image.BufferedImage;
@@ -17,9 +20,11 @@ import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
@@ -27,13 +32,12 @@ import java.util.concurrent.CompletableFuture;
 import javax.imageio.ImageIO;
 import net.minecraft.client.Minecraft;
 import net.minecraft.util.Util;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import xaero.map.MapProcessor;
 import xaero.map.file.MapSaveLoad;
 import xaero.map.file.export.PNGExportResult;
 import xaero.map.gui.MapTileSelection;
 import xaero.map.world.MapWorld;
+import static dev.exactselection.ModLog.LOG;
 
 public final class AreaExportService {
     public record Result(Path file, int width, int height) {}
@@ -46,11 +50,10 @@ public final class AreaExportService {
      * saved-area overlays and labels, and the game's pixel font (null draws labels with a plain system font).
      */
     public record Options(Path folder, String fileName, boolean night, int scale, boolean labels, boolean areas, PixelFont font) {}
-    private record VisibleOverlay(SavedAreaStore.Area area, java.awt.geom.Area visibleShape) {}
+    private record VisibleOverlay(SavedAreaStore.Area area, Area visibleShape) {}
     public static final long MAX_PIXELS = 8_000_000L;
     /** Upper bound for the scaled output image, which is held in memory as 4 bytes per pixel. */
     public static final long MAX_OUTPUT_PIXELS = 16_000_000L;
-    private static final Logger LOGGER = LoggerFactory.getLogger("Exact Selection for Xaero's map");
 
     private AreaExportService() {}
 
@@ -60,7 +63,7 @@ public final class AreaExportService {
      * directly; later failures complete the returned future exceptionally.
      */
     public static CompletableFuture<Result> export(MapProcessor processor, MapBridge.Context context, AreaGeometry territory,
-                                                   List<SavedAreaStore.Area> overlays, List<SavedAreaStore.Group> groups,
+                                                   List<SavedAreaStore.Area> overlays, List<Group> groups,
                                                    Options options) throws Exception {
         RawJob job = renderNative(processor, context, territory, overlays, groups, options);
         try {
@@ -77,7 +80,7 @@ public final class AreaExportService {
     /** A native Xaero image in its own job directory, waiting to be cropped and composed. */
     record RawJob(Path jobDirectory, Path exportRoot, String id, long rawWidth, long rawHeight, int cropX, int cropZ,
                   int width, int height, AreaGeometry territory, List<SavedAreaStore.Area> overlays,
-                  List<SavedAreaStore.Group> groups, Options options) {}
+                  List<Group> groups, Options options) {}
 
     /** Whether a shape of these bounds can be exported at {@code scale} image pixels per block. */
     public static boolean fits(GeometryBounds bounds, int scale) {
@@ -98,7 +101,7 @@ public final class AreaExportService {
     }
 
     private static RawJob renderNative(MapProcessor processor, MapBridge.Context context, AreaGeometry territory,
-                                       List<SavedAreaStore.Area> overlays, List<SavedAreaStore.Group> groups,
+                                       List<SavedAreaStore.Area> overlays, List<Group> groups,
                                        Options options) throws Exception {
         if (!Minecraft.getInstance().isSameThread()) throw new IllegalStateException("Map export must run on the client thread");
         if (processor == null || context == null || territory == null) throw new IllegalArgumentException("Missing map or area context");
@@ -133,6 +136,7 @@ public final class AreaExportService {
         Path exportRoot = Objects.requireNonNull(previousDestination, "Xaero export directory is not ready")
                 .toAbsolutePath().normalize();
         Files.createDirectories(exportRoot);
+        removeLeftoverJobs(exportRoot);
         String id = UUID.randomUUID().toString();
         Path jobDirectory = exportRoot.resolve(".raw-" + id);
         Files.createDirectories(jobDirectory);
@@ -161,6 +165,16 @@ public final class AreaExportService {
         }
     }
 
+    /** Job folders left by a game that stopped mid-export; only one export runs at a time, so none of them is live. */
+    static void removeLeftoverJobs(Path exportRoot) {
+        try (var entries = Files.list(exportRoot)) {
+            for (Path entry : entries.filter(path -> path.getFileName().toString().startsWith(".raw-")).toList())
+                deleteOwnedTree(entry);
+        } catch (IOException | UncheckedIOException e) {
+            LOG.warn("Could not remove the temporary files of an earlier export in {}", exportRoot, e);
+        }
+    }
+
     /** Off the client thread: everything here only touches the job's own files and immutable area data. */
     static Result finish(RawJob job) throws IOException {
         Path folder = job.options().folder();
@@ -171,7 +185,7 @@ public final class AreaExportService {
             List<Path> rawFiles;
             try (var paths = Files.walk(job.jobDirectory())) {
                 rawFiles = paths.filter(Files::isRegularFile).filter(path -> path.getFileName().toString()
-                        .toLowerCase(java.util.Locale.ROOT).endsWith(".png")).toList();
+                        .toLowerCase(Locale.ROOT).endsWith(".png")).toList();
             }
             if (rawFiles.size() != 1) throw new IOException("Expected one rendered map image, found " + rawFiles.size());
             BufferedImage raw = ImageIO.read(rawFiles.get(0).toFile());
@@ -201,7 +215,7 @@ public final class AreaExportService {
             try { deleteOwnedTree(path); }
             catch (IOException | UncheckedIOException e) {
                 if (failure != null) failure.addSuppressed(e);
-                else LOGGER.warn("Exported map is ready, but temporary files could not be removed: {}", path, e);
+                else LOG.warn("Exported map is ready, but temporary files could not be removed: {}", path, e);
             }
         }
     }
@@ -219,12 +233,12 @@ public final class AreaExportService {
      */
     private static BufferedImage compose(BufferedImage raw, int cropX, int cropZ, int width, int height,
                                          AreaGeometry territory, List<SavedAreaStore.Area> areas,
-                                         List<SavedAreaStore.Group> groups, int scale, boolean labels, PixelFont font) {
+                                         List<Group> groups, int scale, boolean labels, PixelFont font) {
         BufferedImage image = new BufferedImage(width * scale, height * scale, BufferedImage.TYPE_INT_ARGB);
         Graphics2D graphics = image.createGraphics();
         try {
             Map<String, Boolean> groupVisibility = new HashMap<>();
-            for (SavedAreaStore.Group group : groups) groupVisibility.put(group.id(), group.visible());
+            for (Group group : groups) groupVisibility.put(group.id(), group.visible());
             // Hard pixel edges, as on the in-game map.
             graphics.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_OFF);
             graphics.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
@@ -232,22 +246,27 @@ public final class AreaExportService {
             Path2D.Double clip = path(territory, originX, originZ, scale);
             graphics.clip(clip);
             graphics.drawImage(raw, -cropX * scale, -cropZ * scale, raw.getWidth() * scale, raw.getHeight() * scale, null);
-            List<VisibleOverlay> visibleOverlays = new java.util.ArrayList<>();
-            java.awt.geom.Area territoryShape = new java.awt.geom.Area(clip);
+            List<VisibleOverlay> visibleOverlays = new ArrayList<>();
+            Area territoryShape = new Area(clip);
             float outline = Math.max(1, scale / 2);
             for (SavedAreaStore.Area area : areas) {
                 if (!area.visible() || !groupVisibility.getOrDefault(area.groupId(), true)) continue;
                 AreaGeometry geometry = area.geometry();
                 if (!geometry.bounds().intersectsPositiveArea(territory.bounds())) continue;
                 Path2D.Double areaPath = path(geometry, originX, originZ, scale);
-                java.awt.geom.Area visibleShape = new java.awt.geom.Area(areaPath);
+                graphics.setColor(new Color(area.color() & 0xFFFFFF));
+                graphics.setStroke(new BasicStroke(outline, BasicStroke.CAP_SQUARE, BasicStroke.JOIN_MITER));
+                if (!geometry.closed()) {
+                    // A route is only its line, and has no inside for a name to fit in.
+                    graphics.draw(areaPath);
+                    continue;
+                }
+                Area visibleShape = new Area(areaPath);
                 visibleShape.intersect(territoryShape);
                 if (visibleShape.isEmpty()) continue;
                 graphics.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, area.opacity() / 100.0f));
-                graphics.setColor(new Color(area.color() & 0xFFFFFF));
                 graphics.fill(areaPath);
                 graphics.setComposite(AlphaComposite.SrcOver);
-                graphics.setStroke(new BasicStroke(outline, BasicStroke.CAP_SQUARE, BasicStroke.JOIN_MITER));
                 graphics.draw(areaPath);
                 visibleOverlays.add(new VisibleOverlay(area, visibleShape));
             }
@@ -275,20 +294,20 @@ public final class AreaExportService {
         // The in-game map labels an area once it is wider than 50 and taller than 14 GUI pixels on screen.
         if (visible.getWidth() <= 50 * scale || visible.getHeight() <= 14 * scale) return;
         double preferredX = visible.getCenterX() - boxWidth / 2.0, preferredY = visible.getMinY() + 3 * scale;
-        java.awt.Rectangle best = null;
+        Rectangle best = null;
         double bestDistance = Double.POSITIVE_INFINITY;
         for (double y : samples(visible.getMinY(), visible.getMaxY() - boxHeight, preferredY))
             for (double x : samples(visible.getMinX(), visible.getMaxX() - boxWidth, preferredX)) {
-                java.awt.Rectangle box = new java.awt.Rectangle((int) Math.round(x), (int) Math.round(y), boxWidth, boxHeight);
+                Rectangle box = new Rectangle((int) Math.round(x), (int) Math.round(y), boxWidth, boxHeight);
                 if (!overlay.visibleShape().contains(box)) continue;
                 double distance = (x - preferredX) * (x - preferredX) + (y - preferredY) * (y - preferredY);
                 if (distance < bestDistance) { bestDistance = distance; best = box; }
             }
         if (best == null) {
             // Like the in-game map: centred at the top of the area even when the name is wider than the area.
-            java.awt.Rectangle image = graphics.getDeviceConfiguration().getBounds();
+            Rectangle image = graphics.getDeviceConfiguration().getBounds();
             int x = (int) Math.round(Math.max(0, Math.min(image.width - boxWidth, preferredX)));
-            best = new java.awt.Rectangle(x, (int) Math.round(preferredY), boxWidth, boxHeight);
+            best = new Rectangle(x, (int) Math.round(preferredY), boxWidth, boxHeight);
         }
         graphics.setColor(new Color(0x10, 0x18, 0x20, 0xB0));
         graphics.fillRect(best.x, best.y, best.width, best.height);
@@ -315,7 +334,7 @@ public final class AreaExportService {
 
     private static List<Double> samples(double minimum, double maximum, double preferred) {
         if (maximum < minimum) return List.of();
-        List<Double> values = new java.util.ArrayList<>(10);
+        List<Double> values = new ArrayList<>(10);
         values.add(Math.max(minimum, Math.min(maximum, preferred)));
         if (maximum > minimum) for (int i = 0; i <= 8; i++) values.add(minimum + (maximum - minimum) * i / 8.0);
         return values.stream().distinct().sorted(Comparator.comparingDouble(value -> Math.abs(value - preferred))).toList();
@@ -330,7 +349,7 @@ public final class AreaExportService {
             GridPoint point = vertices.get(i);
             path.lineTo((point.x() - originX) * (double) scale, (point.z() - originZ) * (double) scale);
         }
-        path.closePath();
+        if (geometry.closed()) path.closePath();
         return path;
     }
 

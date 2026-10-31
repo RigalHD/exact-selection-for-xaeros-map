@@ -27,7 +27,8 @@ abstract sealed class MapGesture {
         /** Resyncs the panel after a cancel restored the selection. */
         void refresh();
         void message(String key);
-        void updateVisibility();
+        /** The point of a saved area the pointer sticks to, or null. */
+        GridPoint snap(MapBridge.Frame frame, double x, double y);
     }
 
     enum Handle {
@@ -114,10 +115,20 @@ abstract sealed class MapGesture {
                 if (chunks && handle == Handle.MOVE && !(startGeometry instanceof PolygonGeometry)) {
                     dx = (int) (Math.round(dx / 16.0) * 16); dz = (int) (Math.round(dz / 16.0) * 16);
                 }
+                // A moved shape sticks by the first of its corners that comes within reach of a saved area.
+                if (handle == Handle.MOVE) for (GridPoint corner : startGeometry.vertices()) {
+                    GridPoint stuck = host.snap(frame, frame.screenX(corner.x() + dx), frame.screenY(corner.z() + dz));
+                    if (stuck != null) { dx = Math.toIntExact(stuck.x() - corner.x()); dz = Math.toIntExact(stuck.z() - corner.z()); break; }
+                }
                 if (handle == Handle.MOVE && startGeometry instanceof PolygonGeometry) {
                     host.state().setGeometry(startGeometry.translated(dx, dz));
                     host.selectionMoved();
                     return;
+                }
+                GridPoint stuck = handle == Handle.MOVE ? null : host.snap(frame, frame.screenX(pointerX), frame.screenY(pointerZ));
+                if (stuck != null) {
+                    if (handle.x != 0) pointerX = stuck.x();
+                    if (handle.z != 0) pointerZ = stuck.z();
                 }
                 long minX=b.minX(), maxX=b.maxX(), minZ=b.minZ(), maxZ=b.maxZ();
                 if (handle == Handle.MOVE) { minX+=dx; maxX+=dx; minZ+=dz; maxZ+=dz; }
@@ -190,7 +201,8 @@ abstract sealed class MapGesture {
             List<GridPoint> original = draftBefore != null ? draftBefore : before.geometry().vertices();
             try {
                 GridPoint start = original.get(index);
-                GridPoint point = new GridPoint(start.x() + Math.round(frame.worldX(x)) - pointerX,
+                GridPoint stuck = host.snap(frame, x, y);
+                GridPoint point = stuck != null ? stuck : new GridPoint(start.x() + Math.round(frame.worldX(x)) - pointerX,
                         start.z() + Math.round(frame.worldZ(y)) - pointerZ);
                 if (point.equals(start) && draftBefore == null) {
                     invalid = false; host.state().restore(before); host.selectionMoved(); return;
@@ -210,7 +222,6 @@ abstract sealed class MapGesture {
                 invalid = true;
                 host.message("polygon_vertex_invalid");
             }
-            host.updateVisibility();
         }
 
         @Override boolean finish(Host host) {
@@ -224,7 +235,6 @@ abstract sealed class MapGesture {
                 else if (!draftBefore.equals(host.draft())) host.recordDraftChange(draftBefore);
                 host.message("polygon_vertex_moved");
             }
-            host.updateVisibility();
             return true;
         }
 

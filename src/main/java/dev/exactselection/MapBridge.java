@@ -18,4 +18,7 @@ public interface MapBridge {
     MapProcessor exactselection$processor();
     void exactselection$pan(double dx, double dy);
     void exactselection$clearNativeInput();
+    /** Glides the map to a world point and zooms to {@code pixelsPerBlock}, within Xaero's zoom limits. */
+    void exactselection$moveCamera(double x, double z, double pixelsPerBlock);
+    void exactselection$closeMap();
 }

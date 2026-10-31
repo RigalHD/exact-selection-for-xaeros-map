@@ -27,7 +27,7 @@ public final class AreaRenderingCheck {
                     double sin = Math.sin(angle), cos = Math.cos(angle);
                     MinimapElementOverMapRendererHandler.translatePosition(pose, 100000, 100000, 100000, 100000,
                             sin, cos, delta[0], delta[1], zoom, false, partial);
-                    MinimapAreaOverlay.Point point = MinimapAreaOverlay.project(center.x + delta[0], center.z + delta[1], center, sin, cos, zoom);
+                    ScreenGeometry.Point point = MinimapAreaOverlay.project(center.x + delta[0], center.z + delta[1], center, sin, cos, zoom);
                     double expectedX = pose.last().pose().m30() + partial[0];
                     double expectedY = pose.last().pose().m31() + partial[1];
                     require(Math.abs(point.x() - expectedX) < 1.0E-6 && Math.abs(point.y() - expectedY) < 1.0E-6,
@@ -35,10 +35,10 @@ public final class AreaRenderingCheck {
                 }
             }
         }
-        List<MinimapAreaOverlay.Point> viewport = MinimapAreaOverlay.viewport(50, 50, true);
-        List<MinimapAreaOverlay.Point> covering = List.of(new MinimapAreaOverlay.Point(-100, -100),
-                new MinimapAreaOverlay.Point(100, -100), new MinimapAreaOverlay.Point(100, 100), new MinimapAreaOverlay.Point(-100, 100));
-        List<MinimapAreaOverlay.Point> clipped = MinimapAreaOverlay.clipPolygon(covering, viewport);
+        List<ScreenGeometry.Point> viewport = MinimapAreaOverlay.viewport(50, 50, true);
+        List<ScreenGeometry.Point> covering = List.of(new ScreenGeometry.Point(-100, -100),
+                new ScreenGeometry.Point(100, -100), new ScreenGeometry.Point(100, 100), new ScreenGeometry.Point(-100, 100));
+        List<ScreenGeometry.Point> clipped = ScreenGeometry.clipPolygon(covering, viewport);
         require(clipped.size() >= 32, "Clipping removed an area enclosing the whole minimap");
         for (var point : clipped) require(Math.hypot(point.x(), point.y()) <= 50.0, "Area fill escaped the circular minimap mask");
         System.out.println("PASS: non-culling area pipeline, native Xaero projection, and minimap clipping");

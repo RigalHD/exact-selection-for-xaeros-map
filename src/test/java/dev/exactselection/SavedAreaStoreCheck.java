@@ -47,6 +47,19 @@ public final class SavedAreaStoreCheck {
             com.google.gson.JsonObject old = SavedAreaStore.encode(hidden);
             old.remove("showNames");
             require(SavedAreaStore.decode(old).showNames(), "An older area file lost its area names");
+            // The file names its world, and a damaged file can be replaced by the version before its last write.
+            require(Files.readString(file).contains("store-check"), "The area file does not say which world it belongs to");
+            store.replace(new SavedAreaStore.State(List.of(first, second), List.of(), true, false));
+            Files.writeString(file, "{damaged");
+            SavedAreaStore damaged = new SavedAreaStore(directory);
+            try { damaged.useContext(context); throw new AssertionError("A damaged file was read"); }
+            catch (IOException expected) { require(damaged.canRestore(), "A damaged file offers no way back"); }
+            damaged.restoreBackup();
+            damaged.useContext(context);
+            require(damaged.state().equals(saved) && !damaged.loadFailed(), "The previous version did not come back");
+            require(Files.readString(file.resolveSibling(file.getFileName() + ".broken")).equals("{damaged"), "The damaged file was not kept");
+            reloaded.useContext(context);
+            require(reloaded.state().equals(saved), "The minimap's store did not see the restored file");
             // An oversized exchange file is refused before it is read into memory (a sparse file, so nothing is written).
             Path huge = directory.resolve("huge.json");
             try (var sparse = new java.io.RandomAccessFile(huge.toFile(), "rw")) { sparse.setLength(AreaTransfer.MAX_FILE_BYTES + 1); }

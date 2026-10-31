@@ -42,9 +42,9 @@ public final class SelectionCheck {
         assert state.phase() == SelectionState.Phase.SELECTED && state.bounds().x2() == -5;
         state.click(6, 7);
         assert state.phase() == SelectionState.Phase.PREVIEW && state.bounds().area() == 1;
-        state.escape();
+        state.reset();
         assert state.phase() == SelectionState.Phase.READY && state.bounds() == null;
-        state.escape(); assert !state.enabled();
+        state.disable(); assert !state.enabled();
         // Same block at different zoom levels, odd framebuffer dimensions and GUI scales.
         for (double guiScale : new double[]{1, 2, 3, 4}) {
             for (double zoom : new double[]{0.0625, 0.5, 1, 3.25, 50}) {

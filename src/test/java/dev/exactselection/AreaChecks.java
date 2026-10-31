@@ -50,6 +50,17 @@ final class AreaChecks {
             // A hidden area no longer catches the pointer; Fill stays in the menu, Color applies at once.
             mapClick(zones, 335, 195, right);
             require(((SavedAreaStore.Area) call(get(zones, "rightClickMenu"), "menuArea")).id().equals(saved.id()), "A hidden area caught the right click");
+            // Its details are rows of the menu; a click copies the value and leaves the menu open.
+            Object keyboardBefore = get(minecraft, "keyboardHandler");
+            ClipboardKeyboard keyboard = (ClipboardKeyboard) unsafe.allocateInstance(ClipboardKeyboard.class);
+            set(minecraft, "keyboardHandler", keyboard);
+            try {
+                require(!((Button) get(zones, "quickInfoGroup")).visible, "An area without a group shows a group row");
+                press(zones, "quickInfoName");
+                require(saved.name().equals(keyboard.copied) && (boolean) get(zones, "quickMenu"), "The name row did not copy the name: " + keyboard.copied);
+                press(zones, "quickInfoSize");
+                require(Long.toString((long) saved.geometry().area()).equals(keyboard.copied), "The size row did not copy the area: " + keyboard.copied);
+            } finally { set(minecraft, "keyboardHandler", keyboardBefore); }
             press(zones, "quickMenuOpacity");
             require(store.state().areas().get(0).opacity() == 50 && (boolean) get(zones, "quickMenu"), "Fill did not change the area");
             press(zones, "quickMenuColor");
@@ -75,18 +86,11 @@ final class AreaChecks {
             require(store.state().areas().size() == 1 && other.equals(selection.bounds()) && window(zones).equals("NONE"),
                     "Deleting an area from the map lost the selection");
 
-            // Hovering names an area, with the tool on and off, unless the tool is busy or the overlay is off.
+            // Its details are for the right-click menu; hovering, with the tool on or off, draws nothing extra.
             ExactSelectionController hover = toolOn(map, bridge, minecraft, directory, context, true, "hover");
-            require(drawsLabel(hover, unsafe, "exactselection.area", 340, 220), "Hovering a saved area showed nothing");
-            require(!drawsLabel(hover, unsafe, "exactselection.area", 100, 300), "Hovering the empty map showed an area");
-            press(hover, "rulerButton");
-            require(!drawsLabel(hover, unsafe, "exactselection.area", 340, 220), "The hover label got in the way of the ruler");
-            press(hover, "rulerButton");
-            press(hover, "polygonModeButton");
-            require(!drawsLabel(hover, unsafe, "exactselection.area", 340, 220), "The hover label got in the way of the Polygon tool");
-            press(hover, "polygonModeButton");
+            require(!drawsLabel(hover, unsafe, "exactselection.area", 340, 220), "Hovering a saved area showed its details");
             call(hover, "toggle");
-            require(drawsLabel(hover, unsafe, "exactselection.area", 340, 220), "Hovering showed nothing with the tool off");
+            require(!drawsLabel(hover, unsafe, "exactselection.area", 340, 220), "Hovering with the tool off showed its details");
         } finally {
             set(map, "children", children);
             map.setFocused(null);

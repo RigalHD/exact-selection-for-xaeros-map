@@ -477,13 +477,7 @@ public final class ExactSelectionController {
         if (enabled() && rulerTool.mode) {
             rulerTool.renderRuler(g, frame);
             g.nextStratum();
-        } else if (hoverable(mouseX, mouseY)) mapOverlays.renderAreaHover(g, frame, mouseX, mouseY);
-    }
-
-    /** Nothing under the pointer that a tooltip would get in the way of. */
-    private boolean hoverable(double x, double y) {
-        return dialog == Dialog.NONE && !rightClickMenu.quickMenu && gesture == null && !polygonTool.mode
-                && !selectionPanel.overPanel(x, y) && !selectionPanel.toggle.isMouseOver(x, y) && !overNativeWidget(x, y);
+        }
     }
 
     public void render(GuiGraphics g, int mouseX, int mouseY, float delta) {

@@ -246,7 +246,6 @@ final class ToolChecks {
                 } catch (ReflectiveOperationException e) { throw new AssertionError(e); }
             }, GuiRenderState.TraverseRange.ALL);
             require(count[0] == 2 * 24, "A route of two segments was drawn with " + count[0] + " vertices, closed or filled");
-            require(drawsLabel(routes, unsafe, "route_length", 130, 300), "Hovering a route did not show its length");
             mapClick(routes, 130, 300, GLFW.GLFW_MOUSE_BUTTON_RIGHT);
             require((boolean) get(routes, "quickMenu") && ((Button) get(routes, "quickMenuHide")).visible
                     && !((Button) get(routes, "quickMenuEdit")).visible && !((Button) get(routes, "quickMenuOpacity")).visible, "The route's menu is wrong");

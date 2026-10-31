@@ -88,8 +88,11 @@ final class PixelIcons {
 
     /** A pixel icon centred on an empty button, with a one-pixel shadow like the button labels. */
     static void renderIcon(GuiGraphics g, String[] icon, Button button, int color) {
-        int x = button.getX() + (button.getWidth() - icon[0].length()) / 2;
-        int y = button.getY() + (button.getHeight() - icon.length) / 2;
+        renderIcon(g, icon, button.getX() + (button.getWidth() - icon[0].length()) / 2,
+                button.getY() + (button.getHeight() - icon.length) / 2, color);
+    }
+
+    static void renderIcon(GuiGraphics g, String[] icon, int x, int y, int color) {
         int shadow = 0xFF000000 | (color & 0xFCFCFC) >> 2;
         for (int pass = 0; pass < 2; pass++) {
             int offset = pass == 0 ? 1 : 0;

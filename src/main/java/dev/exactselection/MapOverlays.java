@@ -12,7 +12,6 @@ import net.minecraft.network.chat.Component;
 import xaero.map.WorldMap;
 import xaero.map.common.config.option.WorldMapProfiledConfigOptions;
 import static dev.exactselection.ExactSelectionController.ACCENT;
-import static dev.exactselection.SelectionPanel.formatLength;
 
 /** What the tool draws over the map: saved areas with their names, and the current selection with its handles. */
 final class MapOverlays extends UiPart {
@@ -59,16 +58,6 @@ final class MapOverlays extends UiPart {
     }
 
     /** Name, group and size of the area under the pointer; a small area has no label on the map at all. */
-    void renderAreaHover(GuiGraphics g, MapBridge.Frame frame, double mouseX, double mouseY) {
-        Area area = ui.areasWindow.areaAt(frame, mouseX, mouseY);
-        if (area == null) return;
-        Group group = ui.groupsWindow.findGroup(area.groupId());
-        String size = area.geometry().closed() ? ui.tr("area", SelectionDialogs.formatNumber(area.geometry().area())).getString()
-                : ui.tr("route_length", formatLength(area.geometry().perimeter())).getString();
-        int x = (int) mouseX, y = Math.max(2, (int) mouseY - 26);
-        label(g, Component.literal(area.name()), x, y, -1);
-        label(g, Component.literal(group == null ? size : group.name() + " · " + size), x, y + 11, 0xFF9BAAB7);
-    }
 
     boolean onScreen(MapBridge.Frame frame, GeometryBounds bounds) {
         return frame.screenX(bounds.maxX()) > 0 && frame.screenX(bounds.minX()) < ui.screen.width

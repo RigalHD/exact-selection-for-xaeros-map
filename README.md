@@ -39,8 +39,7 @@ The addon uses Xaero internals. Other World Map or Minecraft versions need separ
 | Drag a handle | Resize the rectangle |
 | Drag inside the finished selection (or Shift + drag, also from a handle) | Move the whole rectangle or polygon, also with the Polygon tool on; a click inside without moving keeps it, or with the Polygon tool starts a new contour there |
 | Right click inside the selection | A menu styled like Xaero's own with quick actions: Size (not for polygons), Move, Center and Clear selection; plus Save… for a new selection, or Color…, Fill and Delete zone (after confirmation) for the territory being edited |
-| Right click a saved area | The same menu for that area: Edit territory, Color…, Fill, Hide and Delete zone (a route has Color…, Hide and Delete zone); of overlapping areas it takes the smallest |
-| Hover a saved area | Its name, group and area, also with the tool off while the Map switch is on |
+| Right click a saved area | The same menu for that area, with its name, group and size on top (click one to copy it): Edit territory, Color…, Fill, Hide and Delete zone (a route has Color…, Hide and Delete zone); of overlapping areas it takes the smallest |
 | Right mouse drag | Pan the map |
 | Scroll outside the panel | Zoom around the cursor |
 | Coordinates / Size / Move | Enter exact coordinates, dimensions or offsets |

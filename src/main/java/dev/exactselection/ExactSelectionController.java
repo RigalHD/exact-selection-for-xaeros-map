@@ -527,6 +527,8 @@ public final class ExactSelectionController {
         if (dialog == Dialog.AREAS) areasWindow.updateAreaWidgets();
         if (dialog == Dialog.GROUPS) groupsWindow.updateGroupWidgets();
         windows.layoutDialog();
+        // A hidden field would keep taking the keys meant for the map, such as undo and the tool keys.
+        if (screen.getFocused() instanceof AbstractWidget widget && widgets.contains(widget) && !widget.visible) focus(null);
     }
 
     void show(boolean visible, AbstractWidget... targets) {

@@ -45,6 +45,10 @@ public final class AreaExportService {
     public static final class TooLargeException extends IllegalArgumentException {
         TooLargeException(String message) { super(message); }
     }
+    /** Xaero has no map of the area because nobody explored it; the user can act on this too. */
+    public static final class UnexploredException extends IllegalArgumentException {
+        UnexploredException() { super("The area has not been explored"); }
+    }
     /**
      * What the export window chose: target folder and file name, Xaero's night lighting, image pixels per block,
      * saved-area overlays and labels, and the game's pixel font (null draws labels with a plain system font).
@@ -151,6 +155,7 @@ public final class AreaExportService {
                 nativeResult = mapExporter.export(processor, processor.worldBiomeRegistry,
                         processor.getWorldDimensionTypeRegistry(), selection, saveLoad.getOldFormatSupport());
             }
+            if (nativeResult != null && nativeResult.getType().name().equals("EMPTY")) throw new UnexploredException();
             if (nativeResult == null || !nativeResult.getType().isSuccess())
                 throw new IOException("Xaero map rendering failed: " + (nativeResult == null ? "no result" : nativeResult.getType().name()));
             return new RawJob(jobDirectory, exportRoot, id, rawWidth, rawHeight,

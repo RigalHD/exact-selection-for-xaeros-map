@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Undo and redo with the waypoint window open update its list. The loaded-area hints name the Save button, and the name fields of existing areas and of routes are labelled as such.
+- Exporting a part of the map nobody explored says so instead of pointing to the game log. A widget that goes away no longer keeps the focus, which could leave the tool keys and undo dead after an export.
 - Ruler: a button in the panel header measures a line through points snapped to block corners (click A and B, or drag; Ctrl/Cmd + click adds a point, Backspace takes it back). The panel stays compact while it is on. The map shows the line and its length; the panel shows the length with a copy button, ΔX, ΔZ, the distance along the axes, and the same length in the Nether or Overworld.
 - Routes: Save keeps the ruler's line as an entry of the Areas window, drawn as an open line on the map, minimap and PNG.
 - A right click on a saved area opens a menu for it: Edit territory, Color…, Fill, Hide and Delete zone. Of overlapping areas it takes the smallest.

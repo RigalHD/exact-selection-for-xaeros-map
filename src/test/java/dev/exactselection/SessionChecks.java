@@ -172,6 +172,11 @@ final class SessionChecks {
         require(edit.active, "A click left the buttons out of date for the next event of its frame");
         key(tool, GLFW.GLFW_KEY_ESCAPE, 0);
         require(!close.visible, "A key left the buttons out of date for the next event of its frame");
+        press(tool, "areasButton");
+        tool.focus(edit);
+        set(tool, "dialog", dialog(tool, "NONE"));
+        tool.updateVisibility();
+        require(map.getFocused() == null, "The focus stayed on a widget that went away");
         System.out.println("PASS: events within one frame see the widgets the previous event left");
     }
 

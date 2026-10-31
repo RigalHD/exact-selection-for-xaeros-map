@@ -177,6 +177,7 @@
   "exactselection.area_export_tooltip": "Сохранить PNG карты в границах выбранной области и наложить видимые сохранённые области.",
   "exactselection.area_exported": "PNG сохранён · %s×%s",
   "exactselection.area_export_failed": "Не удалось экспортировать карту. Подробности — в журнале игры.",
+  "exactselection.area_export_unexplored": "Экспортировать нечего: эта часть карты ещё не исследована.",
   "exactselection.area_exporting": "Экспорт карты…",
   "exactselection.area_export_too_large": "Область слишком велика для экспорта: не более %s пикселей с выравниванием по чанкам.",
   "exactselection.areas_window": "Области",

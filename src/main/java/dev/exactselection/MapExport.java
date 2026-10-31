@@ -79,6 +79,9 @@ final class MapExport extends UiPart {
         } catch (AreaExportService.TooLargeException e) {
             ui.say("area_export_too_large", AreaExportService.MAX_PIXELS);
             return;
+        } catch (AreaExportService.UnexploredException e) {
+            ui.say("area_export_unexplored");
+            return;
         } catch (Exception e) {
             exportFailed(e);
             return;

@@ -177,6 +177,7 @@
   "exactselection.area_export_tooltip": "Save a PNG of the selected area and overlay visible saved areas.",
   "exactselection.area_exported": "PNG saved · %s×%s",
   "exactselection.area_export_failed": "Could not export the map. See the game log for details.",
+  "exactselection.area_export_unexplored": "Nothing to export: this part of the map has not been explored.",
   "exactselection.area_exporting": "Exporting the map…",
   "exactselection.area_export_too_large": "The area is too large to export: the limit is %s pixels, aligned to whole chunks.",
   "exactselection.areas_window": "Areas",

@@ -106,10 +106,6 @@ final class InputRouter extends UiPart {
         if (!ui.selectionPanel.compact && step != 0) {
             ui.selectionPanel.panelScroll = scrolled(ui.selectionPanel.panelScroll, step * 20, ui.selectionPanel.maxPanelScroll(), 0);
             ui.selectionPanel.layoutMainPanel();
-            // The focus must not stay on a field that scrolled out of the panel.
-            ui.updateVisibility();
-            if (ui.screen.getFocused() instanceof AbstractWidget widget && ui.widgets.contains(widget) && !widget.visible)
-                ui.focus(null);
         }
         return true;
     }

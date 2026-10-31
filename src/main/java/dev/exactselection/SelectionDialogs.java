@@ -1,12 +1,14 @@
 package dev.exactselection;
 
 import dev.exactselection.ExactSelectionController.Dialog;
+import java.math.BigDecimal;
 import net.minecraft.client.gui.components.Button;
 import static dev.exactselection.ExactSelectionController.CENTER_NAME_FIELD;
 import static dev.exactselection.ExactSelectionController.LENGTH_FIELD;
 import static dev.exactselection.ExactSelectionController.OFFSET_X_FIELD;
 import static dev.exactselection.ExactSelectionController.OFFSET_Z_FIELD;
 import static dev.exactselection.ExactSelectionController.WIDTH_FIELD;
+import static dev.exactselection.ModLog.LOG;
 
 /** The Size, Move and Center windows of the current selection. */
 final class SelectionDialogs extends UiPart {
@@ -29,7 +31,7 @@ final class SelectionDialogs extends UiPart {
     }
 
     static String formatNumber(double value) {
-        return value == Math.rint(value) ? Long.toString((long) value) : Double.toString(value);
+        return value == Math.rint(value) ? Long.toString((long) value) : new BigDecimal(value).toPlainString();
     }
 
     void createCenterWaypoint() {
@@ -48,7 +50,10 @@ final class SelectionDialogs extends UiPart {
                 @Override public String label() { return ui.tr("history_waypoint").getString(); }
             });
             ui.say("waypoint_created"); ui.dialog = Dialog.NONE; ui.updateSelection();
-        } catch (Exception e) { ui.say("save_failed"); }
+        } catch (Exception e) {
+            ui.say("save_failed");
+            LOG.error("Could not create the center waypoint", e);
+        }
         ui.focus(null);
     }
 

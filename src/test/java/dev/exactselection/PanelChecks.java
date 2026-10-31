@@ -89,6 +89,7 @@ final class PanelChecks {
     }
 
     static void checkFramedAreasAndMetrics(ExactSelectionController controller, SavedAreaStore store) throws Exception {
+        require(SelectionDialogs.formatNumber(10004500.5).equals("10004500.5"), "A large value with a fraction was shown in scientific notation");
         SelectionState selection = (SelectionState) get(controller, "state");
         SelectionState.Snapshot initial = selection.snapshot();
         SavedAreaStore.State saved = store.state();

@@ -133,7 +133,7 @@ public record PolygonGeometry(List<GridPoint> vertices) implements AreaGeometry 
         for (int i = 0; i < n; i++) {
             GridPoint a = points.get(i), b = points.get((i + 1) % n);
             for (int j = i + 1; j < n; j++) {
-                if (j == i || j == (i + 1) % n || i == (j + 1) % n) continue;
+                if (j == (i + 1) % n || i == (j + 1) % n) continue;
                 GridPoint c = points.get(j), d = points.get((j + 1) % n);
                 if (segmentsIntersect(a, b, c, d)) throw new IllegalArgumentException("Polygon edges intersect or touch");
             }

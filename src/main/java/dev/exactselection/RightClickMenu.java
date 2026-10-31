@@ -14,13 +14,13 @@ import static dev.exactselection.ExactSelectionController.place;
 final class RightClickMenu extends UiPart {
     /** Row height of the right-click menu, as in Xaero's. */
     private static final int MENU_ROW = 11;
-    /** It stays where it opened until an action or a click elsewhere. */
     private Button quickMenuSave, quickMenuEdit, quickMenuHide, quickMenuColor, quickMenuOpacity, quickMenuDelete;
     private Button quickMenuRaise, quickMenuLower;
     private Button quickMenuClear;
     /** The rows with a saved area's details, in place of the title row and above the actions; a click copies the value. */
     private Button quickInfoName, quickInfoGroup, quickInfoSize;
     boolean quickMenu;
+    /** Where the menu opened; it stays there while it is open. */
     private int quickMenuX;
     private int quickMenuY;
     /** The saved area the menu opened on; null when it opened on the selection. */
@@ -53,7 +53,8 @@ final class RightClickMenu extends UiPart {
                     : List.of(quickMenuEdit, quickMenuColor, quickMenuOpacity, quickMenuRaise, quickMenuLower, quickMenuHide, quickMenuDelete));
             return rows;
         }
-        List<Button> items = new ArrayList<>(ui.areasWindow.editedArea() == null ? List.of(quickMenuSave) : List.of(quickMenuColor, quickMenuOpacity, quickMenuRaise, quickMenuLower));
+        List<Button> items = new ArrayList<>(ui.areasWindow.editedArea() == null ? List.of(quickMenuSave)
+                : List.of(quickMenuColor, quickMenuOpacity, quickMenuRaise, quickMenuLower));
         // A polygon has no width and length to set.
         if (!(ui.state.geometry() instanceof PolygonGeometry)) items.add(ui.selectionPanel.sizeButton);
         items.addAll(List.of(ui.selectionPanel.moveButton, ui.selectionPanel.centerButton));

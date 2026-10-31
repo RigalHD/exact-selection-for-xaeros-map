@@ -184,7 +184,7 @@ final class GroupsWindow extends UiPart {
         g.drawString(ui.mc.font, ui.tr("group_selected"), right, y + 34, 0xFF9BAAB7);
         g.drawString(ui.mc.font, ui.mc.font.plainSubstrByWidth(group == null ? ui.tr("group_not_selected").getString() : group.name(), col), right, y + 48, -1);
         // Below the group buttons, while the window is tall enough to leave them clear of the export notice.
-        if (y + 218 <= y + h - 46) {
+        if (h >= 264) {
             List<Area> all = ui.areas(), ungrouped = groupAreas(null);
             g.drawString(ui.mc.font, ui.mc.font.plainSubstrByWidth(ui.tr("groups_total", all.size(),
                     formatLength(totalArea(all))).getString(), col), right, y + 194, 0xFF9BAAB7);

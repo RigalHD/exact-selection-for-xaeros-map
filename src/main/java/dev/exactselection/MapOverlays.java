@@ -39,7 +39,7 @@ final class MapOverlays extends UiPart {
             int fillAlpha = area.opacity() * 255 / 100 / (superseded ? 3 : 1);
             int fill = (fillAlpha << 24) | rgb, outline = (superseded ? 0x60000000 : 0xFF000000) | rgb;
             int labelColor = (superseded ? 0x99000000 : 0xFF000000) | rgb;
-            if (area.vertices().size() > 0) {
+            if (!area.vertices().isEmpty()) {
                 GeometryScreenRenderer.draw(g, frame, geometry, ui.screen.width, ui.screen.height, fill, outline, superseded ? 1.0 : 1.5);
                 ScreenPoint anchor = geometry.closed() ? polygonLabelAnchor(frame, geometry, geometryBounds) : routeLabelAnchor(frame, geometry);
                 if (anchor != null && names) mapLabels.add(new MapLabel(Component.literal(area.name()),
@@ -56,8 +56,6 @@ final class MapOverlays extends UiPart {
                 mapLabels.add(new MapLabel(Component.literal(area.name()), (x1 + x2) / 2, y1 + 3, labelColor));
         }
     }
-
-    /** Name, group and size of the area under the pointer; a small area has no label on the map at all. */
 
     boolean onScreen(MapBridge.Frame frame, GeometryBounds bounds) {
         return frame.screenX(bounds.maxX()) > 0 && frame.screenX(bounds.minX()) < ui.screen.width

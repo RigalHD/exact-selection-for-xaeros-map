@@ -348,7 +348,10 @@ public final class ExactSelectionController {
         }
         if (!history.canUndo()) return;
         try { history.undo(); say("history_undone"); }
-        catch (Exception e) { say("history_failed"); }
+        catch (Exception e) {
+            say("history_failed");
+            LOG.error("Could not undo a step", e);
+        }
         refreshSelectionState();
     }
 
@@ -357,7 +360,10 @@ public final class ExactSelectionController {
         if (!history.canRedo() || dialog == Dialog.NONE
                 && (dirty || !polygonTool.draft.isEmpty() || gesture != null)) return;
         try { history.redo(); say("history_redone"); }
-        catch (Exception e) { say("history_failed"); }
+        catch (Exception e) {
+            say("history_failed");
+            LOG.error("Could not redo a step", e);
+        }
         refreshSelectionState();
     }
 
@@ -492,12 +498,16 @@ public final class ExactSelectionController {
             if (widget.visible && !menu.contains(widget)) widget.render(g, mouseX, mouseY, delta);
         }
         g.nextStratum();
-        if (selectionPanel.panelModeButton.visible) PixelIcons.renderIcon(g, selectionPanel.compact ? PixelIcons.EXPAND : PixelIcons.COLLAPSE, selectionPanel.panelModeButton, 0xFFE0E0E0);
+        if (selectionPanel.panelModeButton.visible)
+            PixelIcons.renderIcon(g, selectionPanel.compact ? PixelIcons.EXPAND : PixelIcons.COLLAPSE, selectionPanel.panelModeButton, 0xFFE0E0E0);
         if (areasWindow.autosaveButton.visible) PixelIcons.renderIcon(g, PixelIcons.GEAR, areasWindow.autosaveButton, areasWindow.autosaveOpen ? ACCENT : 0xFFE0E0E0);
         if (transferWindow.transferFolderButton.visible) PixelIcons.renderIcon(g, PixelIcons.FOLDER, transferWindow.transferFolderButton, 0xFFE0E0E0);
-        if (selectionPanel.rulerButton.visible) PixelIcons.renderIcon(g, PixelIcons.RULER, selectionPanel.rulerButton, !selectionPanel.rulerButton.active ? 0xFF8A8A8A : rulerTool.mode ? RulerTool.COLOR : 0xFFE0E0E0);
+        if (selectionPanel.rulerButton.visible)
+            PixelIcons.renderIcon(g, PixelIcons.RULER, selectionPanel.rulerButton,
+                    !selectionPanel.rulerButton.active ? 0xFF8A8A8A : rulerTool.mode ? RulerTool.COLOR : 0xFFE0E0E0);
         if (areasWindow.areaShow.visible) PixelIcons.renderIcon(g, PixelIcons.TARGET, areasWindow.areaShow, 0xFFE0E0E0);
-        for (Button copy : List.of(selectionPanel.copyCoordinates, selectionPanel.copyCornerB, selectionPanel.copyArea, selectionPanel.copyPerimeter, selectionPanel.copyLength, selectionPanel.copyWidth, selectionPanel.copyRulerDistance))
+        for (Button copy : List.of(selectionPanel.copyCoordinates, selectionPanel.copyCornerB, selectionPanel.copyArea, selectionPanel.copyPerimeter,
+                selectionPanel.copyLength, selectionPanel.copyWidth, selectionPanel.copyRulerDistance))
             if (copy.visible) PixelIcons.renderIcon(g, PixelIcons.COPY, copy, copy.active ? 0xFFE0E0E0 : 0xFF8A8A8A);
         for (Button copy : areasWindow.copyIcons()) if (copy.visible) PixelIcons.renderIcon(g, PixelIcons.COPY, copy, copy.active ? 0xFFE0E0E0 : 0xFF8A8A8A);
         exportWindow.renderPlaceholder(g, screen.getFocused() == exportWindow.folder);

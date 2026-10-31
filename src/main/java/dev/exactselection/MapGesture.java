@@ -97,9 +97,9 @@ abstract sealed class MapGesture {
             double left = frame.screenX(b.minX()), right = frame.screenX((long) b.maxX() + 1);
             double top = frame.screenY(b.minZ()), bottom = frame.screenY((long) b.maxZ() + 1);
             double midX = (left + right) / 2, midY = (top + bottom) / 2;
-            double[][] pts = {{left,top},{midX,top},{right,top},{left,midY},{right,midY},{left,bottom},{midX,bottom},{right,bottom}};
-            Handle[] kinds = {Handle.NORTH_WEST,Handle.NORTH,Handle.NORTH_EAST,Handle.WEST,Handle.EAST,Handle.SOUTH_WEST,Handle.SOUTH,Handle.SOUTH_EAST};
-            for (int i=0;i<pts.length;i++) if (Math.abs(x-pts[i][0]) <= 7 && Math.abs(y-pts[i][1]) <= 7) return kinds[i];
+            double[][] pts = {{left, top}, {midX, top}, {right, top}, {left, midY}, {right, midY}, {left, bottom}, {midX, bottom}, {right, bottom}};
+            Handle[] kinds = {Handle.NORTH_WEST, Handle.NORTH, Handle.NORTH_EAST, Handle.WEST, Handle.EAST, Handle.SOUTH_WEST, Handle.SOUTH, Handle.SOUTH_EAST};
+            for (int i = 0; i < pts.length; i++) if (Math.abs(x - pts[i][0]) <= 7 && Math.abs(y - pts[i][1]) <= 7) return kinds[i];
             return null;
         }
 
@@ -131,8 +131,8 @@ abstract sealed class MapGesture {
                     if (handle.x != 0) pointerX = stuck.x();
                     if (handle.z != 0) pointerZ = stuck.z();
                 }
-                long minX=b.minX(), maxX=b.maxX(), minZ=b.minZ(), maxZ=b.maxZ();
-                if (handle == Handle.MOVE) { minX+=dx; maxX+=dx; minZ+=dz; maxZ+=dz; }
+                long minX = b.minX(), maxX = b.maxX(), minZ = b.minZ(), maxZ = b.maxZ();
+                if (handle == Handle.MOVE) { minX += dx; maxX += dx; minZ += dz; maxZ += dz; }
                 long[] xs = handle.x < 0 ? dragEdge(pointerX, (long) b.maxX() + 1, true, chunks)
                         : handle.x > 0 ? dragEdge(pointerX, b.minX(), false, chunks) : null;
                 long[] zs = handle.z < 0 ? dragEdge(pointerZ, (long) b.maxZ() + 1, true, chunks)

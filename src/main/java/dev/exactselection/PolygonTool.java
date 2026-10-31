@@ -179,7 +179,7 @@ final class PolygonTool extends UiPart {
             clearDraft();
             ui.commitSelection(before, ui.state.snapshot(), "polygon");
             ui.say("polygon_created");
-        } catch (IllegalArgumentException | IllegalStateException e) {
+        } catch (IllegalArgumentException e) {
             ui.say("polygon_invalid");
         }
     }

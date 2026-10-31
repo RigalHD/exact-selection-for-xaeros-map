@@ -95,7 +95,7 @@ final class TransferWindow extends UiPart {
             ui.say("areas_imported", merge.added(), merge.skipped());
         } catch (Exception e) {
             ui.say("areas_import_failed", file.getFileName().toString());
-            LOG.warn("Could not import " + file, e);
+            LOG.warn("Could not import {}", file, e);
         }
         ui.focus(null);
     }

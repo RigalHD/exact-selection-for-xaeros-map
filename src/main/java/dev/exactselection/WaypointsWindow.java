@@ -34,7 +34,7 @@ final class WaypointsWindow extends UiPart {
     }
 
     private void cycleColorFilter() {
-        colorFilter = colorFilter < 0 ? 0 : colorFilter >= 15 ? -1 : colorFilter + 1;
+        colorFilter = colorFilter < 0 ? 0 : colorFilter >= WaypointAccess.COLOR_COUNT - 1 ? -1 : colorFilter + 1;
     }
 
     List<WaypointAccess.Point> filteredPoints() {

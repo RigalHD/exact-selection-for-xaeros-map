@@ -67,10 +67,6 @@ final class AreasWindow extends UiPart {
     private State overlapState;
     private Set<String> overlapIds = Set.of();
 
-    /** The last pair of checked shapes and their shared area: intersecting polygons is too costly for every frame. */
-    private List<AreaGeometry> sharedPair = List.of();
-    private double sharedValue;
-
     private State sortedState;
     private AreaSort sortedBy;
     private String sortedQuery = "";
@@ -90,11 +86,11 @@ final class AreasWindow extends UiPart {
         Set<String> existing = new HashSet<>();
         for (Area area : areas) existing.add(area.id());
         selectedAreaIds.retainAll(existing);
-        if (!selectedAreaIds.contains(areaId)) areaId = selectedAreaIds.stream().reduce((first, last) -> last).orElse(null);
+        if (!selectedAreaIds.contains(areaId)) areaId = lastOf(selectedAreaIds);
         if (ui.groupsWindow.selectedGroup() == null) ui.groupsWindow.groupId = null;
         // History replaced the stored areas; a draft based on the old values no longer applies.
         ui.areaEdits.areaDraft.clear();
-        ui.setDialogValue(AREA_NAME_FIELD, selectedAreaIds.size() == 1 && selectedArea() != null ? selectedArea().name() : "");
+        syncNameField();
     }
 
     Area area(String id) {
@@ -102,6 +98,13 @@ final class AreasWindow extends UiPart {
     }
 
     Area selectedArea() { return area(areaId); }
+
+    private static String lastOf(Set<String> ids) { return ids.stream().reduce((first, last) -> last).orElse(null); }
+
+    /** The name field holds the name of the one checked area, and nothing otherwise. */
+    private void syncNameField() {
+        ui.setDialogValue(AREA_NAME_FIELD, selectedAreaIds.size() == 1 && selectedArea() != null ? selectedArea().name() : "");
+    }
 
     /** The shown area under the pointer; the smallest of overlapping ones, so a plot inside a district can be picked, and the upper of equal ones. */
     Area areaAt(MapBridge.Frame frame, double x, double y) {
@@ -205,7 +208,7 @@ final class AreasWindow extends UiPart {
         List<Area> areas = displayedAreas();
         for (Area area : areas) selectedAreaIds.add(area.id());
         areaId = areas.isEmpty() ? null : areas.get(areas.size() - 1).id();
-        ui.setDialogValue(AREA_NAME_FIELD, selectedAreaIds.size() == 1 && selectedArea() != null ? selectedArea().name() : "");
+        syncNameField();
     }
 
     private void clearAreaSelection() {
@@ -245,8 +248,8 @@ final class AreasWindow extends UiPart {
         ui.windows.openDialog(Dialog.AREAS);
         if (ui.dialog != Dialog.AREAS) return;
         selectedAreaIds.addAll(ids);
-        areaId = ids.stream().reduce((first, last) -> last).orElse(null);
-        ui.setDialogValue(AREA_NAME_FIELD, selectedAreaIds.size() == 1 && selectedArea() != null ? selectedArea().name() : "");
+        areaId = lastOf(ids);
+        syncNameField();
         ui.say("zones_in_selection_opened", ids.size());
     }
 
@@ -392,14 +395,7 @@ final class AreasWindow extends UiPart {
                 : new MetricLine(List.of(ui.tr("area_overlap_none").getString()), List.of()));
     }
 
-    private double sharedArea(List<Area> two) {
-        List<AreaGeometry> pair = List.of(two.get(0).geometry(), two.get(1).geometry());
-        if (!pair.equals(sharedPair)) {
-            sharedPair = pair;
-            sharedValue = pair.get(0).sharedArea(pair.get(1));
-        }
-        return sharedValue;
-    }
+    private static double sharedArea(List<Area> two) { return two.get(0).geometry().sharedArea(two.get(1).geometry()); }
 
     List<Button> copyIcons() {
         List<Button> icons = new ArrayList<>(List.of(areaCopies));
@@ -510,9 +506,8 @@ final class AreasWindow extends UiPart {
                     if (!selectedAreaIds.remove(area.id()) || !toggle) selectedAreaIds.add(area.id());
                     areaAnchorId = area.id();
                 }
-                areaId = selectedAreaIds.contains(area.id()) ? area.id()
-                        : selectedAreaIds.stream().reduce((first, last) -> last).orElse(null);
-                ui.setDialogValue(AREA_NAME_FIELD, selectedAreaIds.size() == 1 && selectedArea() != null ? selectedArea().name() : "");
+                areaId = selectedAreaIds.contains(area.id()) ? area.id() : lastOf(selectedAreaIds);
+                syncNameField();
                 ui.focus(null);
             }
         }
@@ -576,7 +571,8 @@ final class AreasWindow extends UiPart {
     void showAreaWidgets() {
         if (areaDeleteConfirmation) ui.show(true, ui.confirm, ui.cancel);
         else {
-            ui.show(true, ui.managementClose, ui.groupsWindow.manageGroups, ui.managementUndo, ui.managementRedo, areaSave, ui.transferWindow.areaExportFile, ui.transferWindow.areaImport,
+            ui.show(true, ui.managementClose, ui.groupsWindow.manageGroups, ui.managementUndo, ui.managementRedo, areaSave,
+                    ui.transferWindow.areaExportFile, ui.transferWindow.areaImport,
                     ui.transferWindow.transferFolderButton, areaSortButton, areaSearch,
                     areaSelectAll, areaClearSelection, areaMapVisibility, areaMinimapVisibility, areaNames, autosaveButton);
             int[] r = ui.windows.dialogRect();
@@ -674,7 +670,7 @@ final class AreasWindow extends UiPart {
                 ui.autosave.toggle(field);
                 if (ui.autosave.covers(field)) ui.areaEdits.commitDraft(f -> f == field);
             }));
-        areaSortButton = ui.button("area_sort_date", "area_sort_tooltip", () -> {
+        areaSortButton = ui.button("area_sort_layer", "area_sort_tooltip", () -> {
             areaSort = AreaSort.values()[(areaSort.ordinal() + 1) % AreaSort.values().length];
             areaScroll = 0;
         });

@@ -191,9 +191,11 @@ final class InputRouter extends UiPart {
             Button bound = ToolKeys.POLYGON.matches(event) ? ui.selectionPanel.polygonModeButton : ToolKeys.RULER.matches(event) ? ui.selectionPanel.rulerButton
                     : ToolKeys.AREAS.matches(event) ? ui.selectionPanel.areasButton : ToolKeys.UNITS.matches(event) ? ui.selectionPanel.chunkMode : null;
             if (bound != null) {
-                if (bound.active) bound.onPress(event);
-                // The compact panel has no units button to show the new value.
-                if (bound == ui.selectionPanel.chunkMode) ui.message = ui.selectionPanel.chunkMode.getMessage().getString();
+                if (bound.active) {
+                    bound.onPress(event);
+                    // The compact panel has no units button to show the new value.
+                    if (bound == ui.selectionPanel.chunkMode) ui.message = ui.selectionPanel.chunkMode.getMessage().getString();
+                }
                 return true;
             }
         }

@@ -174,11 +174,15 @@ final class Windows extends UiPart {
 
     /** Which widgets the open window shows; the Areas and Groups windows decide for themselves. */
     void showWindowWidgets() {
-        if (ui.dialog == Dialog.SIZE) ui.show(true, ui.dialogFields[WIDTH_FIELD], ui.dialogFields[LENGTH_FIELD], ui.selectionDialogs.anchorButton, ui.modalApply, ui.modalCancel);
-        if (ui.dialog == Dialog.MOVE) ui.show(true, ui.dialogFields[OFFSET_X_FIELD], ui.dialogFields[OFFSET_Z_FIELD], ui.selectionDialogs.moveUnitsButton, ui.modalApply, ui.modalCancel);
-        if (ui.dialog == Dialog.CENTER) ui.show(true, ui.dialogFields[CENTER_NAME_FIELD], ui.selectionDialogs.centerCopy, ui.selectionDialogs.centerCreate, ui.modalCancel);
+        if (ui.dialog == Dialog.SIZE)
+            ui.show(true, ui.dialogFields[WIDTH_FIELD], ui.dialogFields[LENGTH_FIELD], ui.selectionDialogs.anchorButton, ui.modalApply, ui.modalCancel);
+        if (ui.dialog == Dialog.MOVE)
+            ui.show(true, ui.dialogFields[OFFSET_X_FIELD], ui.dialogFields[OFFSET_Z_FIELD], ui.selectionDialogs.moveUnitsButton, ui.modalApply, ui.modalCancel);
+        if (ui.dialog == Dialog.CENTER)
+            ui.show(true, ui.dialogFields[CENTER_NAME_FIELD], ui.selectionDialogs.centerCopy, ui.selectionDialogs.centerCreate, ui.modalCancel);
         if (ui.dialog == Dialog.AREA_NAME) {
-            ui.show(true, ui.dialogFields[NEW_AREA_FIELD], ui.dialogFields[HEX_FIELD], ui.newAreaWindow.newAreaGroup, ui.newAreaWindow.newAreaOpacityButton, ui.modalApply, ui.modalCancel);
+            ui.show(true, ui.dialogFields[NEW_AREA_FIELD], ui.dialogFields[HEX_FIELD], ui.newAreaWindow.newAreaGroup, ui.newAreaWindow.newAreaOpacityButton,
+                    ui.modalApply, ui.modalCancel);
             // A route has nothing to fill.
             ui.newAreaWindow.newAreaOpacityButton.visible = ui.newAreaWindow.routeToSave == null;
         }
@@ -266,7 +270,8 @@ final class Windows extends UiPart {
             }
             case CENTER -> {
                 SelectionBounds b = ui.state.bounds();
-                g.drawString(ui.mc.font, b == null ? ui.tr("no_selection") : ui.tr("center_value", SelectionDialogs.formatNumber(b.centerX()), SelectionDialogs.formatNumber(b.centerZ())), x + 18, y + 34, -1);
+                g.drawString(ui.mc.font, b == null ? ui.tr("no_selection")
+                        : ui.tr("center_value", SelectionDialogs.formatNumber(b.centerX()), SelectionDialogs.formatNumber(b.centerZ())), x + 18, y + 34, -1);
                 g.drawString(ui.mc.font, ui.tr("center_waypoint_y"), x + 18, y + 82, 0xFF9BAAB7);
             }
             case AREAS -> ui.areasWindow.renderAreasDialog(g, x, y, w, h);
@@ -278,7 +283,8 @@ final class Windows extends UiPart {
                 String label = ui.dialog == Dialog.GROUP_NAME ? "group_name" : ui.newAreaWindow.routeToSave != null ? "route_name" : "area_name";
                 g.drawString(ui.mc.font, ui.tr(label), x + 16, y + 32, -1);
                 if (ui.dialog == Dialog.AREA_NAME) ui.newAreaWindow.renderNewArea(g, x, y, w);
-                if (!ui.message.isEmpty()) g.drawString(ui.mc.font, ui.mc.font.plainSubstrByWidth(ui.message, w - 32), x + 16, y + (ui.dialog == Dialog.AREA_NAME ? 194 : 80), 0xFFFFCF62);
+                if (!ui.message.isEmpty())
+                    g.drawString(ui.mc.font, ui.mc.font.plainSubstrByWidth(ui.message, w - 32), x + 16, y + (ui.dialog == Dialog.AREA_NAME ? 194 : 80), 0xFFFFCF62);
             }
             case WAYPOINTS -> ui.waypointsWindow.renderWaypointsDialog(g, x, y, w, h);
             case COLOR -> ui.colorWindows.renderColorDialog(g, x, y, w, h);

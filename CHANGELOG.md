@@ -4,6 +4,7 @@
 
 - Layers: Move up and Move down in the right-click menu put a zone over or under the next one it overlaps, on the map, minimap and PNG. The first list order of the Areas window shows the layers.
 - Overlap: with two areas checked, the Areas window shows the area they share, with a copy button.
+- Fix: areas and center coordinates from 10 million with a half showed as `1.00045005E7`. The units key no longer reports the units when its button is unavailable, and a failed undo or redo is written to the game log.
 - Fix: Shift did nothing while dragging an existing vertex; it now lines the vertex up with a neighbouring one, both in a contour and on a finished polygon.
 - The right-click menu of a saved area shows its name, group and area or length; a click on one of them copies it.
 - Undo and redo with the waypoint window open update its list. The loaded-area hints name the Save button, and the name fields of existing areas and of routes are labelled as such.

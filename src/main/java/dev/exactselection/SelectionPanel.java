@@ -71,7 +71,7 @@ final class SelectionPanel extends UiPart {
             // Groups open from the Areas window; Esc or the right-click menu clears the selection.
             arrowRow(new Button[]{polygonModeButton, areasButton}, x, y + 74, w);
         } else {
-            // Narrow coordinate fields; Save and, below it, Apply stand beside them (Save is placed in updateVisibility).
+            // Narrow coordinate fields; Save and, below it, Apply stand beside them (Save is placed in updatePanelWidgets).
             // Size, Move and Center live in the right-click menu, Groups in the Areas window.
             int applyWidth = ui.mc.font.width(apply.getMessage());
             for (String key : List.of("quick_save", "quick_apply", "quick_autosaved")) applyWidth = Math.max(applyWidth, ui.mc.font.width(ui.tr(key)));

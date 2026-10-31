@@ -298,6 +298,9 @@ final class ToolChecks {
             drawContour(keys);
             key(keys, GLFW.GLFW_KEY_R, 0);
             require(!(boolean) get(ruler(keys), "mode") && draft(keys).size() == 5, "The ruler key went past its button's rules");
+            set(keys, "message", "");
+            key(keys, GLFW.GLFW_KEY_N, 0);
+            require(!(boolean) get(keys, "chunks") && get(keys, "message").toString().isEmpty(), "The units key spoke while its button was unavailable");
         } finally {
             set(map, "children", children);
             map.setFocused(null);

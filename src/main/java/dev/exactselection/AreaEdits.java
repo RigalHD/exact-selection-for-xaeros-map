@@ -4,6 +4,7 @@ import dev.exactselection.SavedAreaStore.Area;
 import dev.exactselection.SavedAreaStore.Group;
 import dev.exactselection.SavedAreaStore.State;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Predicate;
@@ -104,6 +105,30 @@ final class AreaEdits extends UiPart {
     boolean changeArea(Area area, UnaryOperator<Area> change) {
         return changeAreas(areaState(ui.areas().stream()
                 .map(a -> a.id().equals(area.id()) ? change.apply(a) : a).toList(), ui.groups()), "area_update");
+    }
+
+    /**
+     * The list position that puts {@code area} past the next shown area it overlaps, up (1) or down (-1) the drawing
+     * order (later is drawn over earlier), or -1 at the end: a step past an area elsewhere on the map would change nothing.
+     */
+    int nextLayer(Area area, int direction) {
+        List<Area> areas = ui.areas();
+        for (int i = areas.indexOf(area) + direction; i >= 0 && i < areas.size(); i += direction) {
+            AreaGeometry other = areas.get(i).geometry(), shape = area.geometry();
+            // A route may cross a shape with no point inside it, so its bounds decide.
+            boolean over = shape.closed() && other.closed() ? shape.overlaps(other) : shape.bounds().intersectsPositiveArea(other.bounds());
+            if (over && ui.areasWindow.shownOnMap(areas.get(i))) return i;
+        }
+        return -1;
+    }
+
+    void moveLayer(Area area, int direction) {
+        int to = nextLayer(area, direction);
+        if (to < 0) return;
+        List<Area> areas = new ArrayList<>(ui.areas());
+        areas.remove(area);
+        areas.add(to, area);
+        changeAreas(areaState(areas, ui.groups()), "area_order");
     }
 
     /** Brings back the version before the last write of an area file that can no longer be read. */

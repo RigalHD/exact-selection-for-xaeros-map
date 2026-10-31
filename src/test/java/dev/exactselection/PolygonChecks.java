@@ -88,6 +88,15 @@ final class PolygonChecks {
         controller.mouseReleased(left(570, 270, 0));
         require(draft.size() == 4 && draft.get(2).equals(new GridPoint(250, 90)), "A plain drag did not move the contour vertex: " + draft);
         key(controller, GLFW.GLFW_KEY_Z, GLFW.GLFW_MOD_CONTROL);
+        // Shift lines a dragged contour vertex up with a neighbour.
+        GridPoint before2 = draft.get(1), after2 = draft.get(3);
+        controller.mouseClicked(left(560, 260, GLFW.GLFW_MOD_SHIFT), false);
+        controller.beforeRender(570, 270);
+        controller.mouseReleased(left(570, 270, GLFW.GLFW_MOD_SHIFT));
+        GridPoint aligned = draft.get(2);
+        require(aligned.x() == before2.x() || aligned.z() == before2.z() || aligned.x() == after2.x() || aligned.z() == after2.z(),
+                "Shift did not align the contour vertex: " + draft);
+        key(controller, GLFW.GLFW_KEY_Z, GLFW.GLFW_MOD_CONTROL);
         controller.mouseClicked(left(560, 260, 0), false);
         controller.beforeRender(561, 261);
         controller.mouseReleased(left(561, 261, 0));
@@ -111,6 +120,19 @@ final class PolygonChecks {
         require(selection.geometry().equals(closed), "Undo did not restore the complete polygon");
         key(controller, GLFW.GLFW_KEY_Y, GLFW.GLFW_MOD_CONTROL);
         require(selection.geometry().equals(moved), "Redo did not restore the edited polygon");
+        // Shift goes to the nearest axis line through a neighbour, also when pressed during the drag: x 240 of vertex 2.
+        controller.mouseClicked(left(590, 90, 0), false);
+        controller.beforeRender(595, 120);
+        require(selection.geometry().vertices().get(1).equals(new GridPoint(275, -60)), "The vertex did not follow the pointer");
+        key(controller, GLFW.GLFW_KEY_LEFT_SHIFT, GLFW.GLFW_MOD_SHIFT);
+        controller.beforeRender(595, 120);
+        require(selection.geometry().vertices().get(1).equals(new GridPoint(240, -60)), "Shift did not align the side: " + selection.geometry().vertices());
+        controller.keyReleased(new net.minecraft.client.input.KeyEvent(GLFW.GLFW_KEY_LEFT_SHIFT, 0, 0));
+        controller.beforeRender(595, 120);
+        require(selection.geometry().vertices().get(1).equals(new GridPoint(275, -60)), "Releasing Shift kept the vertex aligned");
+        key(controller, GLFW.GLFW_KEY_ESCAPE, 0);
+        require(selection.geometry().equals(moved), "Esc did not cancel the aligned drag");
+        controller.mouseReleased(left(595, 120, 0));
         controller.mouseClicked(left(590, 90, GLFW.GLFW_MOD_SUPER), false);
         controller.beforeRender(400, 260);
         require(((MapGesture.VertexDrag) get(controller, "gesture")).invalid, "Duplicate closed vertex was accepted");

@@ -249,6 +249,56 @@ final class AreaChecks {
         System.out.println("PASS: area properties wait for Save as one undo step, autosave settings, Save hiding, area copy, territory shape autosave");
     }
 
+    static void checkLayersAndOverlap(ExactSelectionController controller, SavedAreaStore store) throws Exception {
+        // Exact shares, also of two separate pieces and far from the origin, where a plain shoelace sum loses precision.
+        AreaGeometry square = new RectangleGeometry(new SelectionBounds(0, 0, 9, 9));
+        require(square.sharedArea(new RectangleGeometry(new SelectionBounds(5, 5, 14, 14))) == 25, "Overlap of two rectangles is wrong");
+        require(square.sharedArea(new RectangleGeometry(new SelectionBounds(10, 0, 19, 9))) == 0, "Rectangles touching along an edge share an area");
+        require(square.sharedArea(new PolygonGeometry(List.of(new GridPoint(0, 0), new GridPoint(10, 0), new GridPoint(0, 10)))) == 50, "Overlap with a triangle is wrong");
+        AreaGeometry hook = new PolygonGeometry(List.of(new GridPoint(0, 0), new GridPoint(10, 0), new GridPoint(10, 2), new GridPoint(2, 2),
+                new GridPoint(2, 8), new GridPoint(10, 8), new GridPoint(10, 10), new GridPoint(0, 10)));
+        require(hook.sharedArea(new RectangleGeometry(new SelectionBounds(5, 0, 9, 9))) == 20, "Overlap in two pieces is wrong");
+        require(hook.translated(29_000_000, 29_000_000).sharedArea(new RectangleGeometry(new SelectionBounds(29_000_005, 29_000_000, 29_000_009, 29_000_009))) == 20,
+                "Overlap far from the origin is wrong");
+        require(square.sharedArea(new PolylineGeometry(List.of(new GridPoint(0, 0), new GridPoint(9, 9)))) == 0, "A route shares an area");
+
+        SavedAreaStore.State saved = store.state();
+        var low = SavedAreaStore.create("Low", new SelectionBounds(0, 0, 9, 9), 0x111111, 25, null);
+        var far = SavedAreaStore.create("Far", new SelectionBounds(500, 500, 509, 509), 0x222222, 25, null);
+        var mid = SavedAreaStore.create("Mid", new SelectionBounds(5, 5, 14, 14), 0x333333, 25, null);
+        var top = SavedAreaStore.create("Top", new SelectionBounds(8, 8, 12, 12), 0x444444, 25, null);
+        java.util.function.Supplier<List<String>> order = () -> store.state().areas().stream().map(SavedAreaStore.Area::name).toList();
+        try {
+            store.replace(new SavedAreaStore.State(List.of(low, far, mid, top), List.of(), true, true));
+            require(controller.areaEdits.nextLayer(top, 1) < 0 && controller.areaEdits.nextLayer(low, -1) < 0, "The top and bottom areas can still move on");
+            // One step passes the next area it overlaps, not one elsewhere on the map.
+            controller.areaEdits.moveLayer(low, 1);
+            require(order.get().equals(List.of("Far", "Mid", "Low", "Top")), "Move up did not pass the overlapping area: " + order.get());
+            controller.undo();
+            require(order.get().equals(List.of("Low", "Far", "Mid", "Top")), "Undo did not restore the order: " + order.get());
+            controller.redo();
+            controller.areaEdits.moveLayer(top, -1);
+            require(order.get().equals(List.of("Far", "Mid", "Top", "Low")), "Move down did not pass the overlapping area: " + order.get());
+            // A hidden area is passed over: moving past it would show no change.
+            store.replace(new SavedAreaStore.State(List.of(low, mid.withVisible(false), top), List.of(), true, true));
+            controller.areaEdits.moveLayer(low, 1);
+            require(order.get().equals(List.of("Mid", "Top", "Low")), "Move up stopped at a hidden area: " + order.get());
+
+            store.replace(new SavedAreaStore.State(List.of(low, far, mid), List.of(), true, true));
+            press(controller, "areasButton");
+            controller.areasWindow.selectedAreaIds.clear();
+            controller.areasWindow.selectedAreaIds.addAll(List.of(low.id(), mid.id()));
+            controller.updateVisibility();
+            require(((net.minecraft.client.gui.components.Button) get(controller, "overlapCopy")).visible, "Two overlapping areas show no overlap");
+            controller.areasWindow.selectedAreaIds.clear();
+            controller.areasWindow.selectedAreaIds.addAll(List.of(low.id(), far.id()));
+            controller.updateVisibility();
+            require(!((net.minecraft.client.gui.components.Button) get(controller, "overlapCopy")).visible, "Areas that do not overlap offer to copy an overlap");
+            controller.areasWindow.selectedAreaIds.clear();
+            press(controller, "managementClose");
+        } finally { store.replace(saved); }
+    }
+
     static void checkAreaListAndTransfer(ExactSelectionController controller, SavedAreaStore store, Path directory) throws Exception {
         SavedAreaStore.State saved = store.state();
         var roads = new SavedAreaStore.Group("roads", "Roads", true);
@@ -281,7 +331,7 @@ final class AreaChecks {
             require(((List<?>) call(controller, "displayedAreas")).stream().map(area -> ((SavedAreaStore.Area) area).name()).toList()
                     .equals(List.of("alpha", "Delta", "Bravo", "Charlie")), "Group order must list grouped areas by group, then the rest");
             press(controller, "areaSortButton"); press(controller, "areaSortButton");
-            require(get(controller, "areaSort").toString().equals("DATE"), "Sort did not cycle back to date order");
+            require(get(controller, "areaSort").toString().equals("LAYER"), "Sort did not cycle back to the layers");
             // Search by name, case-insensitive; All checks only what the search shows.
             EditBox search = (EditBox) get(controller, "areaSearch");
             require(search.visible, "The Areas window has no search field");

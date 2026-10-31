@@ -94,6 +94,7 @@ public final class ExactSelectionController {
         @Override public void refresh() { refreshSelectionState(); }
         @Override public void message(String key) { say(key); }
         @Override public GridPoint snap(MapBridge.Frame frame, double x, double y) { return zoneSnap.point(frame, x, y); }
+        @Override public boolean shiftDown() { return shiftDown; }
     };
     private MapBridge.Context historyContext;
     String message = "";
@@ -498,7 +499,7 @@ public final class ExactSelectionController {
         if (areasWindow.areaShow.visible) PixelIcons.renderIcon(g, PixelIcons.TARGET, areasWindow.areaShow, 0xFFE0E0E0);
         for (Button copy : List.of(selectionPanel.copyCoordinates, selectionPanel.copyCornerB, selectionPanel.copyArea, selectionPanel.copyPerimeter, selectionPanel.copyLength, selectionPanel.copyWidth, selectionPanel.copyRulerDistance))
             if (copy.visible) PixelIcons.renderIcon(g, PixelIcons.COPY, copy, copy.active ? 0xFFE0E0E0 : 0xFF8A8A8A);
-        for (Button copy : areasWindow.areaCopies) if (copy.visible) PixelIcons.renderIcon(g, PixelIcons.COPY, copy, copy.active ? 0xFFE0E0E0 : 0xFF8A8A8A);
+        for (Button copy : areasWindow.copyIcons()) if (copy.visible) PixelIcons.renderIcon(g, PixelIcons.COPY, copy, copy.active ? 0xFFE0E0E0 : 0xFF8A8A8A);
         exportWindow.renderPlaceholder(g, screen.getFocused() == exportWindow.folder);
         if (rightClickMenu.quickMenu) rightClickMenu.renderQuickMenu(g, menu, mouseX, mouseY);
         if (enabled() && frame != null && dialog == Dialog.NONE) selectionPanel.renderToast(g);

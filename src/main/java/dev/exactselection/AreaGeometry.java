@@ -2,6 +2,7 @@ package dev.exactselection;
 
 import java.awt.geom.Area;
 import java.awt.geom.Path2D;
+import java.awt.geom.PathIterator;
 import java.util.List;
 
 public sealed interface AreaGeometry permits RectangleGeometry, PolygonGeometry, PolylineGeometry {
@@ -30,6 +31,31 @@ public sealed interface AreaGeometry permits RectangleGeometry, PolygonGeometry,
         Area shared = new Area(outline());
         shared.intersect(new Area(other.outline()));
         return !shared.isEmpty();
+    }
+
+    /** The area shared with another shape; a route has no inside and shares none. */
+    default double sharedArea(AreaGeometry other) {
+        if (!closed() || !other.closed() || !bounds().intersectsPositiveArea(other.bounds())) return 0;
+        Area shared = new Area(outline());
+        shared.intersect(new Area(other.outline()));
+        // Simple polygons share no holes, so each outline adds its area. Measuring from its first point keeps
+        // precision far from the world's origin.
+        double total = 0, piece = 0, startX = 0, startZ = 0, lastX = 0, lastZ = 0;
+        double[] point = new double[6];
+        for (PathIterator it = shared.getPathIterator(null); !it.isDone(); it.next()) {
+            int kind = it.currentSegment(point);
+            if (kind == PathIterator.SEG_MOVETO) {
+                total += Math.abs(piece) / 2;
+                piece = lastX = lastZ = 0;
+                startX = point[0]; startZ = point[1];
+            } else if (kind == PathIterator.SEG_LINETO) {
+                double x = point[0] - startX, z = point[1] - startZ;
+                piece += lastX * z - x * lastZ;
+                lastX = x; lastZ = z;
+            }
+        }
+        total += Math.abs(piece) / 2;
+        return Math.abs(total - Math.rint(total)) < 1e-6 ? Math.rint(total) : total;
     }
 
     default Path2D.Double outline() {

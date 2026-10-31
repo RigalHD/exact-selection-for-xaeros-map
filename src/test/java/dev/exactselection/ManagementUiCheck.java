@@ -67,6 +67,7 @@ public final class ManagementUiCheck {
             checkHintFitting(controller);
             checkFramedAreasAndMetrics(controller, store);
             checkAreaDraftAndAutosave(controller, map, store, unsafe);
+            checkLayersAndOverlap(controller, store);
             checkAreaListAndTransfer(controller, store, directory);
             checkExportWindow(controller, map, directory);
             checkExportNotice(controller, map, directory);

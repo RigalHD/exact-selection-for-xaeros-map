@@ -16,6 +16,7 @@ final class RightClickMenu extends UiPart {
     private static final int MENU_ROW = 11;
     /** It stays where it opened until an action or a click elsewhere. */
     private Button quickMenuSave, quickMenuEdit, quickMenuHide, quickMenuColor, quickMenuOpacity, quickMenuDelete;
+    private Button quickMenuRaise, quickMenuLower;
     private Button quickMenuClear;
     /** The rows with a saved area's details, in place of the title row and above the actions; a click copies the value. */
     private Button quickInfoName, quickInfoGroup, quickInfoSize;
@@ -48,11 +49,11 @@ final class RightClickMenu extends UiPart {
             List<Button> rows = new ArrayList<>(List.of(quickInfoName));
             if (zone != null && ui.groupsWindow.findGroup(zone.groupId()) != null) rows.add(quickInfoGroup);
             rows.add(quickInfoSize);
-            rows.addAll(zone != null && !zone.geometry().closed() ? List.of(quickMenuColor, quickMenuHide, quickMenuDelete)
-                    : List.of(quickMenuEdit, quickMenuColor, quickMenuOpacity, quickMenuHide, quickMenuDelete));
+            rows.addAll(zone != null && !zone.geometry().closed() ? List.of(quickMenuColor, quickMenuRaise, quickMenuLower, quickMenuHide, quickMenuDelete)
+                    : List.of(quickMenuEdit, quickMenuColor, quickMenuOpacity, quickMenuRaise, quickMenuLower, quickMenuHide, quickMenuDelete));
             return rows;
         }
-        List<Button> items = new ArrayList<>(ui.areasWindow.editedArea() == null ? List.of(quickMenuSave) : List.of(quickMenuColor, quickMenuOpacity));
+        List<Button> items = new ArrayList<>(ui.areasWindow.editedArea() == null ? List.of(quickMenuSave) : List.of(quickMenuColor, quickMenuOpacity, quickMenuRaise, quickMenuLower));
         // A polygon has no width and length to set.
         if (!(ui.state.geometry() instanceof PolygonGeometry)) items.add(ui.selectionPanel.sizeButton);
         items.addAll(List.of(ui.selectionPanel.moveButton, ui.selectionPanel.centerButton));
@@ -94,7 +95,11 @@ final class RightClickMenu extends UiPart {
         if (quickMenu) {
             List<Button> items = quickMenuButtons();
             Area area = menuArea();
-            if (area != null) quickMenuOpacity.setMessage(ui.tr("area_new_opacity", area.opacity() + "%"));
+            if (area != null) {
+                quickMenuOpacity.setMessage(ui.tr("area_new_opacity", area.opacity() + "%"));
+                quickMenuRaise.active = ui.areaEdits.nextLayer(area, 1) >= 0;
+                quickMenuLower.active = ui.areaEdits.nextLayer(area, -1) >= 0;
+            }
             if (zoneId != null && area != null) describe(area);
             // As wide as its longest line, like Xaero's menu; the rows start under the title row.
             int titleRows = zoneId == null ? 1 : 0, w = titleRows > 0 ? ui.mc.font.width(ui.tr("quick_menu_title")) : 0;
@@ -119,6 +124,11 @@ final class RightClickMenu extends UiPart {
                 : ui.tr("route_length", SelectionPanel.formatLength(shape.perimeter())));
     }
 
+    private void moveLayer(int direction) {
+        Area area = menuArea();
+        if (area != null) ui.areaEdits.moveLayer(area, direction);
+    }
+
     void createMenuWidgets() {
         quickInfoName = ui.button("quick_menu_title", () -> {
             Area area = menuArea();
@@ -140,6 +150,8 @@ final class RightClickMenu extends UiPart {
             Area area = menuArea();
             if (area != null) ui.areaEdits.changeArea(area, a -> a.withOpacity(AreasWindow.nextOpacity(a.opacity())));
         });
+        quickMenuRaise = ui.button("quick_menu_raise", () -> moveLayer(1));
+        quickMenuLower = ui.button("quick_menu_lower", () -> moveLayer(-1));
         quickMenuEdit = ui.button("quick_menu_edit", () -> { quickMenu = false; ui.areasWindow.loadArea(menuArea()); });
         quickMenuHide = ui.button("quick_menu_hide", () -> {
             Area area = menuArea();

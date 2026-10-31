@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Layers: Move up and Move down in the right-click menu put a zone over or under the next one it overlaps, on the map, minimap and PNG. The first list order of the Areas window shows the layers.
+- Overlap: with two areas checked, the Areas window shows the area they share, with a copy button.
+- Fix: Shift did nothing while dragging an existing vertex; it now lines the vertex up with a neighbouring one, both in a contour and on a finished polygon.
 - The right-click menu of a saved area shows its name, group and area or length; a click on one of them copies it.
 - Undo and redo with the waypoint window open update its list. The loaded-area hints name the Save button, and the name fields of existing areas and of routes are labelled as such.
 - Exporting a part of the map nobody explored says so instead of pointing to the game log. A widget that goes away no longer keeps the focus, which could leave the tool keys and undo dead after an export.

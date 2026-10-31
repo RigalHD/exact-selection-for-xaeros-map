@@ -29,6 +29,7 @@ abstract sealed class MapGesture {
         void message(String key);
         /** The point of a saved area the pointer sticks to, or null. */
         GridPoint snap(MapBridge.Frame frame, double x, double y);
+        boolean shiftDown();
     }
 
     enum Handle {
@@ -201,9 +202,10 @@ abstract sealed class MapGesture {
             List<GridPoint> original = draftBefore != null ? draftBefore : before.geometry().vertices();
             try {
                 GridPoint start = original.get(index);
-                GridPoint stuck = host.snap(frame, x, y);
-                GridPoint point = stuck != null ? stuck : new GridPoint(start.x() + Math.round(frame.worldX(x)) - pointerX,
+                GridPoint free = new GridPoint(start.x() + Math.round(frame.worldX(x)) - pointerX,
                         start.z() + Math.round(frame.worldZ(y)) - pointerZ);
+                GridPoint stuck = host.shiftDown() ? null : host.snap(frame, x, y);
+                GridPoint point = host.shiftDown() ? aligned(original, free) : stuck != null ? stuck : free;
                 if (point.equals(start) && draftBefore == null) {
                     invalid = false; host.state().restore(before); host.selectionMoved(); return;
                 }
@@ -222,6 +224,21 @@ abstract sealed class MapGesture {
                 invalid = true;
                 host.message("polygon_vertex_invalid");
             }
+        }
+
+        /** Shift straightens a side: the point on the nearest axis line through a neighbouring vertex. */
+        private GridPoint aligned(List<GridPoint> points, GridPoint free) {
+            GridPoint best = free;
+            long reach = Long.MAX_VALUE;
+            for (int i : new int[]{index - 1, index + 1}) {
+                // A contour still being drawn has no side from its last vertex back to the first.
+                if (draftBefore != null && (i < 0 || i >= points.size())) continue;
+                GridPoint neighbour = points.get(Math.floorMod(i, points.size()));
+                long dx = Math.abs(free.x() - neighbour.x()), dz = Math.abs(free.z() - neighbour.z());
+                if (dx < reach) { reach = dx; best = new GridPoint(neighbour.x(), free.z()); }
+                if (dz < reach) { reach = dz; best = new GridPoint(free.x(), neighbour.z()); }
+            }
+            return best;
         }
 
         @Override boolean finish(Host host) {

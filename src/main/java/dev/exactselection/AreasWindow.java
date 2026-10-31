@@ -39,9 +39,11 @@ final class AreasWindow extends UiPart {
     private Button autosaveToggle, autosaveClose, roundingButton;
     /** Name, NW corner (or all polygon vertices), area, perimeter, length, width, SE, NE and SW corners. */
     final Button[] areaCopies = new Button[9];
-    /** List order of the Areas window; DATE is the order areas were added, oldest first. */
-    enum AreaSort { DATE, NAME, GROUP, VISIBILITY }
-    private AreaSort areaSort = AreaSort.DATE;
+    /** The copy button of the overlap of two checked areas. */
+    private Button overlapCopy;
+    /** List order of the Areas window; LAYER is the drawing order, the bottom area first. */
+    enum AreaSort { LAYER, NAME, GROUP, VISIBILITY }
+    private AreaSort areaSort = AreaSort.LAYER;
     private Button areaSortButton;
     /** Filters the Areas window list by name; cleared whenever the window opens. */
     EditBox areaSearch;
@@ -64,6 +66,10 @@ final class AreasWindow extends UiPart {
     private AreaGeometry overlapGeometry;
     private State overlapState;
     private Set<String> overlapIds = Set.of();
+
+    /** The last pair of checked shapes and their shared area: intersecting polygons is too costly for every frame. */
+    private List<AreaGeometry> sharedPair = List.of();
+    private double sharedValue;
 
     private State sortedState;
     private AreaSort sortedBy;
@@ -97,7 +103,7 @@ final class AreasWindow extends UiPart {
 
     Area selectedArea() { return area(areaId); }
 
-    /** The shown area under the pointer; the smallest of overlapping ones, so a plot inside a district can be picked. */
+    /** The shown area under the pointer; the smallest of overlapping ones, so a plot inside a district can be picked, and the upper of equal ones. */
     Area areaAt(MapBridge.Frame frame, double x, double y) {
         double worldX = frame.worldX(x), worldZ = frame.worldZ(y);
         Area best = null;
@@ -105,7 +111,7 @@ final class AreasWindow extends UiPart {
             AreaGeometry geometry = area.geometry();
             boolean hit = geometry.closed() ? geometry.containsPoint(worldX, worldZ)
                     : ui.polygonTool.hitVertex(frame, geometry.vertices(), x, y) >= 0 || ui.polygonTool.hitPolygonEdge(frame, geometry.vertices(), x, y, false) >= 0;
-            if (hit && shownOnMap(area) && (best == null || geometry.area() < best.geometry().area())) best = area;
+            if (hit && shownOnMap(area) && (best == null || geometry.area() <= best.geometry().area())) best = area;
         }
         return best;
     }
@@ -293,7 +299,7 @@ final class AreasWindow extends UiPart {
         collator.setStrength(Collator.SECONDARY);
         Comparator<Area> byName = (a, b) -> collator.compare(a.name(), b.name());
         return switch (areaSort) {
-            case DATE -> stored;
+            case LAYER -> stored;
             case NAME -> stored.stream().sorted(byName).toList();
             // Grouped areas by group name, then ungrouped ones.
             case GROUP -> stored.stream().sorted(Comparator.<Area, Boolean>comparing(a -> ui.groupsWindow.findGroup(a.groupId()) == null)
@@ -377,6 +383,30 @@ final class AreasWindow extends UiPart {
         return Math.max(y + h - 84, areaInfoTop(y) + 4);
     }
 
+    /** The area two checked shapes share; nothing when a route is among them, which has no inside. */
+    private List<MetricLine> overlapInfo() {
+        List<Area> two = selectedAreas();
+        if (two.size() != 2 || !two.get(0).geometry().closed() || !two.get(1).geometry().closed()) return List.of();
+        double shared = sharedArea(two);
+        return List.of(shared > 0 ? new MetricLine(List.of(ui.tr("area_overlap", formatLength(shared)).getString()), List.of(overlapCopy))
+                : new MetricLine(List.of(ui.tr("area_overlap_none").getString()), List.of()));
+    }
+
+    private double sharedArea(List<Area> two) {
+        List<AreaGeometry> pair = List.of(two.get(0).geometry(), two.get(1).geometry());
+        if (!pair.equals(sharedPair)) {
+            sharedPair = pair;
+            sharedValue = pair.get(0).sharedArea(pair.get(1));
+        }
+        return sharedValue;
+    }
+
+    List<Button> copyIcons() {
+        List<Button> icons = new ArrayList<>(List.of(areaCopies));
+        icons.add(overlapCopy);
+        return icons;
+    }
+
     /** Details of the single checked area with copy buttons after the values; lines that do not fit are left out. */
     private List<MetricLine> areaInfo(Area area) {
         List<MetricLine> info = new ArrayList<>();
@@ -414,10 +444,9 @@ final class AreasWindow extends UiPart {
     /** Lays out (g == null) or draws the area details. */
     private void placeAreaInfo(int y, int h, int right, GuiGraphics g, int col) {
         Area area = selectedAreaIds.size() == 1 ? selectedArea() : null;
-        if (area == null) return;
-        if (g == null) for (int i = 1; i < areaCopies.length; i++) areaCopies[i].visible = false;
+        if (area != null && g == null) for (int i = 1; i < areaCopies.length; i++) areaCopies[i].visible = false;
         int lineY = areaInfoTop(y), limit = selectedSectionTop(y, h) - 6;
-        for (MetricLine line : areaInfo(area)) {
+        for (MetricLine line : area != null ? areaInfo(area) : overlapInfo()) {
             if (lineY + 9 > limit) break;
             if (g == null) {
                 for (Button copy : line.copies()) copy.visible = true;
@@ -562,6 +591,7 @@ final class AreasWindow extends UiPart {
                 // Save disappears under autosave unless a change outside its fields still waits.
                 ui.show(areaSaveShown(), areaSaveChanges);
                 ui.show(selectedAreaIds.size() == 1 && selectedArea() != null, areaCopies);
+                overlapCopy.visible = false;
                 areaShow.visible = areaCopies[0].visible;
             }
         }
@@ -672,6 +702,12 @@ final class AreasWindow extends UiPart {
                 else ui.selectionPanel.copyMetric(kind, area.geometry(), area.bounds());
             });
         }
+        overlapCopy = ui.iconButton("copy_overlap_tooltip", () -> {
+            List<Area> two = selectedAreas();
+            if (two.size() != 2) return;
+            double shared = sharedArea(two);
+            ui.selectionPanel.copyToClipboard(ui.autosave.rounding() == AutosaveSettings.Rounding.EXACT ? formatLength(shared) : ui.selectionPanel.rounded(shared));
+        });
         areaSelectAll = ui.button("area_select_all", "area_select_all_tooltip", this::selectAllAreas);
         areaClearSelection = ui.button("area_clear_selection", "area_clear_selection_tooltip", this::clearAreaSelection);
         groupAssign = ui.button("group_choose", "group_picker_tooltip", ui.groupsWindow::openGroupChooser);

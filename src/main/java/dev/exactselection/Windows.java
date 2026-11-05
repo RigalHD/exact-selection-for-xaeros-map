@@ -165,7 +165,7 @@ final class Windows extends UiPart {
             ui.dialogFields[i] = field;
             ui.widgets.add(field);
         }
-        ui.modalApply = ui.button("apply", this::applyDialog);
+        ui.modalApply = ui.button("apply_short", this::applyDialog);
         ui.modalCancel = ui.button("cancel", this::cancelDialog);
         ui.managementClose = ui.button("done", this::cancelDialog);
         ui.managementUndo = ui.arrowButton("↶", ui::undo);
@@ -218,7 +218,7 @@ final class Windows extends UiPart {
                 ? "back_to_map" : "back"));
         ui.modalCancel.setMessage(ui.tr("cancel"));
         ui.modalApply.setMessage(ui.tr(ui.dialog == Dialog.AREA_NAME ? ui.newAreaWindow.routeToSave != null ? "route_create_button" : "area_create_button"
-                : ui.dialog == Dialog.GROUP_NAME ? ui.groupsWindow.renamingGroup ? "save_name" : "group_create" : "apply"));
+                : ui.dialog == Dialog.GROUP_NAME ? ui.groupsWindow.renamingGroup ? "save_name" : "group_create" : "apply_short"));
         ui.modalApply.active = switch (ui.dialog) {
             case AREA_NAME -> !ui.dialogFields[NEW_AREA_FIELD].getValue().trim().isEmpty() && !ui.loadFailed;
             case GROUP_NAME -> !ui.dialogFields[GROUP_NAME_FIELD].getValue().trim().isEmpty() && !ui.loadFailed;

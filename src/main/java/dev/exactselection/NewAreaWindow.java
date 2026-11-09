@@ -24,7 +24,7 @@ final class NewAreaWindow extends UiPart {
     /** Style for the next saved area; kept between saves so a series of areas can share it. */
     int newAreaColor = AreaPalette.DEFAULT;
 
-    private int newAreaOpacity = 25;
+    int newAreaOpacity = 25;
 
     NewAreaWindow(ExactSelectionController ui) {
         super(ui);
@@ -101,6 +101,10 @@ final class NewAreaWindow extends UiPart {
                                                 ui.windows.dialogRect().height())));
         }
         // The saved shape now lives in the list; clearing it (its own undo step) frees the map for the next area.
+        // The style of the area just saved is the one the next area starts with, also after a restart.
+        ui.uiState.newAreaColor = newAreaColor;
+        ui.uiState.newAreaOpacity = newAreaOpacity;
+        ui.uiState.save();
         if (route) ui.rulerTool.clearRuler();
         else ui.reset();
         routeToSave = null;

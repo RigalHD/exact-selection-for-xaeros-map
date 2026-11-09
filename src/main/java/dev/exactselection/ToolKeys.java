@@ -3,6 +3,7 @@ package dev.exactselection;
 import java.util.List;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
+import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.resources.Identifier;
 import org.lwjgl.glfw.GLFW;
@@ -23,5 +24,6 @@ public final class ToolKeys implements ClientModInitializer {
     @Override
     public void onInitializeClient() {
         for (KeyMapping key : List.of(POLYGON, RULER, AREAS, UNITS)) KeyBindingHelper.registerKeyBinding(key);
+        ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> ExactSelectionController.forget());
     }
 }

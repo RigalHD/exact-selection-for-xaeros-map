@@ -64,6 +64,8 @@ final class SelectionPanel extends UiPart {
             compact = false;
             ui.message = "";
         } else compact = !compact;
+        ui.uiState.compactPanel = compact;
+        ui.uiState.save();
         panelScroll = 0;
         ui.focus(null);
         layoutMainPanel();

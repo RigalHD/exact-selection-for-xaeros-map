@@ -105,6 +105,7 @@ public final class ExactSelectionController {
     final SelectionHistory history = new SelectionHistory();
     final WaypointAccess waypoints;
     final SavedAreaStore areaStore;
+    final UiState uiState;
     final List<AbstractWidget> widgets = new ArrayList<>();
     /** One field for each {@link DialogField}, in its order. */
     final EditBox[] dialogFields = new EditBox[DialogField.values().length];
@@ -202,11 +203,34 @@ public final class ExactSelectionController {
                 new SavedAreaStore(FabricLoader.getInstance().getConfigDir()),
                 FabricLoader.getInstance().isModLoaded("xaerominimap")
                         ? SafeWaypointAccess.create(XaeroWaypointBridge::new)
-                        : null);
+                        : null,
+                UiState.load(FabricLoader.getInstance().getConfigDir()));
+    }
+
+    /** Leaving a world: the next map gets a new tool, and this one lets go of the world it showed. */
+    public static void forget() {
+        current = null;
     }
 
     ExactSelectionController(
             GuiMap screen, MapBridge bridge, Minecraft mc, SavedAreaStore areaStore, WaypointAccess waypoints) {
+        this(screen, bridge, mc, areaStore, waypoints, UiState.inMemory());
+    }
+
+    ExactSelectionController(
+            GuiMap screen,
+            MapBridge bridge,
+            Minecraft mc,
+            SavedAreaStore areaStore,
+            WaypointAccess waypoints,
+            UiState uiState) {
+        this.uiState = uiState;
+        selectionPanel.compact = uiState.compactPanel;
+        chunks = uiState.chunks;
+        newAreaWindow.newAreaColor = uiState.newAreaColor;
+        newAreaWindow.newAreaOpacity = uiState.newAreaOpacity;
+        selectionDialogs.sizeFromCenter = uiState.sizeFromCenter;
+        selectionDialogs.moveInChunks = uiState.moveInChunks;
         this.screen = screen;
         this.bridge = bridge;
         this.mc = mc;
@@ -581,6 +605,8 @@ public final class ExactSelectionController {
 
     void toggleChunks() {
         chunks = !chunks;
+        uiState.chunks = chunks;
+        uiState.save();
         selectionPanel.chunkMode.setMessage(tr(chunks ? "units_chunks" : "units_blocks"));
         if (chunks && state.phase() == SelectionState.Phase.PREVIEW && gesture instanceof MapGesture.Corners corners) {
             corners.cancel(gestureHost);
@@ -596,6 +622,8 @@ public final class ExactSelectionController {
                 if (!next.equals(state.bounds())) setSelection(next, "snap_chunks");
             } catch (IllegalArgumentException e) {
                 chunks = false;
+                uiState.chunks = false;
+                uiState.save();
                 selectionPanel.chunkMode.setMessage(tr("units_blocks"));
                 say("invalid_coordinates");
             }

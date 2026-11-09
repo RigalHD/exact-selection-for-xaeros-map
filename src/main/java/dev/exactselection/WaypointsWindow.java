@@ -58,10 +58,20 @@ final class WaypointsWindow extends UiPart {
         colorFilter = colorFilter < 0 ? 0 : colorFilter >= WaypointAccess.COLOR_COUNT - 1 ? -1 : colorFilter + 1;
     }
 
+    /** The last filtered list and what it was made from; the list is asked for several times a frame. */
+    private List<WaypointAccess.Point> filtered = List.of();
+
+    private WaypointAccess.Snapshot filteredFrom;
+    private String filteredBy = "";
+
     List<WaypointAccess.Point> filteredPoints() {
         if (pending == null) return List.of();
         String query = ui.field(DialogField.POINT_SEARCH).getValue().trim().toLowerCase(Locale.ROOT);
-        return pending.points().stream()
+        String by = query + "\n" + visibilityFilter + "\n" + colorFilter;
+        if (pending == filteredFrom && by.equals(filteredBy)) return filtered;
+        filteredFrom = pending;
+        filteredBy = by;
+        return filtered = pending.points().stream()
                 .filter(WaypointAccess.Point::editable)
                 .filter(p ->
                         query.isEmpty() || p.name().toLowerCase(Locale.ROOT).contains(query))

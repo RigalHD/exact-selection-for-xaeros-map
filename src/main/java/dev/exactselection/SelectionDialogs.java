@@ -104,11 +104,15 @@ final class SelectionDialogs extends UiPart {
     void createDialogWidgets() {
         anchorButton = ui.button("anchor_lower_left", () -> {
             sizeFromCenter = !sizeFromCenter;
+            ui.uiState.sizeFromCenter = sizeFromCenter;
+            ui.uiState.save();
             anchorButton.setMessage(ui.tr(sizeFromCenter ? "anchor_center" : "anchor_lower_left"));
         });
         anchorButton.setMessage(ui.tr(sizeFromCenter ? "anchor_center" : "anchor_lower_left"));
         moveUnitsButton = ui.button("units_blocks", () -> {
             moveInChunks = !moveInChunks;
+            ui.uiState.moveInChunks = moveInChunks;
+            ui.uiState.save();
             moveUnitsButton.setMessage(ui.tr(moveInChunks ? "units_chunks" : "units_blocks"));
         });
         moveUnitsButton.setMessage(ui.tr(moveInChunks ? "units_chunks" : "units_blocks"));

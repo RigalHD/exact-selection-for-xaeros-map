@@ -33,23 +33,7 @@ final class InputRouter extends UiPart {
             }
             if (event.button() == GLFW.GLFW_MOUSE_BUTTON_LEFT) {
                 Rect r = ui.windows.dialogRect();
-                Window window = ui.windows.window();
-                if (window != null) window.click(event, r);
-                else
-                    switch (ui.dialog) {
-                        case COLOR -> ui.colorWindows.clickColorDialog(event, r.x(), r.y(), r.width(), r.height());
-                        case PICKER -> ui.colorWindows.clickPicker(event, r.x(), r.y(), r.width(), r.height());
-                        case IMPORT -> ui.transferWindow.clickImportRow(event, r.x(), r.y(), r.width(), r.height());
-                        case AREA_NAME ->
-                            ui.newAreaWindow.clickAreaNameDialog(event, r.x(), r.y(), r.width(), r.height());
-                        case AREAS -> ui.areasWindow.clickAreaRow(event, r.x(), r.y(), r.width(), r.height());
-                        case GROUPS -> ui.groupsWindow.clickGroupRow(event, r.x(), r.y(), r.width(), r.height());
-                        case ASSIGN_GROUP ->
-                            ui.groupsWindow.clickGroupChooser(event, r.x(), r.y(), r.width(), r.height());
-                        case WAYPOINTS ->
-                            ui.waypointsWindow.clickWaypointRow(event, r.x(), r.y(), r.width(), r.height());
-                        default -> {}
-                    }
+                ui.windows.window().click(event, r);
             }
             return true;
         }
@@ -127,49 +111,7 @@ final class InputRouter extends UiPart {
     }
 
     private void scrollWindow(int step) {
-        int height = ui.windows.dialogRect().height();
-        WaypointsWindow points = ui.waypointsWindow;
-        TransferWindow transfer = ui.transferWindow;
-        AreasWindow areas = ui.areasWindow;
-        GroupsWindow groups = ui.groupsWindow;
-        boolean confirming = areas.areaDeleteConfirmation || groups.groupDeleteConfirmation;
-        Window window = ui.windows.window();
-        if (window != null) {
-            window.scroll(step, height);
-            return;
-        }
-        switch (ui.dialog) {
-            case WAYPOINTS -> {
-                if (points.pending != null)
-                    points.modalScroll = scrolled(
-                            points.modalScroll,
-                            step,
-                            points.filteredPoints().size(),
-                            WaypointsWindow.waypointRows(height));
-            }
-            case IMPORT ->
-                transfer.importScroll = scrolled(
-                        transfer.importScroll, step, transfer.importFiles.size(), TransferWindow.importRows(height));
-            case AREAS -> {
-                if (!confirming)
-                    areas.areaScroll = scrolled(
-                            areas.areaScroll, step, areas.displayedAreas().size(), areas.visibleAreaDialogRows(height));
-            }
-            case GROUPS -> {
-                if (!confirming)
-                    groups.groupScroll = scrolled(
-                            groups.groupScroll, step, ui.groups().size(), groups.visibleGroupDialogRows(height));
-            }
-            case ASSIGN_GROUP -> {
-                if (!confirming)
-                    groups.assignmentScroll = scrolled(
-                            groups.assignmentScroll,
-                            step,
-                            ui.groups().size() + 1,
-                            groups.visibleAssignmentRows(height));
-            }
-            default -> {}
-        }
+        ui.windows.window().scroll(step, ui.windows.dialogRect().height());
     }
 
     /** A list's position after one wheel step, kept within its rows beyond the ones that fit. */

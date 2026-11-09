@@ -185,6 +185,20 @@ final class AreasWindow extends UiPart {
         super(ui);
     }
 
+    /** The window opens with nothing checked; properties apply only to areas the user picks. */
+    void resetForOpening() {
+        areaSearch.setValue("");
+        selectedAreaIds.clear();
+        areaId = null;
+        areaAnchorId = null;
+        ui.areaEdits.areaDraft.clear();
+        autosaveOpen = false;
+        areaDeleteConfirmation = areaDeleteFromMenu = false;
+        ui.groupsWindow.groupDeleteConfirmation = false;
+        ui.setDialogValue(DialogField.AREA_NAME, "");
+        ui.message = "";
+    }
+
     int visibleAreaDialogRows(int height) {
         // The list ends above the export/import, select, save and overlay rows at the bottom of the window.
         return Math.max(1, (height - 148) / 20);

@@ -24,7 +24,6 @@ final class Windows extends UiPart {
         ui.polygonTool.draftRedo.clear();
         ui.polygonTool.stateBefore = null;
         ui.dialog = next;
-        if (next == Dialog.AREAS) ui.areasWindow.areaSearch.setValue("");
         if (next == Dialog.SIZE) {
             SelectionBounds b = ui.state.bounds();
             ui.setDialogValue(DialogField.WIDTH, b == null ? "1" : Long.toString(b.width()));
@@ -36,16 +35,7 @@ final class Windows extends UiPart {
             ui.setDialogValue(
                     DialogField.CENTER_NAME, ui.tr("center_waypoint_default").getString());
         } else if (next == Dialog.AREAS) {
-            // The window opens with nothing checked; properties apply only to areas the user picks.
-            ui.areasWindow.selectedAreaIds.clear();
-            ui.areasWindow.areaId = null;
-            ui.areasWindow.areaAnchorId = null;
-            ui.areaEdits.areaDraft.clear();
-            ui.areasWindow.autosaveOpen = false;
-            ui.areasWindow.areaDeleteConfirmation =
-                    ui.groupsWindow.groupDeleteConfirmation = ui.areasWindow.areaDeleteFromMenu = false;
-            ui.setDialogValue(DialogField.AREA_NAME, "");
-            ui.message = "";
+            ui.areasWindow.resetForOpening();
         }
         if (next == Dialog.SIZE)
             ui.selectionDialogs.anchorButton.setMessage(

@@ -28,6 +28,50 @@ final class ColorWindows extends UiPart {
     private double pickerValue;
     PickerDrag pickerDrag = PickerDrag.NONE;
 
+    final Window pickerWindow = new Window() {
+        @Override
+        int width() {
+            return 420;
+        }
+
+        @Override
+        int height() {
+            return 236;
+        }
+
+        @Override
+        String title() {
+            return "picker_title";
+        }
+
+        @Override
+        Dialog returnTo() {
+            return pickerReturn;
+        }
+
+        @Override
+        void show() {
+            ui.show(true, ui.modalApply, ui.modalCancel);
+        }
+
+        @Override
+        void layout(Rect r, int buttonY) {
+            int x = r.x(), w = r.width();
+            place(ui.modalApply, x + w / 2 - 116, buttonY, 110, 18);
+            place(ui.modalCancel, x + w / 2 + 6, buttonY, 110, 18);
+        }
+
+        @Override
+        void render(GuiGraphics g, Rect r) {
+            renderPicker(g, r.x(), r.y(), r.width(), r.height());
+        }
+
+        @Override
+        void click(MouseButtonEvent event, Rect r) {
+            clickPicker(event, r.x(), r.y(), r.width(), r.height());
+        }
+    };
+
     ColorWindows(ExactSelectionController ui) {
         super(ui);
     }

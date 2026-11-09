@@ -12,6 +12,7 @@ public final class WaypointEditCheck {
         return new WaypointAccess.Point(w, w.getX(), w.getY(), w.getZ(), w.getName(), w.isDisabled(), true)
                 .with(w.getName(), w.getColor());
     }
+
     public static void main(String[] args) throws Exception {
         Waypoint a = new Waypoint(0, 64, 0, "First", "A", 0);
         Waypoint b = new Waypoint(1, 65, 1, "Second", "B", 1);
@@ -30,25 +31,37 @@ public final class WaypointEditCheck {
                 if (++writes[0] == 1) throw new IOException("full disk");
             });
             throw new AssertionError("Save failure was swallowed");
-        } catch (IOException expected) { }
+        } catch (IOException expected) {
+        }
         assert writes[0] == 2 && a.getName().equals("First") && b.getColor() == 1;
         a.setName("External change");
         try {
-            XaeroWaypointBridge.editAndSave(set, before, after, () -> { throw new AssertionError("Stale edit saved"); });
+            XaeroWaypointBridge.editAndSave(set, before, after, () -> {
+                throw new AssertionError("Stale edit saved");
+            });
             throw new AssertionError("Stale edit accepted");
-        } catch (IllegalStateException expected) { }
+        } catch (IllegalStateException expected) {
+        }
         assert a.getName().equals("External change");
         a.setName("First");
         try {
-            XaeroWaypointBridge.editAndSave(set, before, after, () -> { throw new IOException("persistent failure"); });
+            XaeroWaypointBridge.editAndSave(set, before, after, () -> {
+                throw new IOException("persistent failure");
+            });
             throw new AssertionError("Persistent failure was swallowed");
-        } catch (IOException expected) { assert expected.getSuppressed().length == 1; }
+        } catch (IOException expected) {
+            assert expected.getSuppressed().length == 1;
+        }
         assert a.getName().equals("First") && b.getColor() == 1;
         try {
-            XaeroWaypointBridge.editAndSave(set, List.of(before.get(0), before.get(0)), List.of(after.get(0), after.get(0)),
-                    () -> { throw new AssertionError("Duplicate edit saved"); });
+            XaeroWaypointBridge.editAndSave(
+                    set, List.of(before.get(0), before.get(0)), List.of(after.get(0), after.get(0)), () -> {
+                        throw new AssertionError("Duplicate edit saved");
+                    });
             throw new AssertionError("Duplicate identity accepted");
-        } catch (IllegalStateException expected) { }
-        System.out.println("PASS: waypoint name/color editing, undo, symbol preservation, rollback and stale edit rejection");
+        } catch (IllegalStateException expected) {
+        }
+        System.out.println(
+                "PASS: waypoint name/color editing, undo, symbol preservation, rollback and stale edit rejection");
     }
 }

@@ -9,6 +9,9 @@ import xaero.map.file.export.PNGExporter;
 @Pseudo
 @Mixin(value = PNGExporter.class, remap = false)
 public interface PNGExporterAccessor {
-    @Accessor("destinationPath") Path exactselection$getDestinationPath();
-    @Accessor("destinationPath") void exactselection$setDestinationPath(Path path);
+    @Accessor("destinationPath")
+    Path exactselection$getDestinationPath();
+
+    @Accessor("destinationPath")
+    void exactselection$setDestinationPath(Path path);
 }

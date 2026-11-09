@@ -1,5 +1,7 @@
 package dev.exactselection;
 
+import static dev.exactselection.ModLog.LOG;
+
 import com.mojang.blaze3d.vertex.BufferBuilder;
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import com.mojang.blaze3d.vertex.MeshData;
@@ -27,12 +29,13 @@ import xaero.map.MapProcessor;
 import xaero.map.WorldMapSession;
 import xaero.map.world.MapDimension;
 import xaero.map.world.MapWorld;
-import static dev.exactselection.ModLog.LOG;
 
 public final class MinimapAreaOverlay {
     private static final class StoreHolder {
-        private static final SavedAreaStore STORE = new SavedAreaStore(FabricLoader.getInstance().getConfigDir());
+        private static final SavedAreaStore STORE =
+                new SavedAreaStore(FabricLoader.getInstance().getConfigDir());
     }
+
     private static boolean loadErrorLogged, drawErrorLogged;
 
     private record Projected(Area area, List<Point> corners, List<List<Point>> triangles) {}
@@ -42,8 +45,16 @@ public final class MinimapAreaOverlay {
     private static boolean unsupported;
 
     /** Draws saved areas on the minimap; an unsupported Minimap version turns the overlay off instead of crashing. */
-    public static void render(Object handler, Object centerObject, Object dimensionObject, double zoom,
-                              double ps, double pc, int halfViewW, int halfViewH, boolean circle) {
+    public static void render(
+            Object handler,
+            Object centerObject,
+            Object dimensionObject,
+            double zoom,
+            double ps,
+            double pc,
+            int halfViewW,
+            int halfViewH,
+            boolean circle) {
         if (unsupported) return;
         try {
             renderAreas(handler, centerObject, dimensionObject, zoom, ps, pc, halfViewW, halfViewH, circle);
@@ -59,8 +70,16 @@ public final class MinimapAreaOverlay {
         }
     }
 
-    private static void renderAreas(Object handler, Object centerObject, Object dimensionObject, double zoom,
-                                    double ps, double pc, int halfViewW, int halfViewH, boolean circle) {
+    private static void renderAreas(
+            Object handler,
+            Object centerObject,
+            Object dimensionObject,
+            double zoom,
+            double ps,
+            double pc,
+            int halfViewW,
+            int halfViewH,
+            boolean circle) {
         if (!(centerObject instanceof Vec3 center) || !(dimensionObject instanceof ResourceKey<?> rawDimension)) return;
         WorldMapSession mapSession = WorldMapSession.getCurrentSession();
         if (mapSession == null) return;
@@ -73,8 +92,8 @@ public final class MinimapAreaOverlay {
         if (mapDimension == null) return;
         SavedAreaStore store = StoreHolder.STORE;
         try {
-            store.useContext(new MapBridge.Context(mapWorld, processor.getCurrentWorldId(), dimension,
-                    mapDimension.getCurrentMultiworld()));
+            store.useContext(new MapBridge.Context(
+                    mapWorld, processor.getCurrentWorldId(), dimension, mapDimension.getCurrentMultiworld()));
             loadErrorLogged = false;
         } catch (IOException e) {
             if (!loadErrorLogged) {
@@ -103,9 +122,12 @@ public final class MinimapAreaOverlay {
                     project(bounds.minX(), bounds.maxZ(), center, ps, pc, zoom));
             if (outsideView(boundsCorners, halfViewW, halfViewH)) continue;
             List<Point> corners = geometry.vertices().stream()
-                    .map(p -> project(p.x(), p.z(), center, ps, pc, zoom)).toList();
+                    .map(p -> project(p.x(), p.z(), center, ps, pc, zoom))
+                    .toList();
             List<List<Point>> triangles = geometry.triangulate().stream()
-                    .map(triangle -> triangle.stream().map(p -> project(p.x(), p.z(), center, ps, pc, zoom)).toList())
+                    .map(triangle -> triangle.stream()
+                            .map(p -> project(p.x(), p.z(), center, ps, pc, zoom))
+                            .toList())
                     .toList();
             projected.add(new Projected(area, corners, triangles));
         }
@@ -141,8 +163,10 @@ public final class MinimapAreaOverlay {
         double minX = Double.POSITIVE_INFINITY, minY = Double.POSITIVE_INFINITY;
         double maxX = Double.NEGATIVE_INFINITY, maxY = Double.NEGATIVE_INFINITY;
         for (Point point : points) {
-            minX = Math.min(minX, point.x()); maxX = Math.max(maxX, point.x());
-            minY = Math.min(minY, point.y()); maxY = Math.max(maxY, point.y());
+            minX = Math.min(minX, point.x());
+            maxX = Math.max(maxX, point.x());
+            minY = Math.min(minY, point.y());
+            maxY = Math.max(maxY, point.y());
         }
         return minX >= halfWidth || maxX <= -halfWidth || minY >= halfHeight || maxY <= -halfHeight;
     }
@@ -173,9 +197,12 @@ public final class MinimapAreaOverlay {
             int color = 0xFF000000 | (projected.area().color() & 0xFFFFFF);
             List<Point> corners = projected.corners();
             for (int i = 0; i < (projected.area().geometry().closed() ? corners.size() : corners.size() - 1); i++) {
-                Point[] clipped = ScreenGeometry.clipSegment(corners.get(i), corners.get((i + 1) % corners.size()), viewport);
+                Point[] clipped =
+                        ScreenGeometry.clipSegment(corners.get(i), corners.get((i + 1) % corners.size()), viewport);
                 // A solid core with sides fading out over a minimap pixel, so diagonal sides are smooth, not stepped.
-                if (clipped != null) ScreenGeometry.stroke(clipped[0], clipped[1], 0.75, 1, color, (a, b, c) -> vertices.addAll(List.of(a, b, c)));
+                if (clipped != null)
+                    ScreenGeometry.stroke(
+                            clipped[0], clipped[1], 0.75, 1, color, (a, b, c) -> vertices.addAll(List.of(a, b, c)));
             }
         }
         draw(matrix, vertices);
@@ -187,12 +214,17 @@ public final class MinimapAreaOverlay {
      */
     private static void draw(Matrix4f matrix, List<Vertex> vertices) {
         if (vertices.isEmpty()) return;
-        BufferBuilder builder = Tesselator.getInstance()
-                .begin(VertexFormat.Mode.TRIANGLES, DefaultVertexFormat.POSITION_COLOR);
+        BufferBuilder builder =
+                Tesselator.getInstance().begin(VertexFormat.Mode.TRIANGLES, DefaultVertexFormat.POSITION_COLOR);
         for (Vertex vertex : vertices)
-            builder.addVertex(matrix, (float) vertex.point().x(), (float) vertex.point().y(), 0).setColor(vertex.color());
+            builder.addVertex(
+                            matrix,
+                            (float) vertex.point().x(),
+                            (float) vertex.point().y(),
+                            0)
+                    .setColor(vertex.color());
         MeshData mesh = builder.build();
-        if (mesh != null) ImmediateRenderUtil.drawImmediateMeshData(mesh, AreaRenderPipelines.COLOR,
-                ImmediateRenderUtil.NO_TEXTURES);
+        if (mesh != null)
+            ImmediateRenderUtil.drawImmediateMeshData(mesh, AreaRenderPipelines.COLOR, ImmediateRenderUtil.NO_TEXTURES);
     }
 }

@@ -1,5 +1,8 @@
 package dev.exactselection;
 
+import static dev.exactselection.ExactSelectionController.place;
+import static dev.exactselection.Theme.ACCENT;
+
 import dev.exactselection.ExactSelectionController.Dialog;
 import dev.exactselection.SavedAreaStore.Area;
 import java.util.ArrayList;
@@ -14,10 +17,11 @@ import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.network.chat.Component;
 import net.minecraft.util.FormattedCharSequence;
 import net.minecraft.util.Util;
-import static dev.exactselection.Theme.ACCENT;
-import static dev.exactselection.ExactSelectionController.place;
 
-/** The panel beside the map: its buttons and layout, the metric lines with their copy buttons, status lines and the toast. */
+/**
+ * The panel beside the map: its buttons and layout, the metric lines with their copy buttons, status lines and the
+ * toast.
+ */
 final class SelectionPanel extends UiPart {
     private static final int PANEL_X = 34, PANEL_Y = 26;
     private static final int COPY_SIZE = 10;
@@ -29,11 +33,13 @@ final class SelectionPanel extends UiPart {
     Button panelModeButton, rulerButton, copyRulerDistance, quickSave, zonesButton;
     /** -12 while the perimeter shares the area line: everything below moves up one line and the panel gets shorter. */
     int metricsShift;
+
     boolean compact = true;
     private int panelHeight;
     int panelScroll;
     /** The message shown at the bottom of the screen and when it appeared; it fades out after TOAST_MILLIS. */
     private static final long TOAST_MILLIS = 6000;
+
     private String toastText = "";
     private long toastShownAt;
     private int panelWidth;
@@ -47,12 +53,17 @@ final class SelectionPanel extends UiPart {
 
     private static final String METRIC_SEPARATOR = " · ";
 
-    SelectionPanel(ExactSelectionController ui) { super(ui); }
+    SelectionPanel(ExactSelectionController ui) {
+        super(ui);
+    }
 
     void togglePanelMode() {
         // The ruler keeps the panel compact; expanding it leaves the ruler.
-        if (ui.rulerTool.mode) { ui.rulerTool.setRulerMode(false); compact = false; ui.message = ""; }
-        else compact = !compact;
+        if (ui.rulerTool.mode) {
+            ui.rulerTool.setRulerMode(false);
+            compact = false;
+            ui.message = "";
+        } else compact = !compact;
         panelScroll = 0;
         ui.focus(null);
         layoutMainPanel();
@@ -68,12 +79,14 @@ final class SelectionPanel extends UiPart {
         place(rulerButton, PANEL_X + panelWidth - 53, PANEL_Y + 3, 20, 18);
         if (compact) {
             // Groups open from the Areas window; Esc or the right-click menu clears the selection.
-            arrowRow(new Button[]{polygonModeButton, areasButton}, x, y + 74, w);
+            arrowRow(new Button[] {polygonModeButton, areasButton}, x, y + 74, w);
         } else {
-            // Narrow coordinate fields; Save and, below it, Apply stand beside them (Save is placed in updatePanelWidgets).
+            // Narrow coordinate fields; Save and, below it, Apply stand beside them (Save is placed in
+            // updatePanelWidgets).
             // Size, Move and Center live in the right-click menu, Groups in the Areas window.
             int applyWidth = ui.mc.font.width(apply.getMessage());
-            for (String key : List.of("quick_save", "quick_apply", "quick_autosaved")) applyWidth = Math.max(applyWidth, ui.mc.font.width(ui.tr(key)));
+            for (String key : List.of("quick_save", "quick_apply", "quick_autosaved"))
+                applyWidth = Math.max(applyWidth, ui.mc.font.width(ui.tr(key)));
             // A long translation scrolls inside its button instead of squeezing the fields.
             applyWidth = Math.min(w / 4, applyWidth + 12);
             fieldWidth = (w - coordinateLabelWidth - zLabelWidth - fieldGap * 3 - COPY_SIZE - 3 - 6 - applyWidth) / 2;
@@ -84,27 +97,38 @@ final class SelectionPanel extends UiPart {
             place(copyCoordinates, zField + fieldWidth + 3, top + 38, COPY_SIZE, COPY_SIZE);
             place(copyCornerB, zField + fieldWidth + 3, top + 62, COPY_SIZE, COPY_SIZE);
             place(apply, x + w - applyWidth, top + 58, applyWidth, 18);
-            arrowRow(new Button[]{chunkMode, polygonModeButton, clear}, x, y + 126, w);
-            mainRow(new Button[]{areasButton, zonesButton, pointsButton}, x, y + 148, w, 18);
+            arrowRow(new Button[] {chunkMode, polygonModeButton, clear}, x, y + 126, w);
+            mainRow(new Button[] {areasButton, zonesButton, pointsButton}, x, y + 148, w, 18);
             place(ui.mapExport.selectionExportButton, x, y + 170, w, 18);
         }
     }
 
-    private int contentHeight() { return (compact ? COMPACT_HEIGHT : EXPANDED_HEIGHT) + metricsShift; }
+    private int contentHeight() {
+        return (compact ? COMPACT_HEIGHT : EXPANDED_HEIGHT) + metricsShift;
+    }
 
     private Component areaText() {
-        return ui.state.bounds() == null ? ui.tr("area_empty") : ui.tr("area", SelectionDialogs.formatNumber(ui.state.geometry().area()));
+        return ui.state.bounds() == null
+                ? ui.tr("area_empty")
+                : ui.tr(
+                        "area",
+                        SelectionDialogs.formatNumber(ui.state.geometry().area()));
     }
 
     private Component perimeterText() {
-        return ui.tr("perimeter", ui.state.bounds() == null ? "—" : formatLength(ui.state.geometry().perimeter()));
+        return ui.tr(
+                "perimeter",
+                ui.state.bounds() == null
+                        ? "—"
+                        : formatLength(ui.state.geometry().perimeter()));
     }
 
     /** The perimeter goes on the area line when both fit in the panel width. */
     boolean perimeterInline() {
         if (ui.rulerTool.mode) return false;
-        return metricWidth(new MetricLine(List.of(areaText().getString(), perimeterText().getString()),
-                List.of(copyArea, copyPerimeter))) <= panelWidth - 16;
+        return metricWidth(new MetricLine(
+                        List.of(areaText().getString(), perimeterText().getString()), List.of(copyArea, copyPerimeter)))
+                <= panelWidth - 16;
     }
 
     private int metricWidth(MetricLine line) {
@@ -119,17 +143,27 @@ final class SelectionPanel extends UiPart {
     private MetricLine fitMetricLine(MetricLine line, int width) {
         if (metricWidth(line) <= width) return line;
         int textWidth = line.parts().stream().mapToInt(ui.mc.font::width).sum();
-        int available = Math.max(0, width - (line.parts().size() - 1) * ui.mc.font.width(METRIC_SEPARATOR)
-                - Math.min(line.parts().size(), line.copies().size()) * (3 + COPY_SIZE));
+        int available = Math.max(
+                0,
+                width
+                        - (line.parts().size() - 1) * ui.mc.font.width(METRIC_SEPARATOR)
+                        - Math.min(line.parts().size(), line.copies().size()) * (3 + COPY_SIZE));
         List<String> fitted = new ArrayList<>();
         int remaining = available;
         for (int i = 0; i < line.parts().size(); i++) {
             String part = line.parts().get(i);
-            int budget = i == line.parts().size() - 1 ? remaining
+            int budget = i == line.parts().size() - 1
+                    ? remaining
                     : textWidth == 0 ? 0 : (int) ((long) available * ui.mc.font.width(part) / textWidth);
-            String text = ui.mc.font.width(part) <= budget ? part : budget < ui.mc.font.width("…") ? ""
-                    : ui.mc.font.plainSubstrByWidth(part, budget - ui.mc.font.width("…")).stripTrailing() + "…";
-            fitted.add(text); remaining -= ui.mc.font.width(text);
+            String text = ui.mc.font.width(part) <= budget
+                    ? part
+                    : budget < ui.mc.font.width("…")
+                            ? ""
+                            : ui.mc.font
+                                            .plainSubstrByWidth(part, budget - ui.mc.font.width("…"))
+                                            .stripTrailing() + "…";
+            fitted.add(text);
+            remaining -= ui.mc.font.width(text);
         }
         return new MetricLine(fitted, line.copies());
     }
@@ -137,7 +171,8 @@ final class SelectionPanel extends UiPart {
     /** Puts each copy button right after its value; buttons without a value on this line are hidden. */
     void placeMetricLine(MetricLine line, int x, int y, int width) {
         line = fitMetricLine(line, width);
-        for (int i = 0; i < line.copies().size(); i++) if (i >= line.parts().size()) line.copies().get(i).visible = false;
+        for (int i = 0; i < line.copies().size(); i++)
+            if (i >= line.parts().size()) line.copies().get(i).visible = false;
         for (int i = 0; i < line.parts().size(); i++) {
             if (i > 0) x += ui.mc.font.width(METRIC_SEPARATOR);
             x += ui.mc.font.width(line.parts().get(i));
@@ -165,11 +200,14 @@ final class SelectionPanel extends UiPart {
         List<String> parts = new ArrayList<>();
         parts.add(ui.tr("width", bounds == null ? "—" : bounds.width()).getString());
         parts.add(ui.tr("length", bounds == null ? "—" : bounds.length()).getString());
-        if (includeChunks && bounds != null) parts.add(ui.tr("chunk_count", bounds.chunkCount()).getString());
+        if (includeChunks && bounds != null)
+            parts.add(ui.tr("chunk_count", bounds.chunkCount()).getString());
         return parts;
     }
 
-    private List<String> dimensionText() { return dimensionParts(ui.state.bounds(), ui.chunks); }
+    private List<String> dimensionText() {
+        return dimensionParts(ui.state.bounds(), ui.chunks);
+    }
 
     /** A metric line of the panel and its y below the panel's top, as for line(). */
     private record PanelLine(int y, MetricLine line) {}
@@ -178,16 +216,27 @@ final class SelectionPanel extends UiPart {
         int first = compact ? 33 : 82, second = first + 12, third = second + 12;
         if (ui.rulerTool.mode) {
             List<PanelLine> lines = new ArrayList<>(List.of(
-                    new PanelLine(first, new MetricLine(List.of(ui.rulerTool.rulerDistanceText()), List.of(copyRulerDistance))),
+                    new PanelLine(
+                            first,
+                            new MetricLine(List.of(ui.rulerTool.rulerDistanceText()), List.of(copyRulerDistance))),
                     new PanelLine(second, new MetricLine(ui.rulerTool.rulerDeltaParts(), List.of()))));
             String other = ui.rulerTool.rulerOtherDimensionText();
             if (other != null) lines.add(new PanelLine(third, new MetricLine(List.of(other), List.of())));
             return lines;
         }
         PanelLine dimensions = new PanelLine(first, new MetricLine(dimensionText(), List.of(copyWidth, copyLength)));
-        if (metricsShift != 0) return List.of(dimensions, new PanelLine(second, new MetricLine(
-                List.of(areaText().getString(), perimeterText().getString()), List.of(copyArea, copyPerimeter))));
-        return List.of(dimensions,
+        if (metricsShift != 0)
+            return List.of(
+                    dimensions,
+                    new PanelLine(
+                            second,
+                            new MetricLine(
+                                    List.of(
+                                            areaText().getString(),
+                                            perimeterText().getString()),
+                                    List.of(copyArea, copyPerimeter))));
+        return List.of(
+                dimensions,
                 new PanelLine(second, new MetricLine(List.of(areaText().getString()), List.of(copyArea))),
                 new PanelLine(third, new MetricLine(List.of(perimeterText().getString()), List.of(copyPerimeter))));
     }
@@ -199,7 +248,8 @@ final class SelectionPanel extends UiPart {
     }
 
     private void arrowRow(Button[] buttons, int x, int y, int width) {
-        place(undo, x, y, 20, 18); place(redo, x + 23, y, 20, 18);
+        place(undo, x, y, 20, 18);
+        place(redo, x + 23, y, 20, 18);
         mainRow(buttons, x + 46, y, width - 46, 18);
     }
 
@@ -213,21 +263,33 @@ final class SelectionPanel extends UiPart {
         return compact ? 0 : Math.max(0, contentHeight() - panelHeight + (panelHeight < contentHeight() ? 12 : 0));
     }
 
-    /** The latest message, centred near the bottom of the screen for a few seconds instead of cut short in the panel. */
+    /**
+     * The latest message, centred near the bottom of the screen for a few seconds instead of cut short in the panel.
+     */
     void renderToast(GuiGraphics g) {
         long now = Util.getMillis();
-        if (!ui.message.equals(toastText)) { toastText = ui.message; toastShownAt = now; }
+        if (!ui.message.equals(toastText)) {
+            toastText = ui.message;
+            toastShownAt = now;
+        }
         if (ui.message.isEmpty()) return;
         if (now - toastShownAt > TOAST_MILLIS) {
             // The export notice also keeps the panel's "Show file" button; only the toast hides.
-            if (!ui.mapExport.hasExportNotice()) { ui.message = ""; toastText = ""; }
+            if (!ui.mapExport.hasExportNotice()) {
+                ui.message = "";
+                toastText = "";
+            }
             return;
         }
-        List<FormattedCharSequence> lines = ui.mc.font.split(Component.literal(ui.message), Math.min(360, ui.screen.width - 40));
+        List<FormattedCharSequence> lines =
+                ui.mc.font.split(Component.literal(ui.message), Math.min(360, ui.screen.width - 40));
         if (lines.size() > 3) lines = lines.subList(0, 3);
         int w = 0;
         for (var line : lines) w = Math.max(w, ui.mc.font.width(line));
-        int boxW = w + 16, boxH = lines.size() * 10 + 10, x = (ui.screen.width - boxW) / 2, y = ui.screen.height - 52 - boxH;
+        int boxW = w + 16,
+                boxH = lines.size() * 10 + 10,
+                x = (ui.screen.width - boxW) / 2,
+                y = ui.screen.height - 52 - boxH;
         g.nextStratum();
         g.fill(x, y, x + boxW, y + boxH, Theme.PANEL_BACKGROUND);
         g.renderOutline(x, y, boxW, boxH, Theme.BORDER);
@@ -240,16 +302,32 @@ final class SelectionPanel extends UiPart {
         g.fill(PANEL_X, PANEL_Y, PANEL_X + panelWidth, PANEL_Y + panelHeight, Theme.PANEL_BACKGROUND);
         g.renderOutline(PANEL_X, PANEL_Y, panelWidth, panelHeight, Theme.BORDER);
         int titleEnd = (compact && quickSave.visible ? quickSave : rulerButton).getX() - 4;
-        g.drawString(ui.mc.font, fitHint(ui.tr("title").getString(), titleEnd - PANEL_X - 8),
-                PANEL_X + 8, PANEL_Y + 7, ACCENT);
-        String hint = ui.rulerTool.mode ? "ruler_controls" : ui.polygonTool.mode ? compact ? "polygon_controls_short" : "polygon_controls"
-                : ui.state.geometry() instanceof PolygonGeometry ? "polygon_edit_controls"
-                : ui.state.source() != null && ui.state.phase() == SelectionState.Phase.SELECTED ? "rectangle_edit_controls"
-                : ui.state.phase() == SelectionState.Phase.PREVIEW ? "second_corner"
-                : ui.state.phase() == SelectionState.Phase.SELECTED ? "new_selection" : "first_corner";
+        g.drawString(
+                ui.mc.font,
+                fitHint(ui.tr("title").getString(), titleEnd - PANEL_X - 8),
+                PANEL_X + 8,
+                PANEL_Y + 7,
+                ACCENT);
+        String hint = ui.rulerTool.mode
+                ? "ruler_controls"
+                : ui.polygonTool.mode
+                        ? compact ? "polygon_controls_short" : "polygon_controls"
+                        : ui.state.geometry() instanceof PolygonGeometry
+                                ? "polygon_edit_controls"
+                                : ui.state.source() != null && ui.state.phase() == SelectionState.Phase.SELECTED
+                                        ? "rectangle_edit_controls"
+                                        : ui.state.phase() == SelectionState.Phase.PREVIEW
+                                                ? "second_corner"
+                                                : ui.state.phase() == SelectionState.Phase.SELECTED
+                                                        ? "new_selection"
+                                                        : "first_corner";
         // Two pixels below the mode button so the line never touches it.
-        g.drawString(ui.mc.font, fitHint(ui.tr(hint).getString(), panelWidth - 16), PANEL_X + 8, PANEL_Y + 22, 0xFFD0DBE2);
-        g.enableScissor(PANEL_X + 1, PANEL_Y + 32, PANEL_X + panelWidth - 1,
+        g.drawString(
+                ui.mc.font, fitHint(ui.tr(hint).getString(), panelWidth - 16), PANEL_X + 8, PANEL_Y + 22, 0xFFD0DBE2);
+        g.enableScissor(
+                PANEL_X + 1,
+                PANEL_Y + 32,
+                PANEL_X + panelWidth - 1,
                 PANEL_Y + panelHeight - (maxPanelScroll() > 0 ? 16 : 3));
         // The compact panel leaves the corners to the expanded one.
         if (!compact) {
@@ -263,7 +341,12 @@ final class SelectionPanel extends UiPart {
         int sh = metricsShift;
         boolean first = true;
         for (PanelLine metric : panelMetricLines()) {
-            drawMetricLine(g, metric.line(), PANEL_X + 8, PANEL_Y + metric.y() - (compact ? 0 : panelScroll), panelWidth - 16,
+            drawMetricLine(
+                    g,
+                    metric.line(),
+                    PANEL_X + 8,
+                    PANEL_Y + metric.y() - (compact ? 0 : panelScroll),
+                    panelWidth - 16,
                     first ? -1 : ACCENT);
             first = false;
         }
@@ -271,8 +354,11 @@ final class SelectionPanel extends UiPart {
         g.fill(PANEL_X + 8, lineY, PANEL_X + panelWidth - 8, lineY + 1, Theme.BORDER);
         if (!compact) {
             int n = ui.selected == null ? 0 : ui.selected.points().size();
-            Component count = ui.waypoints == null ? ui.tr("minimap_missing") : ui.selected == null
-                    ? ui.tr("waypoints_unavailable") : ui.tr("count", n, setNameDisplay(ui.selected.setName()));
+            Component count = ui.waypoints == null
+                    ? ui.tr("minimap_missing")
+                    : ui.selected == null
+                            ? ui.tr("waypoints_unavailable")
+                            : ui.tr("count", n, setNameDisplay(ui.selected.setName()));
             line(g, count, 194 + sh, Theme.WARNING);
             line(g, ui.tr(ui.loadFailed ? ui.loadFailedKey() : "scope"), 206 + sh, Theme.TEXT_MUTED);
         }
@@ -280,10 +366,13 @@ final class SelectionPanel extends UiPart {
         // Messages go to the bottom of the screen (renderToast); the panel keeps the controls or the edited area.
         // The compact panel has no scope line, so it keeps the load failure in the status line.
         boolean loadWarning = compact && ui.loadFailed;
-        Component status = loadWarning ? ui.tr(ui.loadFailedKey())
-                : compact && ui.dirty ? ui.tr("coordinates_pending")
-                : editing == null ? ui.tr("controls") : ui.tr("editing_area", editing.name());
-        if (!ui.mapExport.hasExportNotice()) line(g, status, (compact ? 96 : 221) + sh, loadWarning ? Theme.WARNING : Theme.TEXT_MUTED);
+        Component status = loadWarning
+                ? ui.tr(ui.loadFailedKey())
+                : compact && ui.dirty
+                        ? ui.tr("coordinates_pending")
+                        : editing == null ? ui.tr("controls") : ui.tr("editing_area", editing.name());
+        if (!ui.mapExport.hasExportNotice())
+            line(g, status, (compact ? 96 : 221) + sh, loadWarning ? Theme.WARNING : Theme.TEXT_MUTED);
         g.disableScissor();
         if (maxPanelScroll() > 0)
             g.drawString(ui.mc.font, ui.tr("panel_scroll"), PANEL_X + 8, PANEL_Y + panelHeight - 12, Theme.TEXT_MUTED);
@@ -297,14 +386,21 @@ final class SelectionPanel extends UiPart {
         if (ui.mc.font.width(text) <= width) return text;
         String[] parts = text.split(" · ");
         String fitted = parts[0];
-        for (int i = 1; i < parts.length && ui.mc.font.width(fitted + " · " + parts[i]) <= width; i++) fitted += " · " + parts[i];
+        for (int i = 1; i < parts.length && ui.mc.font.width(fitted + " · " + parts[i]) <= width; i++)
+            fitted += " · " + parts[i];
         if (ui.mc.font.width(fitted) <= width) return fitted;
-        return ui.mc.font.plainSubstrByWidth(fitted, width - ui.mc.font.width("…")).stripTrailing() + "…";
+        return ui.mc.font
+                        .plainSubstrByWidth(fitted, width - ui.mc.font.width("…"))
+                        .stripTrailing() + "…";
     }
 
     private void line(GuiGraphics g, Component text, int y, int color) {
-        g.drawString(ui.mc.font, ui.mc.font.plainSubstrByWidth(text.getString(), panelWidth - 16), PANEL_X + 8,
-                PANEL_Y + y - (compact ? 0 : panelScroll), color);
+        g.drawString(
+                ui.mc.font,
+                ui.mc.font.plainSubstrByWidth(text.getString(), panelWidth - 16),
+                PANEL_X + 8,
+                PANEL_Y + y - (compact ? 0 : panelScroll),
+                color);
     }
 
     private static Component setNameDisplay(String name) {
@@ -312,8 +408,7 @@ final class SelectionPanel extends UiPart {
     }
 
     boolean overPanel(double x, double y) {
-        return ui.enabled() && x >= PANEL_X && x < PANEL_X + panelWidth
-                && y >= PANEL_Y && y < PANEL_Y + panelHeight;
+        return ui.enabled() && x >= PANEL_X && x < PANEL_X + panelWidth && y >= PANEL_Y && y < PANEL_Y + panelHeight;
     }
 
     void updatePanelWidgets() {
@@ -323,21 +418,55 @@ final class SelectionPanel extends UiPart {
         ui.show(main && ui.rulerTool.mode, copyRulerDistance);
         ui.show(main, areasButton);
         boolean route = ui.rulerTool.mode;
-        ui.show(main && (route ? ui.rulerTool.routeReady() : !compact || ui.state.phase() == SelectionState.Phase.SELECTED), quickSave);
-        ui.show(main && !compact, fields[0], fields[1], fields[2], fields[3], apply, chunkMode, copyCoordinates, copyCornerB, clear,
-                zonesButton, pointsButton, ui.mapExport.selectionExportButton);
+        ui.show(
+                main
+                        && (route
+                                ? ui.rulerTool.routeReady()
+                                : !compact || ui.state.phase() == SelectionState.Phase.SELECTED),
+                quickSave);
+        ui.show(
+                main && !compact,
+                fields[0],
+                fields[1],
+                fields[2],
+                fields[3],
+                apply,
+                chunkMode,
+                copyCoordinates,
+                copyCornerB,
+                clear,
+                zonesButton,
+                pointsButton,
+                ui.mapExport.selectionExportButton);
         if (main && ui.mapExport.hasExportNotice()) {
-            place(ui.mapExport.openExportButton, PANEL_X + 8, PANEL_Y + metricsShift + (compact ? 93 : 218 - panelScroll),
-                    panelWidth - 16, 16);
+            place(
+                    ui.mapExport.openExportButton,
+                    PANEL_X + 8,
+                    PANEL_Y + metricsShift + (compact ? 93 : 218 - panelScroll),
+                    panelWidth - 16,
+                    16);
             ui.show(true, ui.mapExport.openExportButton);
         }
         Area editing = route ? null : ui.areasWindow.editedArea();
         boolean autoGeometry = editing != null && ui.autosave.covers(AutosaveSettings.Field.GEOMETRY);
         quickSave.setMessage(ui.tr(editing == null ? "quick_save" : autoGeometry ? "quick_autosaved" : "quick_apply"));
-        ui.tip(quickSave, route ? ui.tr("route_save_tooltip") : editing == null ? ui.tr("quick_save_tooltip")
-                : autoGeometry ? ui.tr("quick_autosaved_tooltip", editing.name()) : ui.tr("quick_apply_tooltip", editing.name()));
-        quickSave.active = route ? !ui.loadFailed : ui.state.phase() == SelectionState.Phase.SELECTED && !ui.dirty && ui.polygonTool.draft.isEmpty()
-                && !ui.holding() && !ui.loadFailed && (editing == null || !editing.geometry().equals(ui.state.geometry()));
+        ui.tip(
+                quickSave,
+                route
+                        ? ui.tr("route_save_tooltip")
+                        : editing == null
+                                ? ui.tr("quick_save_tooltip")
+                                : autoGeometry
+                                        ? ui.tr("quick_autosaved_tooltip", editing.name())
+                                        : ui.tr("quick_apply_tooltip", editing.name()));
+        quickSave.active = route
+                ? !ui.loadFailed
+                : ui.state.phase() == SelectionState.Phase.SELECTED
+                        && !ui.dirty
+                        && ui.polygonTool.draft.isEmpty()
+                        && !ui.holding()
+                        && !ui.loadFailed
+                        && (editing == null || !editing.geometry().equals(ui.state.geometry()));
         // Compact: in the header beside the mode icon; expanded: under Apply, beside the second coordinate row.
         int saveWidth = Math.max(40, ui.mc.font.width(quickSave.getMessage()) + 10);
         if (compact) place(quickSave, rulerButton.getX() - 3 - saveWidth, PANEL_Y + 3, saveWidth, 18);
@@ -349,7 +478,8 @@ final class SelectionPanel extends UiPart {
             for (AbstractWidget widget : ui.widgets) {
                 if (widget.visible && widget != panelModeButton && widget != rulerButton)
                     widget.visible = widget.getY() >= PANEL_Y + 32
-                            && widget.getY() + widget.getHeight() <= PANEL_Y + panelHeight - (maxPanelScroll() > 0 ? 16 : 3);
+                            && widget.getY() + widget.getHeight()
+                                    <= PANEL_Y + panelHeight - (maxPanelScroll() > 0 ? 16 : 3);
             }
         }
         ui.rightClickMenu.placeQuickMenu(main);
@@ -358,9 +488,11 @@ final class SelectionPanel extends UiPart {
         for (EditBox field : fields) field.active = !polygonSelection && !contourDraft && !ui.holding();
         boolean draftHistory = !ui.polygonTool.draftUndo.isEmpty() || !ui.polygonTool.draftRedo.isEmpty();
         undo.active = (draftHistory ? !ui.polygonTool.draftUndo.isEmpty() : ui.history.canUndo())
-                || ui.dirty || ui.gesture != null;
+                || ui.dirty
+                || ui.gesture != null;
         redo.active = (!ui.polygonTool.draftRedo.isEmpty() || !contourDraft && ui.history.canRedo())
-                && !ui.dirty && ui.gesture == null;
+                && !ui.dirty
+                && ui.gesture == null;
         // Name the stored action only when the button would apply it rather than discard a draft or gesture.
         boolean historyStep = !draftHistory && !ui.dirty && ui.gesture == null;
         ui.tip(undo, historyTooltip("undo_tooltip", historyStep ? ui.history.undoLabel() : ""));
@@ -374,11 +506,19 @@ final class SelectionPanel extends UiPart {
         polygonModeButton.setMessage(ui.tr(ui.polygonTool.mode ? "polygon_mode_on" : "polygon_mode"));
         polygonModeButton.active = ui.enabled() && !ui.dirty && !ui.holding() && ui.dialog == Dialog.NONE;
         ui.tip(polygonModeButton, ui.tr(ui.polygonTool.mode ? "polygon_controls" : "polygon_mode_tooltip"));
-        rulerButton.active = ui.enabled() && !ui.dirty && !ui.holding() && ui.dialog == Dialog.NONE && ui.polygonTool.draft.isEmpty();
+        rulerButton.active = ui.enabled()
+                && !ui.dirty
+                && !ui.holding()
+                && ui.dialog == Dialog.NONE
+                && ui.polygonTool.draft.isEmpty();
         ui.tip(rulerButton, ui.tr(ui.rulerTool.mode ? "ruler_mode_on_tooltip" : "ruler_mode_tooltip"));
         copyRulerDistance.active = ui.rulerTool.pointA != null && ui.rulerTool.pointB != null;
         boolean finished = ui.state.phase() == SelectionState.Phase.SELECTED && ui.state.bounds() != null;
-        sizeButton.active = finished && !(ui.state.geometry() instanceof PolygonGeometry) && !ui.dirty && !contourDraft && !ui.holding();
+        sizeButton.active = finished
+                && !(ui.state.geometry() instanceof PolygonGeometry)
+                && !ui.dirty
+                && !contourDraft
+                && !ui.holding();
         chunkMode.active = !(ui.state.geometry() instanceof PolygonGeometry) && !contourDraft && !ui.holding();
         moveButton.active = centerButton.active = finished && !ui.dirty && !contourDraft && !ui.holding();
         areasButton.active = !ui.dirty && !contourDraft && !ui.holding();
@@ -390,13 +530,26 @@ final class SelectionPanel extends UiPart {
     void updatePanelActions() {
         boolean contourDraft = !ui.polygonTool.draft.isEmpty();
         boolean polygonSelection = ui.state.geometry() instanceof PolygonGeometry;
-        apply.active = ui.enabled() && !polygonSelection && !contourDraft && !ui.holding() && (ui.dirty || ui.state.bounds() != null);
+        apply.active = ui.enabled()
+                && !polygonSelection
+                && !contourDraft
+                && !ui.holding()
+                && (ui.dirty || ui.state.bounds() != null);
         clear.active = ui.state.bounds() != null || ui.dirty || contourDraft;
         int pointCount = ui.selected == null ? 0 : ui.selected.points().size();
-        pointsButton.setMessage(ui.state.phase() == SelectionState.Phase.SELECTED ? ui.tr("waypoints_button", pointCount) : ui.tr("waypoints_all"));
+        pointsButton.setMessage(
+                ui.state.phase() == SelectionState.Phase.SELECTED
+                        ? ui.tr("waypoints_button", pointCount)
+                        : ui.tr("waypoints_all"));
         pointsButton.active = ui.waypoints != null && !ui.dirty && !contourDraft && !ui.holding();
-        boolean canCopy = ui.enabled() && !ui.dirty && !contourDraft && !ui.holding() && ui.dialog == Dialog.NONE && ui.state.bounds() != null;
-        copyCoordinates.active = copyCornerB.active = copyArea.active = copyPerimeter.active = copyLength.active = copyWidth.active = canCopy;
+        boolean canCopy = ui.enabled()
+                && !ui.dirty
+                && !contourDraft
+                && !ui.holding()
+                && ui.dialog == Dialog.NONE
+                && ui.state.bounds() != null;
+        copyCoordinates.active = copyCornerB.active =
+                copyArea.active = copyPerimeter.active = copyLength.active = copyWidth.active = canCopy;
     }
 
     void createPanelWidgets() {
@@ -407,10 +560,15 @@ final class SelectionPanel extends UiPart {
         fieldGap = 6;
         for (int i = 0; i < 4; i++) {
             int col = i % 2, row = i / 2;
-            EditBox field = new EditBox(ui.mc.font, 0, 0, 100, 18,
-                    ui.tr("coordinate", row == 0 ? "A" : "B", col == 0 ? "X" : "Z"));
+            EditBox field = new EditBox(
+                    ui.mc.font, 0, 0, 100, 18, ui.tr("coordinate", row == 0 ? "A" : "B", col == 0 ? "X" : "Z"));
             field.setMaxLength(10);
-            field.setResponder(value -> { if (!ui.syncing) { ui.dirty = true; ui.message = ""; } });
+            field.setResponder(value -> {
+                if (!ui.syncing) {
+                    ui.dirty = true;
+                    ui.message = "";
+                }
+            });
             fields[i] = field;
             ui.widgets.add(field);
         }
@@ -433,15 +591,22 @@ final class SelectionPanel extends UiPart {
         copyRulerDistance = ui.iconButton("ruler_copy_tooltip", ui.rulerTool::copyRulerDistance);
         areasButton = ui.button("areas_window", () -> ui.windows.openDialog(Dialog.AREAS));
         clear = ui.button("clear", ui::reset);
-        quickSave = ui.button("quick_save", () -> { if (ui.rulerTool.mode) ui.rulerTool.saveRoute(); else quickSave(); });
-        zonesButton = ui.button("zones_in_selection", "zones_in_selection_tooltip", ui.areasWindow::openAreasInSelection);
+        quickSave = ui.button("quick_save", () -> {
+            if (ui.rulerTool.mode) ui.rulerTool.saveRoute();
+            else quickSave();
+        });
+        zonesButton =
+                ui.button("zones_in_selection", "zones_in_selection_tooltip", ui.areasWindow::openAreasInSelection);
         pointsButton = ui.button("waypoints_all", ui.waypointsWindow::openWaypoints);
         pointsButton.setTooltip(Tooltip.create(ui.tr(ui.waypoints == null ? "minimap_missing" : "waypoints_tooltip")));
     }
 
     void quickSave() {
         if (ui.areasWindow.editedArea() != null) ui.areasWindow.applyEditedArea();
-        else { ui.newAreaWindow.areaNameReturn = Dialog.NONE; ui.newAreaWindow.openAreaNameDialog(); }
+        else {
+            ui.newAreaWindow.areaNameReturn = Dialog.NONE;
+            ui.newAreaWindow.openAreaNameDialog();
+        }
     }
 
     private SelectionBounds copyableBounds() {
@@ -453,13 +618,21 @@ final class SelectionPanel extends UiPart {
         if (bounds != null) copyToClipboard(cornerCoordinates(bounds, true));
     }
 
-    private void copyArea() { copySelection(Metric.AREA); }
+    private void copyArea() {
+        copySelection(Metric.AREA);
+    }
 
-    private void copyPerimeter() { copySelection(Metric.PERIMETER); }
+    private void copyPerimeter() {
+        copySelection(Metric.PERIMETER);
+    }
 
-    private void copyLength() { copySelection(Metric.LENGTH); }
+    private void copyLength() {
+        copySelection(Metric.LENGTH);
+    }
 
-    private void copyWidth() { copySelection(Metric.WIDTH); }
+    private void copyWidth() {
+        copySelection(Metric.WIDTH);
+    }
 
     private void copySelection(Metric metric) {
         SelectionBounds b = copyableBounds();
@@ -473,26 +646,41 @@ final class SelectionPanel extends UiPart {
     /** A value of a shape that a copy button puts on the clipboard. */
     enum Metric {
         /** Corner A of a rectangle, or every vertex of a polygon or a route. */
-        CORNER_A, CORNER_B, AREA, PERIMETER, LENGTH, WIDTH
+        CORNER_A,
+        CORNER_B,
+        AREA,
+        PERIMETER,
+        LENGTH,
+        WIDTH
     }
 
     void copyMetric(Metric metric, AreaGeometry geometry, SelectionBounds b) {
         boolean exact = ui.autosave.rounding() == AutosaveSettings.Rounding.EXACT;
-        copyToClipboard(switch (metric) {
-            case CORNER_A -> geometry instanceof RectangleGeometry ? cornerCoordinates(b, true)
-                    : geometry.vertices().stream().map(p -> p.x() + " " + p.z()).collect(Collectors.joining("; "));
-            case CORNER_B -> cornerCoordinates(b, false);
-            case AREA -> exact ? SelectionDialogs.formatNumber(geometry.area()) : rounded(geometry.area());
-            case PERIMETER -> exact ? formatLength(geometry.perimeter()) : rounded(geometry.perimeter());
-            case LENGTH -> Long.toString(b.length());
-            case WIDTH -> Long.toString(b.width());
-        });
+        copyToClipboard(
+                switch (metric) {
+                    case CORNER_A ->
+                        geometry instanceof RectangleGeometry
+                                ? cornerCoordinates(b, true)
+                                : geometry.vertices().stream()
+                                        .map(p -> p.x() + " " + p.z())
+                                        .collect(Collectors.joining("; "));
+                    case CORNER_B -> cornerCoordinates(b, false);
+                    case AREA -> exact ? SelectionDialogs.formatNumber(geometry.area()) : rounded(geometry.area());
+                    case PERIMETER -> exact ? formatLength(geometry.perimeter()) : rounded(geometry.perimeter());
+                    case LENGTH -> Long.toString(b.length());
+                    case WIDTH -> Long.toString(b.width());
+                });
     }
 
-    /** Whole blocks for pasting; the small margin keeps a value computed a hair off an integer from gaining or losing a block. */
+    /**
+     * Whole blocks for pasting; the small margin keeps a value computed a hair off an integer from gaining or losing a
+     * block.
+     */
     String rounded(double value) {
-        return Long.toString(ui.autosave.rounding() == AutosaveSettings.Rounding.UP
-                ? (long) Math.ceil(value - 1e-9) : (long) Math.floor(value + 1e-9));
+        return Long.toString(
+                ui.autosave.rounding() == AutosaveSettings.Rounding.UP
+                        ? (long) Math.ceil(value - 1e-9)
+                        : (long) Math.floor(value + 1e-9));
     }
 
     static String formatLength(double value) {

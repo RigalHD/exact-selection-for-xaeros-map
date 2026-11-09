@@ -1,5 +1,9 @@
 package dev.exactselection;
 
+import static dev.exactselection.ExactSelectionController.place;
+import static dev.exactselection.SelectionPanel.formatLength;
+import static dev.exactselection.Theme.ACCENT;
+
 import dev.exactselection.ExactSelectionController.Dialog;
 import dev.exactselection.ExactSelectionController.DialogField;
 import dev.exactselection.SavedAreaStore.Area;
@@ -16,9 +20,6 @@ import java.util.UUID;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.input.MouseButtonEvent;
-import static dev.exactselection.Theme.ACCENT;
-import static dev.exactselection.ExactSelectionController.place;
-import static dev.exactselection.SelectionPanel.formatLength;
 
 /** The Groups window, the window for naming a group and the chooser that assigns checked areas to one. */
 final class GroupsWindow extends UiPart {
@@ -38,11 +39,14 @@ final class GroupsWindow extends UiPart {
 
     private Map<String, Totals> totals = new HashMap<>();
 
-    GroupsWindow(ExactSelectionController ui) { super(ui); }
+    GroupsWindow(ExactSelectionController ui) {
+        super(ui);
+    }
 
     private void openGroupsWindow(Dialog returnTo) {
         if (ui.dirty || ui.waypointsWindow.pending != null || !ui.polygonTool.draft.isEmpty() || ui.holding()) return;
-        ui.polygonTool.draftUndo.clear(); ui.polygonTool.draftRedo.clear();
+        ui.polygonTool.draftUndo.clear();
+        ui.polygonTool.draftRedo.clear();
         ui.polygonTool.stateBefore = null;
         groupsReturnDialog = returnTo;
         ui.dialog = Dialog.GROUPS;
@@ -107,7 +111,8 @@ final class GroupsWindow extends UiPart {
 
     /** Import matches groups by name, so two groups cannot share one; {@code except} is the group being renamed. */
     private boolean nameTaken(String name, String except) {
-        boolean taken = ui.groups().stream().anyMatch(g -> !g.id().equals(except) && g.name().equalsIgnoreCase(name));
+        boolean taken = ui.groups().stream()
+                .anyMatch(g -> !g.id().equals(except) && g.name().equalsIgnoreCase(name));
         if (taken) ui.say("group_name_taken", name);
         return taken;
     }
@@ -121,7 +126,9 @@ final class GroupsWindow extends UiPart {
         if (!ui.areaEdits.changeAreas(ui.areaEdits.areaState(ui.areas(), groups), "group_create")) return;
         groupId = group.id();
         ui.dialog = Dialog.GROUPS;
-        groupScroll = Math.max(0, groups.size() - visibleGroupDialogRows(ui.windows.dialogRect().height()));
+        groupScroll = Math.max(
+                0,
+                groups.size() - visibleGroupDialogRows(ui.windows.dialogRect().height()));
         ui.say("group_created", group.name());
         ui.focus(null);
     }
@@ -131,8 +138,8 @@ final class GroupsWindow extends UiPart {
         String name = ui.field(DialogField.GROUP_NAME).getValue().trim();
         if (current == null || name.isEmpty() || ui.loadFailed || nameTaken(name, current.id())) return;
         List<Group> groups = new ArrayList<>(ui.groups());
-        groups.replaceAll(group -> group.id().equals(current.id())
-                ? new Group(group.id(), name, group.visible()) : group);
+        groups.replaceAll(
+                group -> group.id().equals(current.id()) ? new Group(group.id(), name, group.visible()) : group);
         State next = ui.areaEdits.areaState(ui.areas(), groups);
         if (!ui.areaStore.state().equals(next) && !ui.areaEdits.changeAreas(next, "group_rename")) return;
         ui.dialog = Dialog.GROUPS;
@@ -145,17 +152,21 @@ final class GroupsWindow extends UiPart {
         Group group = findGroup(nextGroupId);
         if (nextGroupId != null && group == null) return;
         int count = assignmentTargets.size();
-        ui.areaEdits.areaDraft.groupSet = true; ui.areaEdits.areaDraft.groupId = nextGroupId;
+        ui.areaEdits.areaDraft.groupSet = true;
+        ui.areaEdits.areaDraft.groupId = nextGroupId;
         ui.dialog = Dialog.AREAS;
         assignmentTargets.clear();
-        ui.say(ui.autosave.covers(AutosaveSettings.Field.GROUP) ? "group_assigned" : "group_staged",
-                count, group == null ? ui.tr("group_none").getString() : group.name());
+        ui.say(
+                ui.autosave.covers(AutosaveSettings.Field.GROUP) ? "group_assigned" : "group_staged",
+                count,
+                group == null ? ui.tr("group_none").getString() : group.name());
         ui.focus(null);
         ui.areaEdits.stage(AutosaveSettings.Field.GROUP);
     }
 
     private void toggleGroup() {
-        Group g = selectedGroup(); if (g == null || ui.loadFailed) return;
+        Group g = selectedGroup();
+        if (g == null || ui.loadFailed) return;
         List<Group> groups = new ArrayList<>(ui.groups());
         groups.replaceAll(v -> v.id().equals(g.id()) ? new Group(v.id(), v.name(), !v.visible()) : v);
         if (ui.areaEdits.changeAreas(ui.areaEdits.areaState(ui.areas(), groups), "group_toggle"))
@@ -171,11 +182,14 @@ final class GroupsWindow extends UiPart {
     void confirmGroupDelete() {
         Group group = selectedGroup();
         if (group == null || !groupDeleteConfirmation || ui.loadFailed) return;
-        List<Group> groups = ui.groups().stream()
-                .filter(g -> !g.id().equals(group.id())).toList();
-        List<Area> areas = ui.areas().stream().map(area ->
-                Objects.equals(area.groupId(), group.id()) ? area.withGroup(null) : area).toList();
-        int affected = (int) ui.areas().stream().filter(a -> Objects.equals(a.groupId(), group.id())).count();
+        List<Group> groups =
+                ui.groups().stream().filter(g -> !g.id().equals(group.id())).toList();
+        List<Area> areas = ui.areas().stream()
+                .map(area -> Objects.equals(area.groupId(), group.id()) ? area.withGroup(null) : area)
+                .toList();
+        int affected = (int) ui.areas().stream()
+                .filter(a -> Objects.equals(a.groupId(), group.id()))
+                .count();
         if (!ui.areaEdits.changeAreas(ui.areaEdits.areaState(areas, groups), "group_delete")) return;
         groupId = null;
         ui.say("group_deleted", affected);
@@ -186,11 +200,15 @@ final class GroupsWindow extends UiPart {
     void renderGroupsDialog(GuiGraphics g, int x, int y, int w, int h) {
         if (groupDeleteConfirmation) {
             Group group = selectedGroup();
-            int count = group == null ? 0 : (int) ui.areas().stream()
-                    .filter(area -> Objects.equals(area.groupId(), group.id())).count();
+            int count = group == null
+                    ? 0
+                    : (int) ui.areas().stream()
+                            .filter(area -> Objects.equals(area.groupId(), group.id()))
+                            .count();
             String name = group == null ? "" : ui.mc.font.plainSubstrByWidth(group.name(), w / 3);
             g.drawCenteredString(ui.mc.font, ui.tr("group_delete_confirm", name, count), x + w / 2, y + h / 2 - 12, -1);
-            g.drawCenteredString(ui.mc.font, ui.tr("group_delete_ungroup_note"), x + w / 2, y + h / 2 + 6, Theme.TEXT_MUTED);
+            g.drawCenteredString(
+                    ui.mc.font, ui.tr("group_delete_ungroup_note"), x + w / 2, y + h / 2 + 6, Theme.TEXT_MUTED);
             return;
         }
         int col = (w - 36) / 2, right = x + w - col - 12;
@@ -207,29 +225,56 @@ final class GroupsWindow extends UiPart {
             g.fill(x + 14, rowY + 5, x + 22, rowY + 13, group.visible() ? ACCENT : Theme.INACTIVE);
             g.drawString(ui.mc.font, ui.mc.font.plainSubstrByWidth(group.name(), col - 22), x + 28, rowY + 1, -1);
             Totals members = totals(group.id());
-            String details = ui.tr(group.visible() ? "group_state_shown" : "group_state_hidden").getString()
+            String details = ui.tr(group.visible() ? "group_state_shown" : "group_state_hidden")
+                            .getString()
                     + " · " + ui.tr("group_member_count", members.count()).getString()
-                    + " · " + ui.tr("group_area_total", formatLength(members.area())).getString();
-            g.drawString(ui.mc.font, ui.mc.font.plainSubstrByWidth(details, col - 22), x + 28, rowY + 11, Theme.TEXT_MUTED);
+                    + " · "
+                    + ui.tr("group_area_total", formatLength(members.area())).getString();
+            g.drawString(
+                    ui.mc.font, ui.mc.font.plainSubstrByWidth(details, col - 22), x + 28, rowY + 11, Theme.TEXT_MUTED);
         }
         Group group = selectedGroup();
         g.drawString(ui.mc.font, ui.tr("group_selected"), right, y + 34, Theme.TEXT_MUTED);
-        g.drawString(ui.mc.font, ui.mc.font.plainSubstrByWidth(group == null ? ui.tr("group_not_selected").getString() : group.name(), col), right, y + 48, -1);
+        g.drawString(
+                ui.mc.font,
+                ui.mc.font.plainSubstrByWidth(
+                        group == null ? ui.tr("group_not_selected").getString() : group.name(), col),
+                right,
+                y + 48,
+                -1);
         // Below the group buttons, while the window is tall enough to leave them clear of the export notice.
         if (h >= 264) {
             Totals ungrouped = totals(null);
-            double all = totals.computeIfAbsent("\u0000all", key -> new Totals(ui.areas().size(), totalArea(ui.areas()))).area();
-            g.drawString(ui.mc.font, ui.mc.font.plainSubstrByWidth(ui.tr("groups_total", ui.areas().size(),
-                    formatLength(all)).getString(), col), right, y + 194, Theme.TEXT_MUTED);
-            g.drawString(ui.mc.font, ui.mc.font.plainSubstrByWidth(ui.tr("groups_ungrouped", ungrouped.count(),
-                    formatLength(ungrouped.area())).getString(), col), right, y + 206, Theme.TEXT_MUTED);
+            double all = totals.computeIfAbsent(
+                            "\u0000all", key -> new Totals(ui.areas().size(), totalArea(ui.areas())))
+                    .area();
+            g.drawString(
+                    ui.mc.font,
+                    ui.mc.font.plainSubstrByWidth(
+                            ui.tr("groups_total", ui.areas().size(), formatLength(all))
+                                    .getString(),
+                            col),
+                    right,
+                    y + 194,
+                    Theme.TEXT_MUTED);
+            g.drawString(
+                    ui.mc.font,
+                    ui.mc.font.plainSubstrByWidth(
+                            ui.tr("groups_ungrouped", ungrouped.count(), formatLength(ungrouped.area()))
+                                    .getString(),
+                            col),
+                    right,
+                    y + 206,
+                    Theme.TEXT_MUTED);
         }
         ui.areasWindow.renderManagementStatus(g, x, y, w, h, "groups_window_hint");
     }
 
     /** The areas of one group, or with {@code groupId} null those in no group. */
     private List<Area> groupAreas(String groupId) {
-        return ui.areas().stream().filter(area -> Objects.equals(area.groupId(), groupId)).toList();
+        return ui.areas().stream()
+                .filter(area -> Objects.equals(area.groupId(), groupId))
+                .toList();
     }
 
     /** The sum of the areas' own areas; overlapping parts count once per area. */
@@ -238,20 +283,25 @@ final class GroupsWindow extends UiPart {
     }
 
     void renderGroupChooser(GuiGraphics g, int x, int y, int w, int h) {
-        g.drawString(ui.mc.font, ui.tr("group_picker_count", assignmentTargets.size()), x + 12, y + 32, Theme.TEXT_MUTED);
+        g.drawString(
+                ui.mc.font, ui.tr("group_picker_count", assignmentTargets.size()), x + 12, y + 32, Theme.TEXT_MUTED);
         int rows = visibleAssignmentRows(h), count = ui.groups().size() + 1;
         assignmentScroll = Math.min(assignmentScroll, Math.max(0, count - rows));
-        List<Area> targets = ui.areas().stream().filter(a -> assignmentTargets.contains(a.id())).toList();
+        List<Area> targets = ui.areas().stream()
+                .filter(a -> assignmentTargets.contains(a.id()))
+                .toList();
         for (int i = 0; i < rows && i + assignmentScroll < count; i++) {
             int index = i + assignmentScroll;
             Group group = index == 0 ? null : ui.groups().get(index - 1);
             String id = group == null ? null : group.id();
             int rowY = y + 48 + i * 20;
-            if (ui.areaEdits.areaDraft.groupSet ? Objects.equals(ui.areaEdits.areaDraft.groupId, id)
+            if (ui.areaEdits.areaDraft.groupSet
+                    ? Objects.equals(ui.areaEdits.areaDraft.groupId, id)
                     : !targets.isEmpty() && targets.stream().allMatch(a -> Objects.equals(a.groupId(), id)))
                 g.fill(x + 10, rowY, x + w - 10, rowY + 20, Theme.ROW_CHECKED);
             String name = group == null ? ui.tr("group_none").getString() : group.name();
-            if (group != null && !group.visible()) name += " · " + ui.tr("group_state_hidden").getString();
+            if (group != null && !group.visible())
+                name += " · " + ui.tr("group_state_hidden").getString();
             g.drawString(ui.mc.font, ui.mc.font.plainSubstrByWidth(name, w - 32), x + 16, rowY + 5, -1);
         }
         if (!ui.message.isEmpty()) ui.areasWindow.renderManagementStatus(g, x, y, w, h, "group_picker_tooltip");
@@ -261,8 +311,7 @@ final class GroupsWindow extends UiPart {
         if (groupDeleteConfirmation) return;
         int col = (w - 36) / 2;
         int rows = visibleGroupDialogRows(h);
-        if (event.x() >= x + 10 && event.x() < x + 14 + col
-                && event.y() >= y + 48 && event.y() < y + 48 + rows * 20) {
+        if (event.x() >= x + 10 && event.x() < x + 14 + col && event.y() >= y + 48 && event.y() < y + 48 + rows * 20) {
             int index = groupScroll + (int) ((event.y() - y - 48) / 20);
             if (index < ui.groups().size()) {
                 groupId = ui.groups().get(index).id();
@@ -274,8 +323,7 @@ final class GroupsWindow extends UiPart {
 
     void clickGroupChooser(MouseButtonEvent event, int x, int y, int w, int h) {
         int rows = visibleAssignmentRows(h);
-        if (event.x() >= x + 10 && event.x() < x + w - 10
-                && event.y() >= y + 48 && event.y() < y + 48 + rows * 20) {
+        if (event.x() >= x + 10 && event.x() < x + w - 10 && event.y() >= y + 48 && event.y() < y + 48 + rows * 20) {
             int index = assignmentScroll + (int) ((event.y() - y - 48) / 20);
             if (index <= ui.groups().size())
                 assignGroup(index == 0 ? null : ui.groups().get(index - 1).id());
@@ -304,8 +352,17 @@ final class GroupsWindow extends UiPart {
     void showGroupWidgets() {
         if (groupDeleteConfirmation) ui.show(true, ui.confirm, ui.cancel);
         else {
-            ui.show(true, ui.managementClose, ui.managementUndo, ui.managementRedo, groupCreate, groupRename, groupVisibility,
-                    groupDelete, ui.transferWindow.groupExport, ui.transferWindow.transferFolderButton);
+            ui.show(
+                    true,
+                    ui.managementClose,
+                    ui.managementUndo,
+                    ui.managementRedo,
+                    groupCreate,
+                    groupRename,
+                    groupVisibility,
+                    groupDelete,
+                    ui.transferWindow.groupExport,
+                    ui.transferWindow.transferFolderButton);
             ui.show(ui.mapExport.hasExportNotice(), ui.mapExport.openExportButton);
         }
     }
@@ -314,7 +371,8 @@ final class GroupsWindow extends UiPart {
         Group group = selectedGroup();
         groupCreate.active = !ui.loadFailed;
         groupRename.active = groupVisibility.active = groupDelete.active = group != null && !ui.loadFailed;
-        ui.transferWindow.groupExport.active = group != null && !ui.loadFailed
+        ui.transferWindow.groupExport.active = group != null
+                && !ui.loadFailed
                 && ui.areas().stream().anyMatch(a -> Objects.equals(a.groupId(), group.id()));
         groupVisibility.setMessage(ui.tr(group != null && group.visible() ? "group_hide" : "group_show"));
     }
@@ -323,7 +381,9 @@ final class GroupsWindow extends UiPart {
         groupCreate = ui.button("group_create", () -> openGroupNameDialog(false));
         groupRename = ui.button("group_rename_action", () -> openGroupNameDialog(true));
         groupVisibility = ui.button("group_toggle", "group_toggle_tooltip", this::toggleGroup);
-        manageGroups = ui.button("groups_manage", () -> openGroupsWindow(ui.dialog == Dialog.ASSIGN_GROUP ? Dialog.ASSIGN_GROUP : Dialog.AREAS));
+        manageGroups = ui.button(
+                "groups_manage",
+                () -> openGroupsWindow(ui.dialog == Dialog.ASSIGN_GROUP ? Dialog.ASSIGN_GROUP : Dialog.AREAS));
         groupDelete = ui.button("group_delete", "group_delete_tooltip", this::askDeleteGroup);
     }
 }

@@ -1,5 +1,7 @@
 package dev.exactselection;
 
+import static dev.exactselection.ModLog.LOG;
+
 import dev.exactselection.ExactSelectionController.Dialog;
 import dev.exactselection.SavedAreaStore.Area;
 import dev.exactselection.SavedAreaStore.Group;
@@ -17,7 +19,6 @@ import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.network.chat.Component;
 import net.minecraft.util.Util;
-import static dev.exactselection.ModLog.LOG;
 
 /** Area exchange files: exporting areas and groups, and the import window. */
 final class TransferWindow extends UiPart {
@@ -26,14 +27,22 @@ final class TransferWindow extends UiPart {
     List<Path> importFiles = List.of();
     /** Each listed file's date, read when the window opens instead of from disk every frame. */
     private Map<Path, String> importDates = Map.of();
+
     int importScroll;
 
-    TransferWindow(ExactSelectionController ui) { super(ui); }
+    TransferWindow(ExactSelectionController ui) {
+        super(ui);
+    }
 
-    private Path transferFolder() { return AreaTransfer.folder(ui.areaStore.root()); }
+    private Path transferFolder() {
+        return AreaTransfer.folder(ui.areaStore.root());
+    }
 
     private void openTransferFolder() {
-        try { Files.createDirectories(transferFolder()); } catch (IOException ignored) { }
+        try {
+            Files.createDirectories(transferFolder());
+        } catch (IOException ignored) {
+        }
         Util.getPlatform().openPath(transferFolder());
     }
 
@@ -41,13 +50,21 @@ final class TransferWindow extends UiPart {
     private void exportAreaFile() {
         if (ui.loadFailed) return;
         List<Area> areas = ui.areasWindow.selectedAreas().isEmpty() ? ui.areas() : ui.areasWindow.selectedAreas();
-        exportTransfer(ui.areasWindow.selectedAreas().isEmpty() ? "areas" : areas.size() == 1 ? areas.get(0).name() : "areas", areas);
+        exportTransfer(
+                ui.areasWindow.selectedAreas().isEmpty()
+                        ? "areas"
+                        : areas.size() == 1 ? areas.get(0).name() : "areas",
+                areas);
     }
 
     private void exportGroupFile() {
         Group group = ui.groupsWindow.selectedGroup();
         if (group == null || ui.loadFailed) return;
-        exportTransfer(group.name(), ui.areas().stream().filter(a -> Objects.equals(a.groupId(), group.id())).toList());
+        exportTransfer(
+                group.name(),
+                ui.areas().stream()
+                        .filter(a -> Objects.equals(a.groupId(), group.id()))
+                        .toList());
     }
 
     private void exportTransfer(String label, List<Area> areas) {
@@ -55,7 +72,9 @@ final class TransferWindow extends UiPart {
         try {
             Path file = AreaTransfer.export(transferFolder(), label, areas, ui.groups());
             ui.mapExport.lastExport = file.toAbsolutePath().normalize();
-            ui.mapExport.exportNotice = ui.tr("areas_exported", areas.size(), file.getFileName().toString()).getString();
+            ui.mapExport.exportNotice = ui.tr(
+                            "areas_exported", areas.size(), file.getFileName().toString())
+                    .getString();
             ui.message = ui.mapExport.exportNotice;
             ui.mapExport.setExportTooltip(Component.literal(ui.mapExport.lastExport.toString()));
         } catch (Exception e) {
@@ -67,17 +86,21 @@ final class TransferWindow extends UiPart {
     private void openImport() {
         if (ui.loadFailed) return;
         ui.areaEdits.flushDraft();
-        try { importFiles = AreaTransfer.list(transferFolder()); }
-        catch (Exception e) {
+        try {
+            importFiles = AreaTransfer.list(transferFolder());
+        } catch (Exception e) {
             importFiles = List.of();
             LOG.warn("Could not list the exchange files in {}", transferFolder(), e);
         }
-        DateTimeFormatter time = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")
-                .withZone(ZoneId.systemDefault());
+        DateTimeFormatter time = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm").withZone(ZoneId.systemDefault());
         importDates = new HashMap<>();
         for (Path file : importFiles) {
-            try { importDates.put(file, time.format(Files.getLastModifiedTime(file).toInstant())); }
-            catch (Exception e) { /* The list shows no date for it. */ }
+            try {
+                importDates.put(
+                        file, time.format(Files.getLastModifiedTime(file).toInstant()));
+            } catch (Exception e) {
+                /* The list shows no date for it. */
+            }
         }
         importScroll = 0;
         ui.dialog = Dialog.IMPORT;
@@ -85,7 +108,9 @@ final class TransferWindow extends UiPart {
         ui.focus(null);
     }
 
-    static int importRows(int height) { return Math.max(1, (height - 84) / 20); }
+    static int importRows(int height) {
+        return Math.max(1, (height - 84) / 20);
+    }
 
     /** Adds a file's areas to this world as one undo step and returns to the Areas window. */
     private void importFile(Path file) {
@@ -104,7 +129,12 @@ final class TransferWindow extends UiPart {
     }
 
     void renderImportDialog(GuiGraphics g, int x, int y, int w, int h) {
-        g.drawString(ui.mc.font, ui.mc.font.plainSubstrByWidth(ui.tr("import_hint").getString(), w - 24), x + 12, y + 32, Theme.TEXT_MUTED);
+        g.drawString(
+                ui.mc.font,
+                ui.mc.font.plainSubstrByWidth(ui.tr("import_hint").getString(), w - 24),
+                x + 12,
+                y + 32,
+                Theme.TEXT_MUTED);
         int rows = importRows(h);
         importScroll = Math.min(importScroll, Math.max(0, importFiles.size() - rows));
         g.fill(x + 10, y + 46, x + w - 10, y + 48 + rows * 20, Theme.LIST_BACKGROUND);
@@ -113,10 +143,17 @@ final class TransferWindow extends UiPart {
             Path file = importFiles.get(i + importScroll);
             int rowY = y + 48 + i * 20;
             String when = importDates.getOrDefault(file, "");
-            g.drawString(ui.mc.font, ui.mc.font.plainSubstrByWidth(file.getFileName().toString(), w - 150), x + 16, rowY + 6, -1);
+            g.drawString(
+                    ui.mc.font,
+                    ui.mc.font.plainSubstrByWidth(file.getFileName().toString(), w - 150),
+                    x + 16,
+                    rowY + 6,
+                    -1);
             g.drawString(ui.mc.font, when, x + w - 16 - ui.mc.font.width(when), rowY + 6, Theme.TEXT_MUTED);
         }
-        if (!ui.message.isEmpty()) g.drawString(ui.mc.font, ui.mc.font.plainSubstrByWidth(ui.message, w - 190), x + 172, y + h - 23, Theme.WARNING);
+        if (!ui.message.isEmpty())
+            g.drawString(
+                    ui.mc.font, ui.mc.font.plainSubstrByWidth(ui.message, w - 190), x + 172, y + h - 23, Theme.WARNING);
     }
 
     void clickImportRow(MouseButtonEvent event, int x, int y, int w, int h) {

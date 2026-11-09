@@ -7,13 +7,20 @@ import java.util.List;
 
 public sealed interface AreaGeometry permits RectangleGeometry, PolygonGeometry, PolylineGeometry {
     GeometryBounds bounds();
+
     List<GridPoint> vertices();
+
     long areaTwice();
+
     boolean containsPoint(double x, double z);
+
     AreaGeometry translated(long dx, long dz);
+
     List<List<GridPoint>> triangulate();
     /** False for a route: its last vertex does not join the first, and it has no inside. */
-    default boolean closed() { return true; }
+    default boolean closed() {
+        return true;
+    }
 
     default double perimeter() {
         List<GridPoint> points = vertices();
@@ -47,11 +54,13 @@ public sealed interface AreaGeometry permits RectangleGeometry, PolygonGeometry,
             if (kind == PathIterator.SEG_MOVETO) {
                 total += Math.abs(piece) / 2;
                 piece = lastX = lastZ = 0;
-                startX = point[0]; startZ = point[1];
+                startX = point[0];
+                startZ = point[1];
             } else if (kind == PathIterator.SEG_LINETO) {
                 double x = point[0] - startX, z = point[1] - startZ;
                 piece += lastX * z - x * lastZ;
-                lastX = x; lastZ = z;
+                lastX = x;
+                lastZ = z;
             }
         }
         total += Math.abs(piece) / 2;
@@ -62,11 +71,17 @@ public sealed interface AreaGeometry permits RectangleGeometry, PolygonGeometry,
         List<GridPoint> points = vertices();
         Path2D.Double path = new Path2D.Double(Path2D.WIND_NON_ZERO, points.size());
         path.moveTo(points.get(0).x(), points.get(0).z());
-        for (int i = 1; i < points.size(); i++) path.lineTo(points.get(i).x(), points.get(i).z());
+        for (int i = 1; i < points.size(); i++)
+            path.lineTo(points.get(i).x(), points.get(i).z());
         path.closePath();
         return path;
     }
 
-    default double area() { return areaTwice() / 2.0; }
-    default boolean containsBlockCenter(int x, int z) { return containsPoint(x + 0.5, z + 0.5); }
+    default double area() {
+        return areaTwice() / 2.0;
+    }
+
+    default boolean containsBlockCenter(int x, int z) {
+        return containsPoint(x + 0.5, z + 0.5);
+    }
 }

@@ -9,7 +9,12 @@ import xaero.map.file.export.PNGExporter;
 @Pseudo
 @Mixin(value = MapSaveLoad.class, remap = false)
 public interface MapSaveLoadAccessor {
-    @Accessor("pngExporter") PNGExporter exactselection$getPngExporter();
-    @Accessor("exporting") boolean exactselection$isExporting();
-    @Accessor("exporting") void exactselection$setExporting(boolean exporting);
+    @Accessor("pngExporter")
+    PNGExporter exactselection$getPngExporter();
+
+    @Accessor("exporting")
+    boolean exactselection$isExporting();
+
+    @Accessor("exporting")
+    void exactselection$setExporting(boolean exporting);
 }

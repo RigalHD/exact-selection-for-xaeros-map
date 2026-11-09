@@ -1,5 +1,14 @@
 package dev.exactselection;
 
+import static dev.exactselection.AreaChecks.*;
+import static dev.exactselection.GestureChecks.*;
+import static dev.exactselection.PanelChecks.*;
+import static dev.exactselection.PolygonChecks.*;
+import static dev.exactselection.SessionChecks.*;
+import static dev.exactselection.ToolChecks.*;
+import static dev.exactselection.UiHarness.*;
+import static dev.exactselection.WindowChecks.*;
+
 import java.lang.reflect.Field;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -11,14 +20,6 @@ import net.minecraft.client.Minecraft;
 import sun.misc.Unsafe;
 import xaero.map.MapProcessor;
 import xaero.map.gui.GuiMap;
-import static dev.exactselection.AreaChecks.*;
-import static dev.exactselection.GestureChecks.*;
-import static dev.exactselection.PanelChecks.*;
-import static dev.exactselection.PolygonChecks.*;
-import static dev.exactselection.SessionChecks.*;
-import static dev.exactselection.ToolChecks.*;
-import static dev.exactselection.WindowChecks.*;
-import static dev.exactselection.UiHarness.*;
 
 public final class ManagementUiCheck {
     public static void main(String[] args) throws Exception {
@@ -36,17 +37,33 @@ public final class ManagementUiCheck {
         set(map, "minecraft", minecraft);
         set(map, "font", font);
         for (String name : List.of("children", "narratables", "renderables")) set(map, name, new ArrayList<>());
-        map.width = 640; map.height = 360;
+        map.width = 640;
+        map.height = 360;
         Path directory = Files.createTempDirectory("exact-selection-ui-");
         try {
             MapBridge.Context context = new MapBridge.Context(new Object(), "ui-check", null, "main");
             MapBridge bridge = new MapBridge() {
-                @Override public Frame exactselection$frame() { return new Frame(context, 0, 0, 1, 1, map.width, map.height); }
-                @Override public MapProcessor exactselection$processor() { return null; }
-                @Override public void exactselection$pan(double x, double y) { }
-                @Override public void exactselection$clearNativeInput() { }
-                @Override public void exactselection$moveCamera(double x, double z, double pixelsPerBlock) { }
-                @Override public void exactselection$closeMap() { }
+                @Override
+                public Frame exactselection$frame() {
+                    return new Frame(context, 0, 0, 1, 1, map.width, map.height);
+                }
+
+                @Override
+                public MapProcessor exactselection$processor() {
+                    return null;
+                }
+
+                @Override
+                public void exactselection$pan(double x, double y) {}
+
+                @Override
+                public void exactselection$clearNativeInput() {}
+
+                @Override
+                public void exactselection$moveCamera(double x, double z, double pixelsPerBlock) {}
+
+                @Override
+                public void exactselection$closeMap() {}
             };
             SavedAreaStore store = new SavedAreaStore(directory);
             store.useContext(context);
@@ -59,8 +76,10 @@ public final class ManagementUiCheck {
             autosaveProperties(controller);
             controller.init();
             SelectionState selection = (SelectionState) get(controller, "state");
-            selection.enable(); selection.set(new SelectionBounds(40, 40, 50, 50));
-            set(controller, "context", context); set(controller, "historyContext", context);
+            selection.enable();
+            selection.set(new SelectionBounds(40, 40, 50, 50));
+            set(controller, "context", context);
+            set(controller, "historyContext", context);
             call(controller, "updateVisibility");
             checkSeparateCorners(controller, map, minecraft, store, unsafe);
             checkSelectionPanel(controller, map);
@@ -92,7 +111,8 @@ public final class ManagementUiCheck {
             checkColorPicker(controller);
             checkWaypointManagement(map, bridge, minecraft, store, context);
             checkGroups(controller, map, store, minimapStore, selection, directory, context);
-            System.out.println("PASS: management UI callbacks, separate windows, layouts, assignment, visibility, persistence, and undo");
+            System.out.println(
+                    "PASS: management UI callbacks, separate windows, layouts, assignment, visibility, persistence, and undo");
         } finally {
             try (var paths = Files.walk(directory)) {
                 for (Path path : paths.sorted(Comparator.reverseOrder()).toList()) Files.delete(path);

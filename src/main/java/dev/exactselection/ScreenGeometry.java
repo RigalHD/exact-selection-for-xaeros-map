@@ -6,8 +6,13 @@ import java.util.List;
 /** Clipping and smoothed lines in screen space, shared by the world map and the minimap. */
 final class ScreenGeometry {
     record Point(double x, double y) {}
+
     record Vertex(Point point, int color) {}
-    @FunctionalInterface interface Triangles { void add(Vertex a, Vertex b, Vertex c); }
+
+    @FunctionalInterface
+    interface Triangles {
+        void add(Vertex a, Vertex b, Vertex c);
+    }
 
     private ScreenGeometry() {}
 
@@ -51,7 +56,7 @@ final class ScreenGeometry {
             }
         }
         if (startT > endT) return null;
-        return new Point[]{interpolate(start, end, startT), interpolate(start, end, endT)};
+        return new Point[] {interpolate(start, end, startT), interpolate(start, end, endT)};
     }
 
     /**
@@ -71,8 +76,16 @@ final class ScreenGeometry {
     }
 
     /** The part of a segment between offsets {@code from} and {@code to} along its normal, colored across it. */
-    private static void band(Point start, Point end, double nx, double ny, double from, double to,
-                             int fromColor, int toColor, Triangles out) {
+    private static void band(
+            Point start,
+            Point end,
+            double nx,
+            double ny,
+            double from,
+            double to,
+            int fromColor,
+            int toColor,
+            Triangles out) {
         Vertex a = new Vertex(new Point(start.x() + nx * from, start.y() + ny * from), fromColor);
         Vertex b = new Vertex(new Point(start.x() + nx * to, start.y() + ny * to), toColor);
         Vertex c = new Vertex(new Point(end.x() + nx * to, end.y() + ny * to), toColor);

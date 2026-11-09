@@ -33,23 +33,49 @@ final class UiHarness {
 
     static final class FixedFont extends Font {
         final StringSplitter widths = new StringSplitter((code, style) -> 6.0f);
-        FixedFont() { super(null); }
-        @Override public int width(String text) { return text.length() * 6; }
-        @Override public int width(FormattedText text) { return width(text.getString()); }
-        @Override public String plainSubstrByWidth(String text, int width) {
+
+        FixedFont() {
+            super(null);
+        }
+
+        @Override
+        public int width(String text) {
+            return text.length() * 6;
+        }
+
+        @Override
+        public int width(FormattedText text) {
+            return width(text.getString());
+        }
+
+        @Override
+        public String plainSubstrByWidth(String text, int width) {
             return text.substring(0, Math.min(text.length(), Math.max(0, width / 6)));
         }
-        @Override public String plainSubstrByWidth(String text, int width, boolean backwards) {
+
+        @Override
+        public String plainSubstrByWidth(String text, int width, boolean backwards) {
             int length = Math.min(text.length(), Math.max(0, width / 6));
             return backwards ? text.substring(text.length() - length) : text.substring(0, length);
         }
-        @Override public StringSplitter getSplitter() { return widths; }
+
+        @Override
+        public StringSplitter getSplitter() {
+            return widths;
+        }
     }
 
     static final class ClipboardKeyboard extends KeyboardHandler {
         String copied;
-        ClipboardKeyboard() { super(null); }
-        @Override public void setClipboard(String text) { copied = text; }
+
+        ClipboardKeyboard() {
+            super(null);
+        }
+
+        @Override
+        public void setClipboard(String text) {
+            copied = text;
+        }
     }
 
     record DrawEvent(String text, int stratum) {}
@@ -59,17 +85,39 @@ final class UiHarness {
         GuiRenderState state;
         List<DrawEvent> events;
         int stratum;
-        RecordingGraphics() { super(null, null, 0, 0); }
-        @Override public Matrix3x2fStack pose() { return transform; }
-        @Override public GuiRenderState exactselection$renderState() { return state; }
-        @Override public void nextStratum() { stratum++; state.nextStratum(); }
-        @Override public void fill(int x1, int y1, int x2, int y2, int color) {
+
+        RecordingGraphics() {
+            super(null, null, 0, 0);
+        }
+
+        @Override
+        public Matrix3x2fStack pose() {
+            return transform;
+        }
+
+        @Override
+        public GuiRenderState exactselection$renderState() {
+            return state;
+        }
+
+        @Override
+        public void nextStratum() {
+            stratum++;
+            state.nextStratum();
+        }
+
+        @Override
+        public void fill(int x1, int y1, int x2, int y2, int color) {
             if (color != 0xB0101820) events.add(new DrawEvent(null, stratum));
         }
-        @Override public void renderOutline(int x, int y, int width, int height, int color) {
+
+        @Override
+        public void renderOutline(int x, int y, int width, int height, int color) {
             events.add(new DrawEvent(null, stratum));
         }
-        @Override public void drawCenteredString(Font font, Component text, int x, int y, int color) {
+
+        @Override
+        public void drawCenteredString(Font font, Component text, int x, int y, int color) {
             events.add(new DrawEvent(text.getString(), stratum));
         }
     }
@@ -89,8 +137,11 @@ final class UiHarness {
 
     static Object fieldHolder(Object object, String name) throws Exception {
         for (Object holder : holders(object)) {
-            try { field(holder.getClass(), name); return holder; }
-            catch (NoSuchFieldException absent) { }
+            try {
+                field(holder.getClass(), name);
+                return holder;
+            } catch (NoSuchFieldException absent) {
+            }
         }
         throw new NoSuchFieldException(name);
     }
@@ -106,7 +157,8 @@ final class UiHarness {
                 Field field = current.getDeclaredField(name);
                 field.setAccessible(true);
                 return field;
-            } catch (NoSuchFieldException ignored) { }
+            } catch (NoSuchFieldException ignored) {
+            }
         }
         throw new NoSuchFieldException(name);
     }
@@ -126,7 +178,8 @@ final class UiHarness {
                 Method method = type.getDeclaredMethod(name, types);
                 method.setAccessible(true);
                 return method;
-            } catch (NoSuchMethodException absent) { }
+            } catch (NoSuchMethodException absent) {
+            }
         }
         throw new NoSuchMethodException(name);
     }
@@ -145,7 +198,8 @@ final class UiHarness {
                 Object result = method.invoke(holder, args);
                 if (object instanceof ExactSelectionController controller) controller.updateVisibility();
                 return result;
-            } catch (NoSuchMethodException absent) { }
+            } catch (NoSuchMethodException absent) {
+            }
         }
         throw new NoSuchMethodException(name);
     }
@@ -155,15 +209,15 @@ final class UiHarness {
     }
 
     static Object call(Object object, String name, int value) throws Exception {
-        return invoke(object, name, new Class<?>[]{int.class}, value);
+        return invoke(object, name, new Class<?>[] {int.class}, value);
     }
 
     static Object call(Object object, String name, int a, int b, int c) throws Exception {
-        return invoke(object, name, new Class<?>[]{int.class, int.class, int.class}, a, b, c);
+        return invoke(object, name, new Class<?>[] {int.class, int.class, int.class}, a, b, c);
     }
 
     static Object call(Object object, String name, boolean value) throws Exception {
-        return invoke(object, name, new Class<?>[]{boolean.class}, value);
+        return invoke(object, name, new Class<?>[] {boolean.class}, value);
     }
 
     static void press(ExactSelectionController controller, String name) throws Exception {
@@ -173,7 +227,9 @@ final class UiHarness {
     static void press(ExactSelectionController controller, Button button, String name) throws Exception {
         // A press goes around the input events, so it does what they and the frame before it would.
         controller.updateVisibility();
-        require(button.visible && button.active, "Button is unavailable: " + name + ", window=" + get(controller, "dialog"));
+        require(
+                button.visible && button.active,
+                "Button is unavailable: " + name + ", window=" + get(controller, "dialog"));
         button.onPress(new KeyEvent(GLFW.GLFW_KEY_ENTER, 0, 0));
         controller.updateVisibility();
     }
@@ -200,8 +256,12 @@ final class UiHarness {
 
     static void row(ExactSelectionController controller, int index, boolean checkbox) throws Exception {
         int[] rect = dialogRect(controller);
-        controller.mouseClicked(new MouseButtonEvent(rect[0] + (checkbox ? 17 : 54), rect[1] + 54 + index * 20,
-                new MouseButtonInfo(GLFW.GLFW_MOUSE_BUTTON_LEFT, 0)), false);
+        controller.mouseClicked(
+                new MouseButtonEvent(
+                        rect[0] + (checkbox ? 17 : 54),
+                        rect[1] + 54 + index * 20,
+                        new MouseButtonInfo(GLFW.GLFW_MOUSE_BUTTON_LEFT, 0)),
+                false);
         // Separate clicks, whatever time passes here between them: never the two of a double click.
         set(controller, "lastRowId", null);
     }
@@ -209,7 +269,11 @@ final class UiHarness {
     /** Checks only {@code id} in the open Areas window, as a click on its row name would. */
     static void pick(ExactSelectionController controller, SavedAreaStore store, String id) throws Exception {
         List<SavedAreaStore.Area> areas = store.state().areas();
-        for (int i = 0; i < areas.size(); i++) if (areas.get(i).id().equals(id)) { row(controller, i, false); return; }
+        for (int i = 0; i < areas.size(); i++)
+            if (areas.get(i).id().equals(id)) {
+                row(controller, i, false);
+                return;
+            }
         throw new AssertionError("No area " + id);
     }
 
@@ -223,21 +287,27 @@ final class UiHarness {
     static void checkLayout(ExactSelectionController controller) throws Exception {
         call(controller, "layoutDialog");
         int[] rect = dialogRect(controller);
-        List<AbstractWidget> visible = ((List<?>) get(controller, "widgets")).stream()
-                .map(AbstractWidget.class::cast).filter(w -> w.visible).toList();
+        List<AbstractWidget> visible = ((List<?>) get(controller, "widgets"))
+                .stream().map(AbstractWidget.class::cast).filter(w -> w.visible).toList();
         for (AbstractWidget widget : visible) {
-            require(widget.getX() >= rect[0] && widget.getY() >= rect[1]
-                    && widget.getX() + widget.getWidth() <= rect[0] + rect[2]
-                    && widget.getY() + widget.getHeight() <= rect[1] + rect[3] - 2,
-                    "Widget outside " + window(controller) + ": " + widget.getMessage().getString());
+            require(
+                    widget.getX() >= rect[0]
+                            && widget.getY() >= rect[1]
+                            && widget.getX() + widget.getWidth() <= rect[0] + rect[2]
+                            && widget.getY() + widget.getHeight() <= rect[1] + rect[3] - 2,
+                    "Widget outside " + window(controller) + ": "
+                            + widget.getMessage().getString());
             for (AbstractWidget other : visible) {
                 if (widget == other) continue;
                 boolean overlap = widget.getX() < other.getX() + other.getWidth()
                         && widget.getX() + widget.getWidth() > other.getX()
                         && widget.getY() < other.getY() + other.getHeight()
                         && widget.getY() + widget.getHeight() > other.getY();
-                require(!overlap, "Overlapping widgets in " + window(controller) + ": "
-                        + widget.getMessage().getString() + " / " + other.getMessage().getString());
+                require(
+                        !overlap,
+                        "Overlapping widgets in " + window(controller) + ": "
+                                + widget.getMessage().getString() + " / "
+                                + other.getMessage().getString());
             }
         }
     }
@@ -245,31 +315,45 @@ final class UiHarness {
     static void checkMainLayout(ExactSelectionController controller, GuiMap map) throws Exception {
         int width = (Integer) get(controller, "panelWidth"), height = (Integer) get(controller, "panelHeight");
         require(34 + width <= map.width && 26 + height <= map.height, "Main panel exceeds screen");
-        List<AbstractWidget> visible = ((List<?>) get(controller, "widgets")).stream()
-                .map(AbstractWidget.class::cast).filter(w -> w.visible && w != uncheckedGet(controller, "toggle")).toList();
+        List<AbstractWidget> visible = ((List<?>) get(controller, "widgets"))
+                .stream()
+                        .map(AbstractWidget.class::cast)
+                        .filter(w -> w.visible && w != uncheckedGet(controller, "toggle"))
+                        .toList();
         for (AbstractWidget widget : visible) {
-            require(widget.getX() >= 34 && widget.getY() >= 26
-                    && widget.getX() + widget.getWidth() <= 34 + width
-                    && widget.getY() + widget.getHeight() <= 26 + height,
+            require(
+                    widget.getX() >= 34
+                            && widget.getY() >= 26
+                            && widget.getX() + widget.getWidth() <= 34 + width
+                            && widget.getY() + widget.getHeight() <= 26 + height,
                     "Main widget outside panel: " + widget.getMessage().getString());
             for (AbstractWidget other : visible) {
                 if (widget == other) continue;
-                require(widget.getX() >= other.getX() + other.getWidth()
-                        || widget.getX() + widget.getWidth() <= other.getX()
-                        || widget.getY() >= other.getY() + other.getHeight()
-                        || widget.getY() + widget.getHeight() <= other.getY(), "Main panel widgets overlap: "
-                        + widget.getMessage().getString() + " " + widget.getRectangle() + " / " + other.getMessage().getString() + " " + other.getRectangle());
+                require(
+                        widget.getX() >= other.getX() + other.getWidth()
+                                || widget.getX() + widget.getWidth() <= other.getX()
+                                || widget.getY() >= other.getY() + other.getHeight()
+                                || widget.getY() + widget.getHeight() <= other.getY(),
+                        "Main panel widgets overlap: " + widget.getMessage().getString() + " " + widget.getRectangle()
+                                + " / " + other.getMessage().getString() + " " + other.getRectangle());
             }
         }
     }
 
-    static Object polygon(Object controller) throws Exception { return get(controller, "polygonTool"); }
+    static Object polygon(Object controller) throws Exception {
+        return get(controller, "polygonTool");
+    }
 
-    static Object ruler(Object controller) throws Exception { return get(controller, "rulerTool"); }
+    static Object ruler(Object controller) throws Exception {
+        return get(controller, "rulerTool");
+    }
 
     static Object uncheckedGet(Object object, String name) {
-        try { return get(object, name); }
-        catch (Exception e) { throw new AssertionError(e); }
+        try {
+            return get(object, name);
+        } catch (Exception e) {
+            throw new AssertionError(e);
+        }
     }
 
     static MouseButtonEvent left(int x, int y, int modifiers) {
@@ -295,8 +379,8 @@ final class UiHarness {
         controller.mouseReleased(left(x, y, modifiers));
     }
 
-    static SelectionBounds dragHandle(ExactSelectionController controller, SelectionBounds start,
-                                              int fromX, int fromY, int toX, int toY) {
+    static SelectionBounds dragHandle(
+            ExactSelectionController controller, SelectionBounds start, int fromX, int fromY, int toX, int toY) {
         SelectionState selection = (SelectionState) uncheckedGet(controller, "state");
         selection.set(start);
         controller.mouseClicked(left(fromX, fromY, 0), false);
@@ -307,28 +391,69 @@ final class UiHarness {
     static final class FakeWaypoints implements WaypointAccess {
         final Object world = new Object(), set = new Object();
         final List<Point> points = new ArrayList<>();
+
         FakeWaypoints() {
             points.add(new Point(new Object(), 0, 64, 0, "First", false, true));
             points.add(new Point(new Object(), 10, 64, 10, "Second", false, true));
             points.add(new Point(new Object(), 100, 64, 100, "Outside", false, true));
         }
-        @Override public Snapshot all(MapBridge.Context context) { return new Snapshot(world, set, "test", points); }
-        @Override public Snapshot select(MapBridge.Context context, AreaGeometry geometry) {
-            return new Snapshot(world, set, "test", points.stream().filter(p -> geometry.containsBlockCenter(p.x(), p.z())).toList());
+
+        @Override
+        public Snapshot all(MapBridge.Context context) {
+            return new Snapshot(world, set, "test", points);
         }
-        @Override public Snapshot captureSet(Snapshot snapshot) {
+
+        @Override
+        public Snapshot select(MapBridge.Context context, AreaGeometry geometry) {
+            return new Snapshot(
+                    world,
+                    set,
+                    "test",
+                    points.stream()
+                            .filter(p -> geometry.containsBlockCenter(p.x(), p.z()))
+                            .toList());
+        }
+
+        @Override
+        public Snapshot captureSet(Snapshot snapshot) {
             return snapshot == null ? null : new Snapshot(world, set, "test", snapshot.points(), points);
         }
-        @Override public int colorRgb(int index) { return index * 0x10101; }
-        @Override public void edit(Snapshot snapshot, List<Point> from, List<Point> to) {
+
+        @Override
+        public int colorRgb(int index) {
+            return index * 0x10101;
+        }
+
+        @Override
+        public void edit(Snapshot snapshot, List<Point> from, List<Point> to) {
             for (Point p : from) if (!points.contains(p)) throw new IllegalStateException("stale point");
             for (int i = 0; i < from.size(); i++) points.set(points.indexOf(from.get(i)), to.get(i));
         }
-        @Override public void delete(Snapshot snapshot) { points.removeAll(snapshot.points()); }
-        @Override public void restore(Snapshot snapshot) { points.addAll(snapshot.points()); }
-        @Override public Point create(MapBridge.Context c, int x, int y, int z, String n) { throw new UnsupportedOperationException(); }
-        @Override public Point recreate(MapBridge.Context c, Point p) { throw new UnsupportedOperationException(); }
-        @Override public void removeCreated(MapBridge.Context c, Point p) { throw new UnsupportedOperationException(); }
+
+        @Override
+        public void delete(Snapshot snapshot) {
+            points.removeAll(snapshot.points());
+        }
+
+        @Override
+        public void restore(Snapshot snapshot) {
+            points.addAll(snapshot.points());
+        }
+
+        @Override
+        public Point create(MapBridge.Context c, int x, int y, int z, String n) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Point recreate(MapBridge.Context c, Point p) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void removeCreated(MapBridge.Context c, Point p) {
+            throw new UnsupportedOperationException();
+        }
     }
 
     @SuppressWarnings({"unchecked", "rawtypes"})
@@ -346,26 +471,44 @@ final class UiHarness {
     /** The Areas window's copy buttons in the order of {@code AreasWindow.AreaCopy}. */
     @SuppressWarnings("unchecked")
     static Button[] areaCopies(Object controller) throws Exception {
-        return ((java.util.Map<?, Button>) get(controller, "areaCopies")).values().toArray(Button[]::new);
+        return ((java.util.Map<?, Button>) get(controller, "areaCopies"))
+                .values()
+                .toArray(Button[]::new);
     }
 
     /** The open window's rectangle as {x, y, width, height}. */
-    static int[] dialogRect(Object controller) throws Exception { return array((Rect) call(controller, "dialogRect")); }
+    static int[] dialogRect(Object controller) throws Exception {
+        return array((Rect) call(controller, "dialogRect"));
+    }
 
-    private static int[] array(Rect r) { return new int[]{r.x(), r.y(), r.width(), r.height()}; }
+    private static int[] array(Rect r) {
+        return new int[] {r.x(), r.y(), r.width(), r.height()};
+    }
 
     static void mapClick(ExactSelectionController controller, double x, double y, int button) throws Exception {
         controller.mouseClicked(new MouseButtonEvent(x, y, new MouseButtonInfo(button, 0)), false);
         controller.mouseReleased(new MouseButtonEvent(x, y, new MouseButtonInfo(button, 0)));
     }
 
-    /** A controller with the tool on, its own widgets alone on the map, and one saved 100 x 100 area at the map center. */
-    static ExactSelectionController toolOn(GuiMap map, MapBridge bridge, Minecraft minecraft, Path directory,
-                                                   MapBridge.Context context, boolean showOnMap, String folder) throws Exception {
+    /**
+     * A controller with the tool on, its own widgets alone on the map, and one saved 100 x 100 area at the map center.
+     */
+    static ExactSelectionController toolOn(
+            GuiMap map,
+            MapBridge bridge,
+            Minecraft minecraft,
+            Path directory,
+            MapBridge.Context context,
+            boolean showOnMap,
+            String folder)
+            throws Exception {
         SavedAreaStore store = new SavedAreaStore(Files.createDirectories(directory.resolve(folder)));
         store.useContext(context);
-        store.replace(new SavedAreaStore.State(List.of(SavedAreaStore.create("Saved", new SelectionBounds(0, 0, 99, 99), 0x123456, 25, null)),
-                List.of(), showOnMap, showOnMap));
+        store.replace(new SavedAreaStore.State(
+                List.of(SavedAreaStore.create("Saved", new SelectionBounds(0, 0, 99, 99), 0x123456, 25, null)),
+                List.of(),
+                showOnMap,
+                showOnMap));
         set(map, "children", new ArrayList<>());
         ExactSelectionController controller = new ExactSelectionController(map, bridge, minecraft, store, null);
         controller.init();
@@ -379,13 +522,36 @@ final class UiHarness {
         final MapBridge map;
         boolean noFrame, closed;
         double[] camera;
-        RecordingBridge(MapBridge map) { this.map = map; }
-        @Override public Frame exactselection$frame() { return noFrame ? null : map.exactselection$frame(); }
-        @Override public MapProcessor exactselection$processor() { return map.exactselection$processor(); }
-        @Override public void exactselection$pan(double dx, double dy) { }
-        @Override public void exactselection$clearNativeInput() { }
-        @Override public void exactselection$moveCamera(double x, double z, double pixelsPerBlock) { camera = new double[]{x, z, pixelsPerBlock}; }
-        @Override public void exactselection$closeMap() { closed = true; }
+
+        RecordingBridge(MapBridge map) {
+            this.map = map;
+        }
+
+        @Override
+        public Frame exactselection$frame() {
+            return noFrame ? null : map.exactselection$frame();
+        }
+
+        @Override
+        public MapProcessor exactselection$processor() {
+            return map.exactselection$processor();
+        }
+
+        @Override
+        public void exactselection$pan(double dx, double dy) {}
+
+        @Override
+        public void exactselection$clearNativeInput() {}
+
+        @Override
+        public void exactselection$moveCamera(double x, double z, double pixelsPerBlock) {
+            camera = new double[] {x, z, pixelsPerBlock};
+        }
+
+        @Override
+        public void exactselection$closeMap() {
+            closed = true;
+        }
     }
 
     static List<?> draft(ExactSelectionController controller) throws Exception {
@@ -393,7 +559,7 @@ final class UiHarness {
     }
 
     static void drawContour(ExactSelectionController controller) throws Exception {
-        for (int[] point : new int[][]{{100, 300}, {160, 300}, {220, 320}, {200, 345}, {120, 345}})
+        for (int[] point : new int[][] {{100, 300}, {160, 300}, {220, 320}, {200, 345}, {120, 345}})
             mapClick(controller, point[0], point[1], GLFW.GLFW_MOUSE_BUTTON_LEFT);
         require(draft(controller).size() == 5, "The contour was not drawn");
     }
@@ -402,13 +568,15 @@ final class UiHarness {
         return drawsLabel(controller, unsafe, text, 600, 330);
     }
 
-    static boolean drawsLabel(ExactSelectionController controller, Unsafe unsafe, String text, int mouseX, int mouseY) throws Exception {
+    static boolean drawsLabel(ExactSelectionController controller, Unsafe unsafe, String text, int mouseX, int mouseY)
+            throws Exception {
         RecordingGraphics graphics = (RecordingGraphics) unsafe.allocateInstance(RecordingGraphics.class);
         graphics.events = new ArrayList<>();
         graphics.transform = new Matrix3x2fStack(16);
         graphics.state = new GuiRenderState();
         controller.renderMapOverlays(graphics, mouseX, mouseY);
-        return graphics.events.stream().anyMatch(event -> event.text() != null && event.text().contains(text));
+        return graphics.events.stream()
+                .anyMatch(event -> event.text() != null && event.text().contains(text));
     }
 
     static void reopen(GuiMap map, ExactSelectionController controller, MapBridge bridge) throws Exception {
@@ -420,7 +588,9 @@ final class UiHarness {
 
     static Path areaFile(SavedAreaStore store) throws Exception {
         try (var files = Files.list(store.root().resolve("xaero-exact-selection"))) {
-            return files.filter(path -> path.toString().endsWith(".json")).findFirst().orElseThrow();
+            return files.filter(path -> path.toString().endsWith(".json"))
+                    .findFirst()
+                    .orElseThrow();
         }
     }
 
@@ -431,8 +601,12 @@ final class UiHarness {
 
     static void clickRow(ExactSelectionController controller, int index, int modifiers) throws Exception {
         int[] rect = dialogRect(controller);
-        controller.mouseClicked(new MouseButtonEvent(rect[0] + 54, rect[1] + 54 + index * 20,
-                new MouseButtonInfo(GLFW.GLFW_MOUSE_BUTTON_LEFT, modifiers)), false);
+        controller.mouseClicked(
+                new MouseButtonEvent(
+                        rect[0] + 54,
+                        rect[1] + 54 + index * 20,
+                        new MouseButtonInfo(GLFW.GLFW_MOUSE_BUTTON_LEFT, modifiers)),
+                false);
     }
 
     static Set<String> checkedNames(ExactSelectionController controller, SavedAreaStore store) throws Exception {

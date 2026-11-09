@@ -1,5 +1,7 @@
 package dev.exactselection;
 
+import static dev.exactselection.Theme.ACCENT;
+
 import dev.exactselection.SavedAreaStore.Area;
 import dev.exactselection.SavedAreaStore.Group;
 import java.util.ArrayList;
@@ -11,14 +13,16 @@ import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.network.chat.Component;
 import xaero.map.WorldMap;
 import xaero.map.common.config.option.WorldMapProfiledConfigOptions;
-import static dev.exactselection.Theme.ACCENT;
 
 /** What the tool draws over the map: saved areas with their names, and the current selection with its handles. */
 final class MapOverlays extends UiPart {
     record MapLabel(Component text, int x, int y, int color) {}
+
     record ScreenPoint(double x, double y) {}
 
-    MapOverlays(ExactSelectionController ui) { super(ui); }
+    MapOverlays(ExactSelectionController ui) {
+        super(ui);
+    }
 
     void renderSavedAreas(GuiGraphics g, MapBridge.Frame frame, List<MapLabel> mapLabels) {
         Map<String, Group> groups = new HashMap<>();
@@ -32,18 +36,27 @@ final class MapOverlays extends UiPart {
             GeometryBounds geometryBounds = geometry.bounds();
             // Cull by screen bounds first: projecting and clipping every triangle of an off-screen polygon is costly.
             if (!onScreen(frame, geometryBounds)) continue;
-            // The stored shape of the territory being edited fades behind its live bounds, so old and new are told apart.
-            boolean superseded = ui.enabled() && ui.state.phase() == SelectionState.Phase.SELECTED
+            // The stored shape of the territory being edited fades behind its live bounds, so old and new are told
+            // apart.
+            boolean superseded = ui.enabled()
+                    && ui.state.phase() == SelectionState.Phase.SELECTED
                     && Objects.equals(area.id(), ui.state.source());
             int rgb = area.color() & 0xFFFFFF;
             int fillAlpha = area.opacity() * 255 / 100 / (superseded ? 3 : 1);
             int fill = (fillAlpha << 24) | rgb, outline = (superseded ? 0x60000000 : 0xFF000000) | rgb;
             int labelColor = (superseded ? 0x99000000 : 0xFF000000) | rgb;
             if (!area.vertices().isEmpty()) {
-                GeometryScreenRenderer.draw(g, frame, geometry, ui.screen.width, ui.screen.height, fill, outline, superseded ? 1.0 : 1.5);
-                ScreenPoint anchor = geometry.closed() ? polygonLabelAnchor(frame, geometry, geometryBounds) : routeLabelAnchor(frame, geometry);
-                if (anchor != null && names) mapLabels.add(new MapLabel(Component.literal(area.name()),
-                        clamp(anchor.x(), 0, ui.screen.width - 1), clamp(anchor.y(), 0, ui.screen.height - 1), labelColor));
+                GeometryScreenRenderer.draw(
+                        g, frame, geometry, ui.screen.width, ui.screen.height, fill, outline, superseded ? 1.0 : 1.5);
+                ScreenPoint anchor = geometry.closed()
+                        ? polygonLabelAnchor(frame, geometry, geometryBounds)
+                        : routeLabelAnchor(frame, geometry);
+                if (anchor != null && names)
+                    mapLabels.add(new MapLabel(
+                            Component.literal(area.name()),
+                            clamp(anchor.x(), 0, ui.screen.width - 1),
+                            clamp(anchor.y(), 0, ui.screen.height - 1),
+                            labelColor));
                 continue;
             }
             SelectionBounds b = area.bounds();
@@ -58,8 +71,10 @@ final class MapOverlays extends UiPart {
     }
 
     boolean onScreen(MapBridge.Frame frame, GeometryBounds bounds) {
-        return frame.screenX(bounds.maxX()) > 0 && frame.screenX(bounds.minX()) < ui.screen.width
-                && frame.screenY(bounds.maxZ()) > 0 && frame.screenY(bounds.minZ()) < ui.screen.height;
+        return frame.screenX(bounds.maxX()) > 0
+                && frame.screenX(bounds.minX()) < ui.screen.width
+                && frame.screenY(bounds.maxZ()) > 0
+                && frame.screenY(bounds.minZ()) < ui.screen.height;
     }
 
     /** A route's name sits on its middle segment, once the route is long enough on screen to carry one. */
@@ -67,7 +82,8 @@ final class MapOverlays extends UiPart {
         if (route.perimeter() * frame.scale() / frame.guiScale() <= 50) return null;
         int middle = (route.vertices().size() - 1) / 2;
         GridPoint a = route.vertices().get(middle), b = route.vertices().get(middle + 1);
-        return new ScreenPoint((frame.screenX(a.x()) + frame.screenX(b.x())) / 2, (frame.screenY(a.z()) + frame.screenY(b.z())) / 2);
+        return new ScreenPoint(
+                (frame.screenX(a.x()) + frame.screenX(b.x())) / 2, (frame.screenY(a.z()) + frame.screenY(b.z())) / 2);
     }
 
     private ScreenPoint polygonLabelAnchor(MapBridge.Frame frame, AreaGeometry geometry, GeometryBounds bounds) {
@@ -82,8 +98,7 @@ final class MapOverlays extends UiPart {
             List<ScreenPoint> visible = new ArrayList<>(3);
             for (GridPoint point : triangle)
                 visible.add(new ScreenPoint(frame.screenX(point.x()), frame.screenY(point.z())));
-            for (int edge = 0; edge < 4 && !visible.isEmpty(); edge++)
-                visible = clipLabelPolygon(visible, edge);
+            for (int edge = 0; edge < 4 && !visible.isEmpty(); edge++) visible = clipLabelPolygon(visible, edge);
             if (visible.size() < 3) continue;
             double twiceArea = 0, centerX = 0, centerY = 0;
             for (int i = 0; i < visible.size(); i++) {
@@ -110,11 +125,13 @@ final class MapOverlays extends UiPart {
         for (ScreenPoint current : input) {
             boolean currentInside = insideLabelBoundary(current, edge, boundary);
             if (currentInside != previousInside) {
-                double t = edge < 2 ? (boundary - previous.x()) / (current.x() - previous.x())
+                double t = edge < 2
+                        ? (boundary - previous.x()) / (current.x() - previous.x())
                         : (boundary - previous.y()) / (current.y() - previous.y());
-                output.add(edge < 2
-                        ? new ScreenPoint(boundary, previous.y() + (current.y() - previous.y()) * t)
-                        : new ScreenPoint(previous.x() + (current.x() - previous.x()) * t, boundary));
+                output.add(
+                        edge < 2
+                                ? new ScreenPoint(boundary, previous.y() + (current.y() - previous.y()) * t)
+                                : new ScreenPoint(previous.x() + (current.x() - previous.x()) * t, boundary));
             }
             if (currentInside) output.add(current);
             previous = current;
@@ -149,11 +166,10 @@ final class MapOverlays extends UiPart {
         int x1 = clamp(left, 0, ui.screen.width), y1 = clamp(top, 0, ui.screen.height);
         int x2 = clamp(right, 0, ui.screen.width), y2 = clamp(bottom, 0, ui.screen.height);
         if (!(ui.state.geometry() instanceof PolygonGeometry)) {
-            GeometryScreenRenderer.draw(g, frame, ui.state.geometry(), ui.screen.width, ui.screen.height,
-                    0x2459E3CE, ACCENT, 1.0);
+            GeometryScreenRenderer.draw(
+                    g, frame, ui.state.geometry(), ui.screen.width, ui.screen.height, 0x2459E3CE, ACCENT, 1.0);
         }
-        if (left < ui.screen.width && right > 0 && top < ui.screen.height && bottom > 0
-                && x1 == x2 && y1 == y2) {
+        if (left < ui.screen.width && right > 0 && top < ui.screen.height && bottom > 0 && x1 == x2 && y1 == y2) {
             int markerX = clamp((left + right) / 2, 0, ui.screen.width - 1);
             int markerY = clamp((top + bottom) / 2, 0, ui.screen.height - 1);
             g.fill(markerX, markerY, markerX + 1, markerY + 1, ACCENT);
@@ -172,7 +188,8 @@ final class MapOverlays extends UiPart {
             // Xaero draws the icon above its point, 30 (43 for longer symbols) by 43 units, in window pixels scaled
             // by its waypoint scale and by the window size above 1080; the frame goes around that icon.
             double unit = Math.max(1, Math.min(frame.pixelWidth(), frame.pixelHeight()) / 1080.0)
-                    * waypointIconScale() / frame.guiScale();
+                    * waypointIconScale()
+                    / frame.guiScale();
             for (WaypointAccess.Point point : ui.selected.points()) {
                 double scale = ui.waypoints.dimensionScale();
                 double px = frame.screenX(WaypointAccess.mapBlock(point.x(), scale) + 0.5);
@@ -180,7 +197,8 @@ final class MapOverlays extends UiPart {
                 double half = (point.symbol() != null && point.symbol().length() > 1 ? 43 : 30) / 2.0 * unit;
                 int iconLeft = (int) Math.floor(px - half) - 1, iconRight = (int) Math.ceil(px + half) + 1;
                 int iconTop = (int) Math.floor(py - 42 * unit) - 1, iconBottom = (int) Math.ceil(py + unit) + 1;
-                if (iconRight < 0 || iconLeft > ui.screen.width || iconBottom < 0 || iconTop > ui.screen.height) continue;
+                if (iconRight < 0 || iconLeft > ui.screen.width || iconBottom < 0 || iconTop > ui.screen.height)
+                    continue;
                 g.renderOutline(iconLeft, iconTop, iconRight - iconLeft, iconBottom - iconTop, Theme.WARNING);
             }
             g.disableScissor();
@@ -190,8 +208,11 @@ final class MapOverlays extends UiPart {
     /** Xaero's world map waypoint scale setting; 1 when it cannot be read. */
     private static double waypointIconScale() {
         try {
-            return ((Number) WorldMap.INSTANCE.getConfigs().getClientConfigManager()
-                    .getEffective(WorldMapProfiledConfigOptions.WAYPOINT_SCALE)).doubleValue();
+            return ((Number) WorldMap.INSTANCE
+                            .getConfigs()
+                            .getClientConfigManager()
+                            .getEffective(WorldMapProfiledConfigOptions.WAYPOINT_SCALE))
+                    .doubleValue();
         } catch (Throwable unavailable) {
             return 1;
         }
@@ -200,7 +221,8 @@ final class MapOverlays extends UiPart {
     /** White for the dragged vertex, red while its position is rejected. */
     int vertexColor(int index, int idle) {
         return ui.gesture instanceof MapGesture.VertexDrag vertex && vertex.index == index
-                ? vertex.invalid ? 0xFFFF5573 : -1 : idle;
+                ? vertex.invalid ? 0xFFFF5573 : -1
+                : idle;
     }
 
     private static int clamp(double value, int min, int max) {
@@ -221,11 +243,19 @@ final class MapOverlays extends UiPart {
     private void renderHandles(GuiGraphics g, MapBridge.Frame frame, SelectionBounds b) {
         double left = frame.screenX(b.minX()), right = frame.screenX((long) b.maxX() + 1);
         double top = frame.screenY(b.minZ()), bottom = frame.screenY((long) b.maxZ() + 1);
-        int[][] points = {{(int) left, (int) top}, {(int) ((left + right) / 2), (int) top}, {(int) right, (int) top},
-                {(int) left, (int) ((top + bottom) / 2)}, {(int) right, (int) ((top + bottom) / 2)},
-                {(int) left, (int) bottom}, {(int) ((left + right) / 2), (int) bottom}, {(int) right, (int) bottom}};
-        for (int[] p : points) if (p[0] >= -5 && p[0] <= ui.screen.width + 5 && p[1] >= -5 && p[1] <= ui.screen.height + 5)
-            marker(g, p[0], p[1], 3, ACCENT);
+        int[][] points = {
+            {(int) left, (int) top},
+            {(int) ((left + right) / 2), (int) top},
+            {(int) right, (int) top},
+            {(int) left, (int) ((top + bottom) / 2)},
+            {(int) right, (int) ((top + bottom) / 2)},
+            {(int) left, (int) bottom},
+            {(int) ((left + right) / 2), (int) bottom},
+            {(int) right, (int) bottom}
+        };
+        for (int[] p : points)
+            if (p[0] >= -5 && p[0] <= ui.screen.width + 5 && p[1] >= -5 && p[1] <= ui.screen.height + 5)
+                marker(g, p[0], p[1], 3, ACCENT);
     }
 
     /** A vertex, handle or ruler point: a dark square in a colored frame. */

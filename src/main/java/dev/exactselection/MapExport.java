@@ -1,5 +1,7 @@
 package dev.exactselection;
 
+import static dev.exactselection.ModLog.LOG;
+
 import dev.exactselection.ExactSelectionController.Dialog;
 import dev.exactselection.SavedAreaStore.Area;
 import java.nio.file.Files;
@@ -10,21 +12,24 @@ import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.network.chat.Component;
 import net.minecraft.util.Util;
-import static dev.exactselection.ModLog.LOG;
 
 /** Exporting the map to PNG: opening the export window, running the export and reporting its result. */
 final class MapExport extends UiPart {
     Button selectionExportButton;
     /** The window the export window returns to. */
     Dialog exportReturn = Dialog.NONE;
+
     Button openExportButton;
     /** Kept apart from the button, which a window resize creates anew. */
     private Tooltip exportTooltip;
+
     Path lastExport;
     boolean exportRunning;
     String exportNotice = "";
 
-    MapExport(ExactSelectionController ui) { super(ui); }
+    MapExport(ExactSelectionController ui) {
+        super(ui);
+    }
 
     void exportSelectedArea() {
         MapBridge.Frame frame = ui.checkedFrame();
@@ -35,16 +40,24 @@ final class MapExport extends UiPart {
     }
 
     boolean canExportSelection() {
-        return ui.enabled() && ui.dialog == Dialog.NONE && ui.state.phase() == SelectionState.Phase.SELECTED
-                && ui.state.geometry() != null && !ui.dirty && !ui.dragging && ui.gesture == null
-                && ui.polygonTool.draft.isEmpty() && !ui.loadFailed && !exportRunning;
+        return ui.enabled()
+                && ui.dialog == Dialog.NONE
+                && ui.state.phase() == SelectionState.Phase.SELECTED
+                && ui.state.geometry() != null
+                && !ui.dirty
+                && !ui.dragging
+                && ui.gesture == null
+                && ui.polygonTool.draft.isEmpty()
+                && !ui.loadFailed
+                && !exportRunning;
     }
 
     private void exportCurrentSelection() {
         MapBridge.Frame frame = ui.checkedFrame();
         if (frame == null || !canExportSelection()) return;
         Area edited = ui.areasWindow.editedArea();
-        openExportDialog(ui.state.geometry(), ui.tr("export_what_selection"), Dialog.NONE, edited == null ? null : edited.id());
+        openExportDialog(
+                ui.state.geometry(), ui.tr("export_what_selection"), Dialog.NONE, edited == null ? null : edited.id());
     }
 
     private void openExportDialog(AreaGeometry geometry, Component title, Dialog returnTo, String areaId) {
@@ -58,7 +71,9 @@ final class MapExport extends UiPart {
     /** Xaero's export folder, or the mod's exchange folder before the map has one. */
     Path defaultExportFolder() {
         Path folder = AreaExportService.defaultFolder(ui.bridge.exactselection$processor());
-        return folder != null ? folder : ModFiles.directory(ui.areaStore.root()).resolve("map-exports").toAbsolutePath();
+        return folder != null
+                ? folder
+                : ModFiles.directory(ui.areaStore.root()).resolve("map-exports").toAbsolutePath();
     }
 
     private void runExport() {
@@ -70,12 +85,19 @@ final class MapExport extends UiPart {
         exportGeometry(frame, ui.exportWindow.target(), options, ui.exportWindow.unfilledArea());
     }
 
-    private void exportGeometry(MapBridge.Frame frame, AreaGeometry geometry, AreaExportService.Options options, String unfilledArea) {
+    private void exportGeometry(
+            MapBridge.Frame frame, AreaGeometry geometry, AreaExportService.Options options, String unfilledArea) {
         CompletableFuture<AreaExportService.Result> pendingExport;
         try {
-            pendingExport = AreaExportService.export(ui.bridge.exactselection$processor(),
-                    frame.context(), geometry, ui.areas().stream().map(a -> !a.id().equals(unfilledArea) ? a
-                            : a.withOpacity(0)).toList(), ui.groups(), options);
+            pendingExport = AreaExportService.export(
+                    ui.bridge.exactselection$processor(),
+                    frame.context(),
+                    geometry,
+                    ui.areas().stream()
+                            .map(a -> !a.id().equals(unfilledArea) ? a : a.withOpacity(0))
+                            .toList(),
+                    ui.groups(),
+                    options);
         } catch (AreaExportService.TooLargeException e) {
             ui.say("area_export_too_large", AreaExportService.MAX_PIXELS);
             return;
@@ -92,8 +114,11 @@ final class MapExport extends UiPart {
         pendingExport.whenComplete((result, failure) -> ui.mc.execute(() -> {
             exportRunning = false;
             if (failure == null) exportCompleted(result);
-            else exportFailed(failure instanceof CompletionException && failure.getCause() != null
-                    ? failure.getCause() : failure);
+            else
+                exportFailed(
+                        failure instanceof CompletionException && failure.getCause() != null
+                                ? failure.getCause()
+                                : failure);
         }));
     }
 
@@ -106,7 +131,9 @@ final class MapExport extends UiPart {
         lastExport = result.file().toAbsolutePath().normalize();
         exportNotice = ui.tr("area_exported", result.width(), result.height()).getString();
         ui.message = exportNotice;
-        setExportTooltip(Component.literal(lastExport.getFileName().toString()).append(" · ").append(exportNotice));
+        setExportTooltip(Component.literal(lastExport.getFileName().toString())
+                .append(" · ")
+                .append(exportNotice));
         ui.selectionPanel.layoutMainPanel();
     }
 

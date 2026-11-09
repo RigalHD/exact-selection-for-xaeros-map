@@ -1,5 +1,7 @@
 package dev.exactselection;
 
+import static dev.exactselection.ExactSelectionController.place;
+
 import dev.exactselection.ExactSelectionController.Dialog;
 import dev.exactselection.ExactSelectionController.DialogField;
 import dev.exactselection.SavedAreaStore.Area;
@@ -10,7 +12,6 @@ import java.util.Objects;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.input.MouseButtonEvent;
-import static dev.exactselection.ExactSelectionController.place;
 
 /** The window that names a new area or route, with the style the next one gets. */
 final class NewAreaWindow extends UiPart {
@@ -18,12 +19,16 @@ final class NewAreaWindow extends UiPart {
     Dialog areaNameReturn = Dialog.AREAS;
     /** The ruler's route being named; null while the name window is for the selection. */
     PolylineGeometry routeToSave;
+
     private String newAreaGroupId;
     /** Style for the next saved area; kept between saves so a series of areas can share it. */
     int newAreaColor = AreaPalette.DEFAULT;
+
     private int newAreaOpacity = 25;
 
-    NewAreaWindow(ExactSelectionController ui) { super(ui); }
+    NewAreaWindow(ExactSelectionController ui) {
+        super(ui);
+    }
 
     void openAreaNameDialog() {
         if (ui.state.phase() != SelectionState.Phase.SELECTED || ui.dirty || ui.loadFailed) return;
@@ -66,12 +71,20 @@ final class NewAreaWindow extends UiPart {
         ui.areaEdits.flushDraft();
         String name = ui.field(DialogField.NEW_AREA).getValue().trim();
         if (name.isEmpty()) name = defaultName(route ? "route_default_name" : "area_default_name");
-        AreaGeometry geometry = route ? routeToSave : ui.state.geometry() == null ? new RectangleGeometry(b) : ui.state.geometry();
-        Area area = SavedAreaStore.create(name, geometry, newAreaColor, newAreaOpacity,
+        AreaGeometry geometry =
+                route ? routeToSave : ui.state.geometry() == null ? new RectangleGeometry(b) : ui.state.geometry();
+        Area area = SavedAreaStore.create(
+                name,
+                geometry,
+                newAreaColor,
+                newAreaOpacity,
                 ui.groupsWindow.findGroup(newAreaGroupId) == null ? null : newAreaGroupId);
-        List<Area> areas = new ArrayList<>(ui.areas()); areas.add(area);
+        List<Area> areas = new ArrayList<>(ui.areas());
+        areas.add(area);
         if (!ui.areaEdits.changeAreas(ui.areaEdits.areaState(areas, ui.groups()), "area_save")) return;
-        ui.areasWindow.selectedAreaIds.clear(); ui.areasWindow.selectedAreaIds.add(area.id()); ui.areasWindow.areaId = area.id();
+        ui.areasWindow.selectedAreaIds.clear();
+        ui.areasWindow.selectedAreaIds.add(area.id());
+        ui.areasWindow.areaId = area.id();
         ui.setDialogValue(DialogField.AREA_NAME, area.name());
         ui.dialog = areaNameReturn;
         if (ui.dialog == Dialog.AREAS) {
@@ -79,10 +92,17 @@ final class NewAreaWindow extends UiPart {
             int index = shown.indexOf(area);
             // Scroll so the new row is visible; a row the search hides leaves the list where it was.
             if (index >= 0)
-                ui.areasWindow.areaScroll = Math.max(0, Math.min(index, shown.size() - ui.areasWindow.visibleAreaDialogRows(ui.windows.dialogRect().height())));
+                ui.areasWindow.areaScroll = Math.max(
+                        0,
+                        Math.min(
+                                index,
+                                shown.size()
+                                        - ui.areasWindow.visibleAreaDialogRows(
+                                                ui.windows.dialogRect().height())));
         }
         // The saved shape now lives in the list; clearing it (its own undo step) frees the map for the next area.
-        if (route) ui.rulerTool.clearRuler(); else ui.reset();
+        if (route) ui.rulerTool.clearRuler();
+        else ui.reset();
         routeToSave = null;
         ui.say(route ? "route_saved" : areaNameReturn == Dialog.NONE ? "area_saved_named" : "area_created", name);
         ui.focus(null);
@@ -98,7 +118,10 @@ final class NewAreaWindow extends UiPart {
     void clickAreaNameDialog(MouseButtonEvent event, int x, int y, int w, int h) {
         // The preview of the chosen color opens the full picker.
         int px = ui.colorWindows.swatchX(x, w, AreaPalette.COLUMNS - 1);
-        if (event.x() >= px && event.x() < px + ui.colorWindows.colorSampleWidth(w) && event.y() >= y + 170 && event.y() < y + 188) {
+        if (event.x() >= px
+                && event.x() < px + ui.colorWindows.colorSampleWidth(w)
+                && event.y() >= y + 170
+                && event.y() < y + 188) {
             ui.colorWindows.openPicker(Dialog.AREA_NAME, newAreaColor);
             return;
         }
@@ -112,12 +135,16 @@ final class NewAreaWindow extends UiPart {
 
     void createNewAreaWidgets() {
         newAreaGroup = ui.button("group_none", "area_new_group_tooltip", this::cycleNewAreaGroup);
-        newAreaOpacityButton = ui.button("area_fill", "area_new_opacity_tooltip", () -> newAreaOpacity = AreasWindow.nextOpacity(newAreaOpacity));
+        newAreaOpacityButton = ui.button(
+                "area_fill",
+                "area_new_opacity_tooltip",
+                () -> newAreaOpacity = AreasWindow.nextOpacity(newAreaOpacity));
     }
 
     void updateNewAreaWidgets() {
         Group newGroup = ui.groupsWindow.findGroup(newAreaGroupId);
-        newAreaGroup.setMessage(ui.tr("area_group_button", newGroup == null ? ui.tr("group_none").getString() : newGroup.name()));
+        newAreaGroup.setMessage(ui.tr(
+                "area_group_button", newGroup == null ? ui.tr("group_none").getString() : newGroup.name()));
         newAreaOpacityButton.setMessage(ui.tr("area_new_opacity", newAreaOpacity + "%"));
     }
 
@@ -127,7 +154,12 @@ final class NewAreaWindow extends UiPart {
         place(newAreaOpacityButton, x + 19 + half, y + 72, w - 35 - half, 18);
         // Custom color: the field ends where the preview takes the last palette column.
         int fieldX = x + 16 + ui.mc.font.width(ui.tr("area_custom_color")) + 6;
-        place(ui.field(DialogField.HEX), fieldX, y + 170, ui.colorWindows.swatchX(x, w, AreaPalette.COLUMNS - 1) - 4 - fieldX, 18);
+        place(
+                ui.field(DialogField.HEX),
+                fieldX,
+                y + 170,
+                ui.colorWindows.swatchX(x, w, AreaPalette.COLUMNS - 1) - 4 - fieldX,
+                18);
     }
 
     void renderNewArea(GuiGraphics g, int x, int y, int w) {

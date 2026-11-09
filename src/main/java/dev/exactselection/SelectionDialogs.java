@@ -1,10 +1,11 @@
 package dev.exactselection;
 
+import static dev.exactselection.ModLog.LOG;
+
 import dev.exactselection.ExactSelectionController.Dialog;
 import dev.exactselection.ExactSelectionController.DialogField;
 import java.math.BigDecimal;
 import net.minecraft.client.gui.components.Button;
-import static dev.exactselection.ModLog.LOG;
 
 /** The Size, Move and Center windows of the current selection. */
 final class SelectionDialogs extends UiPart {
@@ -12,7 +13,9 @@ final class SelectionDialogs extends UiPart {
     boolean sizeFromCenter;
     boolean moveInChunks;
 
-    SelectionDialogs(ExactSelectionController ui) { super(ui); }
+    SelectionDialogs(ExactSelectionController ui) {
+        super(ui);
+    }
 
     private static long positive(String value) {
         long n = Long.parseLong(value.trim());
@@ -27,12 +30,17 @@ final class SelectionDialogs extends UiPart {
     }
 
     static String formatNumber(double value) {
-        return value == Math.rint(value) ? Long.toString((long) value) : BigDecimal.valueOf(value).toPlainString();
+        return value == Math.rint(value)
+                ? Long.toString((long) value)
+                : BigDecimal.valueOf(value).toPlainString();
     }
 
     void createCenterWaypoint() {
         SelectionBounds b = ui.state.bounds();
-        if (b == null || ui.state.phase() != SelectionState.Phase.SELECTED || ui.waypoints == null) { ui.say("minimap_missing"); return; }
+        if (b == null || ui.state.phase() != SelectionState.Phase.SELECTED || ui.waypoints == null) {
+            ui.say("minimap_missing");
+            return;
+        }
         String name = ui.field(DialogField.CENTER_NAME).getValue().trim();
         if (name.isEmpty()) name = ui.tr("center_waypoint_default").getString();
         int x = (int) Math.floor(b.centerX()), z = (int) Math.floor(b.centerZ());
@@ -41,11 +49,24 @@ final class SelectionDialogs extends UiPart {
         try {
             WaypointAccess.Point[] point = {ui.waypoints.create(ui.context, x, y, z, finalName)};
             ui.history.recordApplied(new SelectionHistory.Action() {
-                @Override public void undo() throws Exception { ui.waypoints.removeCreated(ui.context, point[0]); }
-                @Override public void redo() throws Exception { point[0] = ui.waypoints.recreate(ui.context, point[0]); }
-                @Override public String label() { return ui.tr("history_waypoint").getString(); }
+                @Override
+                public void undo() throws Exception {
+                    ui.waypoints.removeCreated(ui.context, point[0]);
+                }
+
+                @Override
+                public void redo() throws Exception {
+                    point[0] = ui.waypoints.recreate(ui.context, point[0]);
+                }
+
+                @Override
+                public String label() {
+                    return ui.tr("history_waypoint").getString();
+                }
             });
-            ui.say("waypoint_created"); ui.dialog = Dialog.NONE; ui.updateSelection();
+            ui.say("waypoint_created");
+            ui.dialog = Dialog.NONE;
+            ui.updateSelection();
         } catch (Exception e) {
             ui.say("save_failed");
             LOG.error("Could not create the center waypoint", e);
@@ -68,7 +89,10 @@ final class SelectionDialogs extends UiPart {
             if (current == null) throw new IllegalArgumentException();
             long dx = Long.parseLong(ui.field(DialogField.OFFSET_X).getValue().trim());
             long dz = Long.parseLong(ui.field(DialogField.OFFSET_Z).getValue().trim());
-            if (moveInChunks) { dx = Math.multiplyExact(dx, 16); dz = Math.multiplyExact(dz, 16); }
+            if (moveInChunks) {
+                dx = Math.multiplyExact(dx, 16);
+                dz = Math.multiplyExact(dz, 16);
+            }
             if (ui.state.geometry() instanceof PolygonGeometry) {
                 SelectionState.Snapshot before = ui.state.snapshot();
                 ui.state.setGeometry(ui.state.geometry().translated(dx, dz));

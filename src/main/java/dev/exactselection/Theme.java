@@ -12,9 +12,11 @@ final class Theme {
     static final int INVALID = 0xFFFF5555;
     /** Window and panel frames and dividers. */
     static final int BORDER = 0xFF42636D;
+
     static final int PANEL_BACKGROUND = 0xEE101922;
     /** The well behind a list of rows. */
     static final int LIST_BACKGROUND = 0xFF0C141D;
+
     static final int ROW_CHECKED = 0x8842636D;
     /** An unchecked box or a hidden group. */
     static final int INACTIVE = 0xFF64717A;

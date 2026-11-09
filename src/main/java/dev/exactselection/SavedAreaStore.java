@@ -31,11 +31,15 @@ public final class SavedAreaStore {
     /** The newest file schema this version reads and the one it writes. */
     static final int SCHEMA = 3;
 
-    /** The file was written by a newer version of the mod: it is intact, so it is neither overwritten nor "restored". */
+    /**
+     * The file was written by a newer version of the mod: it is intact, so it is neither overwritten nor "restored".
+     */
     static final class NewerSchemaException extends IllegalArgumentException {
         private static final long serialVersionUID = 1L;
 
-        NewerSchemaException() { super("Area file was written by a newer version of the mod"); }
+        NewerSchemaException() {
+            super("Area file was written by a newer version of the mod");
+        }
     }
 
     /**
@@ -47,44 +51,110 @@ public final class SavedAreaStore {
      * A saved shape with its name and style. The geometry is the one source of its corners and vertices, so a
      * rectangle, a polygon and a route cannot be confused with each other.
      */
-    public record Area(String id, String name, AreaGeometry geometry, int color, int opacity, String groupId, boolean visible) {
+    public record Area(
+            String id, String name, AreaGeometry geometry, int color, int opacity, String groupId, boolean visible) {
         public Area {
             if (geometry == null) throw new IllegalArgumentException("An area needs a shape");
         }
 
         /** A rectangle with its corners in the order they were drawn. */
-        public Area(String id, String name, int x1, int z1, int x2, int z2,
-                    int color, int opacity, String groupId, boolean visible) {
-            this(id, name, new RectangleGeometry(new SelectionBounds(x1, z1, x2, z2)), color, opacity, groupId, visible);
+        public Area(
+                String id,
+                String name,
+                int x1,
+                int z1,
+                int x2,
+                int z2,
+                int color,
+                int opacity,
+                String groupId,
+                boolean visible) {
+            this(
+                    id,
+                    name,
+                    new RectangleGeometry(new SelectionBounds(x1, z1, x2, z2)),
+                    color,
+                    opacity,
+                    groupId,
+                    visible);
         }
 
         /** The corner blocks: a rectangle's own, or the bounding box of a polygon or a route. */
         public SelectionBounds bounds() {
-            return geometry instanceof RectangleGeometry rectangle ? rectangle.blocks() : geometry.bounds().blocks();
+            return geometry instanceof RectangleGeometry rectangle
+                    ? rectangle.blocks()
+                    : geometry.bounds().blocks();
         }
-        public int x1() { return bounds().x1(); }
-        public int z1() { return bounds().z1(); }
-        public int x2() { return bounds().x2(); }
-        public int z2() { return bounds().z2(); }
+
+        public int x1() {
+            return bounds().x1();
+        }
+
+        public int z1() {
+            return bounds().z1();
+        }
+
+        public int x2() {
+            return bounds().x2();
+        }
+
+        public int z2() {
+            return bounds().z2();
+        }
         /** The vertices of a polygon or a route; a rectangle has none of its own. */
-        public List<GridPoint> vertices() { return geometry instanceof RectangleGeometry ? List.of() : geometry.vertices(); }
-        public Area withId(String id) { return new Area(id, name, geometry, color, opacity, groupId, visible); }
-        public Area withName(String name) { return new Area(id, name, geometry, color, opacity, groupId, visible); }
-        public Area withColor(int color) { return new Area(id, name, geometry, color, opacity, groupId, visible); }
-        public Area withOpacity(int opacity) { return new Area(id, name, geometry, color, opacity, groupId, visible); }
-        public Area withGroup(String groupId) { return new Area(id, name, geometry, color, opacity, groupId, visible); }
-        public Area withVisible(boolean visible) { return new Area(id, name, geometry, color, opacity, groupId, visible); }
-        public Area withGeometry(AreaGeometry geometry) { return new Area(id, name, geometry, color, opacity, groupId, visible); }
+        public List<GridPoint> vertices() {
+            return geometry instanceof RectangleGeometry ? List.of() : geometry.vertices();
+        }
+
+        public Area withId(String id) {
+            return new Area(id, name, geometry, color, opacity, groupId, visible);
+        }
+
+        public Area withName(String name) {
+            return new Area(id, name, geometry, color, opacity, groupId, visible);
+        }
+
+        public Area withColor(int color) {
+            return new Area(id, name, geometry, color, opacity, groupId, visible);
+        }
+
+        public Area withOpacity(int opacity) {
+            return new Area(id, name, geometry, color, opacity, groupId, visible);
+        }
+
+        public Area withGroup(String groupId) {
+            return new Area(id, name, geometry, color, opacity, groupId, visible);
+        }
+
+        public Area withVisible(boolean visible) {
+            return new Area(id, name, geometry, color, opacity, groupId, visible);
+        }
+
+        public Area withGeometry(AreaGeometry geometry) {
+            return new Area(id, name, geometry, color, opacity, groupId, visible);
+        }
     }
+
     public record Group(String id, String name, boolean visible) {}
     /** {@code showNames}: names of saved areas on the World Map; files written before it existed show them. */
-    public record State(List<Area> areas, List<Group> groups, boolean showOnMap, boolean showOnMinimap, boolean showNames) {
-        public State { areas = List.copyOf(areas); groups = List.copyOf(groups); }
+    public record State(
+            List<Area> areas, List<Group> groups, boolean showOnMap, boolean showOnMinimap, boolean showNames) {
+        public State {
+            areas = List.copyOf(areas);
+            groups = List.copyOf(groups);
+        }
+
         public State(List<Area> areas, List<Group> groups, boolean showOnMap, boolean showOnMinimap) {
             this(areas, groups, showOnMap, showOnMinimap, true);
         }
-        public State(List<Area> areas, List<Group> groups) { this(areas, groups, false, false); }
-        public static State empty() { return new State(List.of(), List.of()); }
+
+        public State(List<Area> areas, List<Group> groups) {
+            this(areas, groups, false, false);
+        }
+
+        public static State empty() {
+            return new State(List.of(), List.of());
+        }
     }
 
     static final int MAX_AREAS = 1000, MAX_GROUPS = 200;
@@ -100,13 +170,25 @@ public final class SavedAreaStore {
     /** The file's time and size when this store last read or wrote it. */
     private String loadedStamp;
 
-    public SavedAreaStore(Path root) { this.root = root; }
+    public SavedAreaStore(Path root) {
+        this.root = root;
+    }
     /** The config directory the per-world area files live under. */
-    public Path root() { return root; }
-    public State state() { return state; }
-    public boolean loadFailed() { return loadFailed; }
+    public Path root() {
+        return root;
+    }
+
+    public State state() {
+        return state;
+    }
+
+    public boolean loadFailed() {
+        return loadFailed;
+    }
     /** The file could not be read because a newer version of the mod wrote it. */
-    public boolean newerFile() { return newerFile; }
+    public boolean newerFile() {
+        return newerFile;
+    }
 
     public void useContext(MapBridge.Context context) throws IOException {
         String key = key(context);
@@ -123,10 +205,16 @@ public final class SavedAreaStore {
         loadedGeneration = generation;
         loadedStamp = stamp();
         Loaded shared = LOADED.get(file);
-        if (shared != null && shared.generation() == generation && shared.stamp().equals(loadedStamp)) { state = shared.state(); return; }
+        if (shared != null
+                && shared.generation() == generation
+                && shared.stamp().equals(loadedStamp)) {
+            state = shared.state();
+            return;
+        }
         if (!Files.exists(file)) return;
         try {
-            state = decode(JsonParser.parseString(Files.readString(file, StandardCharsets.UTF_8)).getAsJsonObject());
+            state = decode(JsonParser.parseString(Files.readString(file, StandardCharsets.UTF_8))
+                    .getAsJsonObject());
             LOADED.put(file, new Loaded(generation, loadedStamp, state));
         } catch (Exception e) {
             loadFailed = true;
@@ -151,30 +239,42 @@ public final class SavedAreaStore {
     }
 
     /** The version before the last write; {@link #replace} refuses a broken file, so this one was readable. */
-    private Path backup() { return file.resolveSibling(file.getFileName() + ".bak"); }
+    private Path backup() {
+        return file.resolveSibling(file.getFileName() + ".bak");
+    }
 
     /**
      * The file may have been edited outside the game: when its time or size changed, or it could not be read, the
      * next {@link #useContext} of every store reads it again. An untouched file is not read again.
      */
     void reload() {
-        if (file != null && (loadFailed || !Objects.equals(loadedStamp, stamp()))) GENERATIONS.merge(file, 1L, Long::sum);
+        if (file != null && (loadFailed || !Objects.equals(loadedStamp, stamp())))
+            GENERATIONS.merge(file, 1L, Long::sum);
     }
 
     private String stamp() {
-        try { return Files.exists(file) ? Files.getLastModifiedTime(file).toMillis() + ":" + Files.size(file) : "absent"; }
-        catch (IOException e) { return "unreadable:" + System.nanoTime(); }
+        try {
+            return Files.exists(file) ? Files.getLastModifiedTime(file).toMillis() + ":" + Files.size(file) : "absent";
+        } catch (IOException e) {
+            return "unreadable:" + System.nanoTime();
+        }
     }
 
-    boolean canRestore() { return loadFailed && !newerFile && Files.exists(backup()); }
+    boolean canRestore() {
+        return loadFailed && !newerFile && Files.exists(backup());
+    }
 
     /**
      * Puts the previous version back, keeping the broken file beside it; the next {@link #useContext} reads it.
      * A previous version that cannot be read either changes nothing, and an earlier broken file is never overwritten.
      */
     void restoreBackup() throws IOException {
-        try { decode(JsonParser.parseString(Files.readString(backup(), StandardCharsets.UTF_8)).getAsJsonObject()); }
-        catch (Exception e) { throw new IOException("The previous version cannot be read either; nothing was changed", e); }
+        try {
+            decode(JsonParser.parseString(Files.readString(backup(), StandardCharsets.UTF_8))
+                    .getAsJsonObject());
+        } catch (Exception e) {
+            throw new IOException("The previous version cannot be read either; nothing was changed", e);
+        }
         String name = file.getFileName() + ".broken";
         Path broken = file.resolveSibling(name);
         for (int i = 2; Files.exists(broken); i++) broken = file.resolveSibling(name + "-" + i);
@@ -190,7 +290,9 @@ public final class SavedAreaStore {
         try {
             Files.writeString(temp, text, StandardCharsets.UTF_8);
             // Without this a power cut after the rename can leave an empty file.
-            try (FileChannel channel = FileChannel.open(temp, StandardOpenOption.WRITE)) { channel.force(true); }
+            try (FileChannel channel = FileChannel.open(temp, StandardOpenOption.WRITE)) {
+                channel.force(true);
+            }
             try {
                 Files.move(temp, file, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
             } catch (AtomicMoveNotSupportedException e) {
@@ -202,8 +304,17 @@ public final class SavedAreaStore {
     }
 
     public static Area create(String name, SelectionBounds bounds, int color, int opacity, String groupId) {
-        return new Area(UUID.randomUUID().toString(), name, bounds.x1(), bounds.z1(), bounds.x2(), bounds.z2(),
-                color, opacity, groupId, true);
+        return new Area(
+                UUID.randomUUID().toString(),
+                name,
+                bounds.x1(),
+                bounds.z1(),
+                bounds.x2(),
+                bounds.z2(),
+                color,
+                opacity,
+                groupId,
+                true);
     }
 
     public static Area create(String name, AreaGeometry geometry, int color, int opacity, String groupId) {
@@ -215,8 +326,12 @@ public final class SavedAreaStore {
     }
 
     private static String digest(String key) {
-        try { return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(key.getBytes(StandardCharsets.UTF_8))); }
-        catch (NoSuchAlgorithmException e) { throw new IllegalStateException(e); }
+        try {
+            return HexFormat.of()
+                    .formatHex(MessageDigest.getInstance("SHA-256").digest(key.getBytes(StandardCharsets.UTF_8)));
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException(e);
+        }
     }
 
     static JsonObject encode(State state) {
@@ -228,34 +343,43 @@ public final class SavedAreaStore {
         JsonArray areas = new JsonArray();
         for (Area a : state.areas()) {
             JsonObject o = new JsonObject();
-            o.addProperty("id", a.id()); o.addProperty("name", a.name());
+            o.addProperty("id", a.id());
+            o.addProperty("name", a.name());
             JsonObject geometry = new JsonObject();
             if (a.geometry() instanceof RectangleGeometry) {
                 geometry.addProperty("type", "rectangle");
-                geometry.addProperty("x1", a.x1()); geometry.addProperty("z1", a.z1());
-                geometry.addProperty("x2", a.x2()); geometry.addProperty("z2", a.z2());
+                geometry.addProperty("x1", a.x1());
+                geometry.addProperty("z1", a.z1());
+                geometry.addProperty("x2", a.x2());
+                geometry.addProperty("z2", a.z2());
             } else {
                 geometry.addProperty("type", a.geometry() instanceof PolylineGeometry ? "polyline" : "polygon");
                 JsonArray vertices = new JsonArray();
                 for (GridPoint point : a.vertices()) {
                     JsonObject vertex = new JsonObject();
-                    vertex.addProperty("x", point.x()); vertex.addProperty("z", point.z());
+                    vertex.addProperty("x", point.x());
+                    vertex.addProperty("z", point.z());
                     vertices.add(vertex);
                 }
                 geometry.add("vertices", vertices);
             }
             o.add("geometry", geometry);
-            o.addProperty("color", a.color()); o.addProperty("opacity", a.opacity());
+            o.addProperty("color", a.color());
+            o.addProperty("opacity", a.opacity());
             if (a.groupId() != null) o.addProperty("groupId", a.groupId());
-            o.addProperty("visible", a.visible()); areas.add(o);
+            o.addProperty("visible", a.visible());
+            areas.add(o);
         }
         JsonArray groups = new JsonArray();
         for (Group g : state.groups()) {
             JsonObject o = new JsonObject();
-            o.addProperty("id", g.id()); o.addProperty("name", g.name()); o.addProperty("visible", g.visible());
+            o.addProperty("id", g.id());
+            o.addProperty("name", g.name());
+            o.addProperty("visible", g.visible());
             groups.add(o);
         }
-        root.add("areas", areas); root.add("groups", groups);
+        root.add("areas", areas);
+        root.add("groups", groups);
         return root;
     }
 
@@ -268,15 +392,24 @@ public final class SavedAreaStore {
         List<Group> groups = new ArrayList<>();
         for (JsonElement e : root.getAsJsonArray("groups")) {
             JsonObject o = e.getAsJsonObject();
-            groups.add(new Group(o.get("id").getAsString(), o.get("name").getAsString(),
+            groups.add(new Group(
+                    o.get("id").getAsString(),
+                    o.get("name").getAsString(),
                     !o.has("visible") || o.get("visible").getAsBoolean()));
         }
-        State state = new State(areas, groups,
+        State state = new State(
+                areas,
+                groups,
                 schema >= 2 && root.has("showOnMap") && root.get("showOnMap").getAsBoolean(),
-                schema >= 2 && root.has("showOnMinimap") && root.get("showOnMinimap").getAsBoolean(),
+                schema >= 2
+                        && root.has("showOnMinimap")
+                        && root.get("showOnMinimap").getAsBoolean(),
                 !root.has("showNames") || root.get("showNames").getAsBoolean());
-        try { validate(state); }
-        catch (IOException e) { throw new IllegalArgumentException(e.getMessage(), e); }
+        try {
+            validate(state);
+        } catch (IOException e) {
+            throw new IllegalArgumentException(e.getMessage(), e);
+        }
         return state;
     }
 
@@ -289,9 +422,19 @@ public final class SavedAreaStore {
         JsonObject geometry = schema >= 3 ? o.getAsJsonObject("geometry") : o;
         String type = schema >= 3 ? geometry.get("type").getAsString() : "rectangle";
         if (type.equals("rectangle"))
-            return new Area(id, name, geometry.get("x1").getAsInt(), geometry.get("z1").getAsInt(),
-                    geometry.get("x2").getAsInt(), geometry.get("z2").getAsInt(), color, opacity, groupId, visible);
-        if (!type.equals("polygon") && !type.equals("polyline")) throw new IllegalArgumentException("Unknown saved geometry type");
+            return new Area(
+                    id,
+                    name,
+                    geometry.get("x1").getAsInt(),
+                    geometry.get("z1").getAsInt(),
+                    geometry.get("x2").getAsInt(),
+                    geometry.get("z2").getAsInt(),
+                    color,
+                    opacity,
+                    groupId,
+                    visible);
+        if (!type.equals("polygon") && !type.equals("polyline"))
+            throw new IllegalArgumentException("Unknown saved geometry type");
         List<GridPoint> points = new ArrayList<>();
         for (JsonElement vertex : geometry.getAsJsonArray("vertices")) {
             JsonObject p = vertex.getAsJsonObject();
@@ -306,14 +449,24 @@ public final class SavedAreaStore {
             throw new IOException("Too many saved areas or groups");
         Set<String> groupIds = new HashSet<>(), areaIds = new HashSet<>();
         for (Group group : state.groups()) {
-            if (group.id() == null || group.id().isBlank() || group.name() == null || group.name().isBlank()
-                    || group.name().length() > 128 || !groupIds.add(group.id()))
-                throw new IOException("Invalid saved group");
+            if (group.id() == null
+                    || group.id().isBlank()
+                    || group.name() == null
+                    || group.name().isBlank()
+                    || group.name().length() > 128
+                    || !groupIds.add(group.id())) throw new IOException("Invalid saved group");
         }
         for (Area area : state.areas()) {
-            if (area.id() == null || area.id().isBlank() || !areaIds.add(area.id())
-                    || area.name() == null || area.name().isBlank() || area.name().length() > 128
-                    || area.opacity() < 0 || area.opacity() > 100 || area.color() < 0 || area.color() > 0xFFFFFF
+            if (area.id() == null
+                    || area.id().isBlank()
+                    || !areaIds.add(area.id())
+                    || area.name() == null
+                    || area.name().isBlank()
+                    || area.name().length() > 128
+                    || area.opacity() < 0
+                    || area.opacity() > 100
+                    || area.color() < 0
+                    || area.color() > 0xFFFFFF
                     || area.groupId() != null && !groupIds.contains(area.groupId()))
                 throw new IOException("Invalid saved area");
             try {
@@ -322,10 +475,14 @@ public final class SavedAreaStore {
                     throw new IllegalArgumentException("Polygon has too many vertices");
                 geometry.triangulate();
                 GeometryBounds bounds = geometry.bounds();
-                if (bounds.minX() < -WorldLimits.MAX || bounds.minZ() < -WorldLimits.MAX
-                        || bounds.maxX() > WorldLimits.MAX || bounds.maxZ() > WorldLimits.MAX)
+                if (bounds.minX() < -WorldLimits.MAX
+                        || bounds.minZ() < -WorldLimits.MAX
+                        || bounds.maxX() > WorldLimits.MAX
+                        || bounds.maxZ() > WorldLimits.MAX)
                     throw new IllegalArgumentException("Geometry outside Minecraft world bounds");
-            } catch (RuntimeException e) { throw new IOException("Invalid saved area geometry", e); }
+            } catch (RuntimeException e) {
+                throw new IOException("Invalid saved area geometry", e);
+            }
         }
     }
 }

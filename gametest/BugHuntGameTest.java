@@ -1,7 +1,6 @@
 package dev.exactselection;
 
 import dev.exactselection.ExactSelectionController.Dialog;
-import dev.exactselection.SelectionState.Phase;
 import java.lang.reflect.Field;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -15,13 +14,15 @@ import net.fabricmc.fabric.api.client.gametest.v1.context.ClientGameTestContext;
 import net.fabricmc.fabric.api.client.gametest.v1.context.TestSingleplayerContext;
 import net.fabricmc.fabric.api.client.gametest.v1.world.TestWorldSave;
 import net.minecraft.client.gui.components.AbstractWidget;
-import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.sounds.SoundSource;
 import org.lwjgl.glfw.GLFW;
 import xaero.map.controls.ControlsRegister;
 import xaero.map.gui.GuiMap;
 
-/** The weak spots the first scenario left out: other dimensions and worlds, a broken file, the zone limit, speed, random input. */
+/**
+ * The weak spots the first scenario left out: other dimensions and worlds, a broken file, the zone limit, speed, random
+ * input.
+ */
 public class BugHuntGameTest extends MapUiGameTest {
     private TestSingleplayerContext world;
     private final Set<String> problems = new LinkedHashSet<>();
@@ -56,21 +57,28 @@ public class BugHuntGameTest extends MapUiGameTest {
         check(hasZone(name), "the zone was saved: " + name);
     }
 
-    private boolean hasZone(String name) { return ui().areas().stream().anyMatch(a -> a.name().equals(name)); }
+    private boolean hasZone(String name) {
+        return ui().areas().stream().anyMatch(a -> a.name().equals(name));
+    }
 
     private void setup() {
         world.getClientWorld().waitForChunksRender();
         world.getServer().runCommand("gamemode creative @a");
         in.resizeWindow(1600, 900);
-        c.runOnClient(mc -> { mc.options.guiScale().set(2); mc.resizeDisplay(); });
+        c.runOnClient(mc -> {
+            mc.options.guiScale().set(2);
+            mc.resizeDisplay();
+        });
         c.waitTicks(10);
         openMap();
     }
 
-    @Override public void runTest(ClientGameTestContext context) {
+    @Override
+    public void runTest(ClientGameTestContext context) {
         c = context;
         in = c.getInput();
-        c.runOnClient(mc -> mc.options.getSoundSourceOptionInstance(SoundSource.MASTER).set(0.0));
+        c.runOnClient(mc ->
+                mc.options.getSoundSourceOptionInstance(SoundSource.MASTER).set(0.0));
         TestWorldSave first;
         try (TestSingleplayerContext w = c.worldBuilder().create()) {
             world = w;
@@ -104,7 +112,8 @@ public class BugHuntGameTest extends MapUiGameTest {
             shot("b50_after_random");
         }
         in.resizeWindow(1600, 900);
-        System.out.println("E2E: RESULT passed=" + passed + " failed=" + failures.size() + " problems=" + problems.size());
+        System.out.println(
+                "E2E: RESULT passed=" + passed + " failed=" + failures.size() + " problems=" + problems.size());
         for (String failure : failures) System.out.println("E2E: FAILED: " + failure);
         for (String problem : problems) System.out.println("E2E: PROBLEMS: " + problem);
     }
@@ -120,7 +129,10 @@ public class BugHuntGameTest extends MapUiGameTest {
     private void limitAndSpeed() throws Exception {
         ExactSelectionController ui = ui();
         ensureTool();
-        c.runOnClient(mc -> { mc.options.enableVsync().set(false); mc.options.framerateLimit().set(260); });
+        c.runOnClient(mc -> {
+            mc.options.enableVsync().set(false);
+            mc.options.framerateLimit().set(260);
+        });
         double empty = msPerFrame("no zones, tool on");
         List<SavedAreaStore.Area> areas = c.computeOnClient(mc -> {
             MapBridge.Frame f = ui.bridge.exactselection$frame();
@@ -132,17 +144,25 @@ public class BugHuntGameTest extends MapUiGameTest {
                 if (i % 10 == 0) {
                     List<GridPoint> ring = new ArrayList<>();
                     for (int v = 0; v < 64; v++)
-                        ring.add(new GridPoint(wx + Math.round(size * 2 * Math.cos(v * Math.PI / 32)), wz + Math.round(size * 2 * Math.sin(v * Math.PI / 32))));
+                        ring.add(new GridPoint(
+                                wx + Math.round(size * 2 * Math.cos(v * Math.PI / 32)),
+                                wz + Math.round(size * 2 * Math.sin(v * Math.PI / 32))));
                     list.add(SavedAreaStore.create("Ring " + i, new PolygonGeometry(ring), 0x33AA66, 25, null));
-                } else list.add(SavedAreaStore.create("Zone " + i, new SelectionBounds(wx, wz, wx + size, wz + size), 0x3366AA, 25, null));
+                } else
+                    list.add(SavedAreaStore.create(
+                            "Zone " + i, new SelectionBounds(wx, wz, wx + size, wz + size), 0x3366AA, 25, null));
             }
             return list;
         });
         List<SavedAreaStore.Area> tooMany = new ArrayList<>(areas);
         tooMany.add(SavedAreaStore.create("One more", new SelectionBounds(0, 0, 1, 1), 0x112233, 25, null));
-        boolean added = c.computeOnClient(mc -> ui.areaEdits.changeAreas(ui.areaEdits.areaState(tooMany, ui.groups()), "area_save"));
-        check(!added && ui.areas().isEmpty() && !ui.message.isEmpty(), "1001 zones are refused with a message: " + ui.message);
-        boolean saved = c.computeOnClient(mc -> ui.areaEdits.changeAreas(ui.areaEdits.areaState(areas, ui.groups()), "area_save"));
+        boolean added = c.computeOnClient(
+                mc -> ui.areaEdits.changeAreas(ui.areaEdits.areaState(tooMany, ui.groups()), "area_save"));
+        check(
+                !added && ui.areas().isEmpty() && !ui.message.isEmpty(),
+                "1001 zones are refused with a message: " + ui.message);
+        boolean saved = c.computeOnClient(
+                mc -> ui.areaEdits.changeAreas(ui.areaEdits.areaState(areas, ui.groups()), "area_save"));
         check(saved && ui.areas().size() == 1000, "1000 zones are accepted");
         double zones = msPerFrame("1000 zones, tool on");
         shot("b01_1000_zones");
@@ -162,7 +182,8 @@ public class BugHuntGameTest extends MapUiGameTest {
         long t = System.nanoTime();
         press("areaSelectAll");
         press("areaClearSelection");
-        System.out.println("E2E: speed select all + clear " + (System.nanoTime() - t) / 1000000 + " ms including two 560 ms pauses");
+        System.out.println("E2E: speed select all + clear " + (System.nanoTime() - t) / 1000000
+                + " ms including two 560 ms pauses");
         key(GLFW.GLFW_KEY_ESCAPE);
         press("toggle");
         at(400, 200);
@@ -195,14 +216,19 @@ public class BugHuntGameTest extends MapUiGameTest {
     private void unexploredExport() throws Exception {
         ExactSelectionController ui = ui();
         ensureTool();
-        c.runOnClient(mc -> { ui.state.set(new SelectionBounds(100000, 100000, 100040, 100040)); ui.syncFields(); });
+        c.runOnClient(mc -> {
+            ui.state.set(new SelectionBounds(100000, 100000, 100040, 100040));
+            ui.syncFields();
+        });
         c.waitTick();
         press("panelModeButton");
         press("selectionExportButton");
         check(ui.dialog == Dialog.EXPORT, "Export opens for a place nobody explored");
         press("run");
         c.waitTicks(3);
-        check(!ui.mapExport.exportRunning && ui.message.contains("explored"), "an unexplored place gets a clear message: " + ui.message);
+        check(
+                !ui.mapExport.exportRunning && ui.message.contains("explored"),
+                "an unexplored place gets a clear message: " + ui.message);
         shot("b13_unexplored");
         press("panelModeButton");
     }
@@ -237,7 +263,9 @@ public class BugHuntGameTest extends MapUiGameTest {
         shot("b11_broken_areas");
         check(Files.readString(file).equals("{ broken"), "the broken file was left alone");
         press("areaRestore");
-        check(!ui.loadFailed && ui.areas().size() == count - 1, "the previous version is back: " + ui.areas().size());
+        check(
+                !ui.loadFailed && ui.areas().size() == count - 1,
+                "the previous version is back: " + ui.areas().size());
         check(Files.exists(file.resolveSibling(file.getFileName() + ".broken")), "the broken file is kept beside it");
         shot("b12_restored");
         key(GLFW.GLFW_KEY_ESCAPE);
@@ -254,7 +282,8 @@ public class BugHuntGameTest extends MapUiGameTest {
         world.getServer().runCommand("execute in minecraft:" + dimension + " run tp @a 0 " + y + " 0");
         c.waitTicks(60);
         boolean open = c.computeOnClient(mc -> mc.screen instanceof GuiMap);
-        System.out.println("E2E: after teleport to " + dimension + " the map is " + (open ? "still open" : "closed") + ", window=" + ui().dialog);
+        System.out.println("E2E: after teleport to " + dimension + " the map is " + (open ? "still open" : "closed")
+                + ", window=" + ui().dialog);
         if (!open) openMap();
         c.waitTicks(20);
     }
@@ -268,8 +297,11 @@ public class BugHuntGameTest extends MapUiGameTest {
         check(ui.dialog == Dialog.AREAS, "Areas is open when the player changes dimension");
         teleport("the_nether", 100);
         shot("b20_nether_after_tp");
-        System.out.println("E2E: nether enabled=" + ui.enabled() + " window=" + ui.dialog + " zones=" + ui.areas().size() + " frame=" + (frame() != null) + " message=" + ui.message);
-        check(!ui.enabled() && ui.dialog == Dialog.NONE && ui.state.bounds() == null, "the change of dimension closes the window and turns the tool off");
+        System.out.println("E2E: nether enabled=" + ui.enabled() + " window=" + ui.dialog + " zones="
+                + ui.areas().size() + " frame=" + (frame() != null) + " message=" + ui.message);
+        check(
+                !ui.enabled() && ui.dialog == Dialog.NONE && ui.state.bounds() == null,
+                "the change of dimension closes the window and turns the tool off");
         check(!ui.history.canUndo(), "the old dimension's history is gone");
         check(!hasZone("Overworld zone"), "the Nether has its own zones");
         ensureTool();
@@ -289,19 +321,28 @@ public class BugHuntGameTest extends MapUiGameTest {
         press("centerCreate");
         c.waitTick();
         double scale = c.computeOnClient(mc -> ui.waypoints.dimensionScale());
-        int inside = c.computeOnClient(mc -> ui.waypoints.select(ui.context, ui.state.geometry()).points().size());
+        int inside = c.computeOnClient(mc ->
+                ui.waypoints.select(ui.context, ui.state.geometry()).points().size());
         System.out.println("E2E: nether waypoint scale=" + scale + " inside=" + inside + " all=" + points());
         check(inside == 1, "the new waypoint lies inside the selection it came from");
         shot("b23_nether_waypoint");
         cmd(GLFW.GLFW_KEY_Z);
-        check(c.computeOnClient(mc -> ui.waypoints.select(ui.context, ui.state.geometry()).points().size()) == 0, "undo removes it");
+        check(
+                c.computeOnClient(mc -> ui.waypoints
+                                .select(ui.context, ui.state.geometry())
+                                .points()
+                                .size())
+                        == 0,
+                "undo removes it");
         teleport("the_end", 100);
         shot("b24_end");
         check(!ui.enabled() && ui.areas().isEmpty(), "the End starts clean");
         ensureTool();
         saveZone("End zone", 400, 120, 480, 200);
         teleport("overworld", -60);
-        check(!ui.enabled() && hasZone("Overworld zone") && !hasZone("End zone"), "back in the Overworld its zones return");
+        check(
+                !ui.enabled() && hasZone("Overworld zone") && !hasZone("End zone"),
+                "back in the Overworld its zones return");
         shot("b25_overworld_again");
         ensureTool();
     }
@@ -314,16 +355,26 @@ public class BugHuntGameTest extends MapUiGameTest {
         key(GLFW.GLFW_KEY_O);
         click(300, 300);
         click(380, 320);
-        check(ui.polygonTool.mode && ui.polygonTool.draft.size() == 2, "a contour waits when the player leaves the world");
+        check(
+                ui.polygonTool.mode && ui.polygonTool.draft.size() == 2,
+                "a contour waits when the player leaves the world");
     }
 
     private void secondWorld() throws Exception {
         ExactSelectionController ui = ui();
-        System.out.println("E2E: second world enabled=" + ui.enabled() + " zones=" + ui.areas().size() + " draft=" + ui.polygonTool.draft.size() + " undo=" + ui.history.canUndo());
+        System.out.println("E2E: second world enabled=" + ui.enabled() + " zones="
+                + ui.areas().size() + " draft=" + ui.polygonTool.draft.size() + " undo=" + ui.history.canUndo());
         check(!ui.enabled(), "another world starts with the tool off");
-        check(ui.state.bounds() == null && ui.polygonTool.draft.isEmpty() && !ui.polygonTool.mode && !ui.rulerTool.mode, "nothing is carried over");
+        check(
+                ui.state.bounds() == null
+                        && ui.polygonTool.draft.isEmpty()
+                        && !ui.polygonTool.mode
+                        && !ui.rulerTool.mode,
+                "nothing is carried over");
         check(!ui.history.canUndo() && !ui.history.canRedo(), "no history is carried over");
-        check(ui.areas().stream().noneMatch(a -> a.name().equals("First world zone")), "the other world's zones are not here");
+        check(
+                ui.areas().stream().noneMatch(a -> a.name().equals("First world zone")),
+                "the other world's zones are not here");
         shot("b30_second_world");
         ensureTool();
         saveZone("Second world zone", 400, 120, 480, 200);
@@ -350,14 +401,19 @@ public class BugHuntGameTest extends MapUiGameTest {
                 part.setAccessible(true);
                 holders.add(part.get(ui()));
             }
-            for (Object holder : holders) for (Field f : holder.getClass().getDeclaredFields()) {
-                if (java.lang.reflect.Modifier.isStatic(f.getModifiers())) continue;
-                f.setAccessible(true);
-                Object value = f.get(holder);
-                if (value == widget) return f.getName();
-                if (value instanceof Object[] array) for (int i = 0; i < array.length; i++) if (array[i] == widget) return f.getName() + "[" + i + "]";
-            }
-        } catch (ReflectiveOperationException e) { return "?"; }
+            for (Object holder : holders)
+                for (Field f : holder.getClass().getDeclaredFields()) {
+                    if (java.lang.reflect.Modifier.isStatic(f.getModifiers())) continue;
+                    f.setAccessible(true);
+                    Object value = f.get(holder);
+                    if (value == widget) return f.getName();
+                    if (value instanceof Object[] array)
+                        for (int i = 0; i < array.length; i++)
+                            if (array[i] == widget) return f.getName() + "[" + i + "]";
+                }
+        } catch (ReflectiveOperationException e) {
+            return "?";
+        }
         return "?";
     }
 
@@ -377,15 +433,26 @@ public class BugHuntGameTest extends MapUiGameTest {
         if (focused instanceof AbstractWidget x && ui.widgets.contains(x) && !x.visible)
             problem("focus stays on hidden " + nameOf(x) + " in window " + ui.dialog + " after " + op.split(" ")[0]);
         if (ui.rightClickMenu.quickMenu && ui.dialog != Dialog.NONE) problem("menu open behind window " + ui.dialog);
-        if (!ui.polygonTool.draft.isEmpty() && !ui.polygonTool.mode) problem("contour without the Polygon tool after " + op.split(" ")[0]);
-        if (ui.gesture instanceof MapGesture.Held && ui.dialog != Dialog.NONE) problem("held gesture " + ui.gesture.getClass().getSimpleName() + " behind window " + ui.dialog);
+        if (!ui.polygonTool.draft.isEmpty() && !ui.polygonTool.mode)
+            problem("contour without the Polygon tool after " + op.split(" ")[0]);
+        if (ui.gesture instanceof MapGesture.Held && ui.dialog != Dialog.NONE)
+            problem("held gesture " + ui.gesture.getClass().getSimpleName() + " behind window " + ui.dialog);
         if (ui.rulerTool.mode && ui.polygonTool.mode) problem("ruler and Polygon tool at once");
-        if (!ui.enabled() && (ui.polygonTool.mode || ui.rulerTool.mode || ui.dialog != Dialog.NONE || ui.state.bounds() != null)) problem("tool off with state: window " + ui.dialog);
-        if (ui.waypointsWindow.pending != null && ui.dialog != Dialog.WAYPOINTS && ui.dialog != Dialog.COLOR) problem("waypoint snapshot held in window " + ui.dialog);
-        if (ui.screen != null) for (AbstractWidget x : ui.widgets) {
-            if (x.visible && (x.getX() < 0 || x.getY() < -20 || x.getX() + x.getWidth() > ui.screen.width + 1 || x.getY() + x.getHeight() > ui.screen.height + 1))
-                problem("visible " + nameOf(x) + " leaves the " + ui.screen.width + "x" + ui.screen.height + " screen in window " + ui.dialog + " compact=" + ui.selectionPanel.compact);
-        }
+        if (!ui.enabled()
+                && (ui.polygonTool.mode || ui.rulerTool.mode || ui.dialog != Dialog.NONE || ui.state.bounds() != null))
+            problem("tool off with state: window " + ui.dialog);
+        if (ui.waypointsWindow.pending != null && ui.dialog != Dialog.WAYPOINTS && ui.dialog != Dialog.COLOR)
+            problem("waypoint snapshot held in window " + ui.dialog);
+        if (ui.screen != null)
+            for (AbstractWidget x : ui.widgets) {
+                if (x.visible
+                        && (x.getX() < 0
+                                || x.getY() < -20
+                                || x.getX() + x.getWidth() > ui.screen.width + 1
+                                || x.getY() + x.getHeight() > ui.screen.height + 1))
+                    problem("visible " + nameOf(x) + " leaves the " + ui.screen.width + "x" + ui.screen.height
+                            + " screen in window " + ui.dialog + " compact=" + ui.selectionPanel.compact);
+            }
     }
 
     private void monkey(long seed, int steps) {
@@ -393,8 +460,20 @@ public class BugHuntGameTest extends MapUiGameTest {
         Set<String> messages = new TreeSet<>();
         Set<String> skip = Set.of("pick", "openFolder", "importOpenFolder", "transferFolderButton", "openExportButton");
         int[][] sizes = {{1600, 900}, {1024, 640}, {854, 480}, {1280, 720}};
-        int[] keys = {GLFW.GLFW_KEY_ESCAPE, GLFW.GLFW_KEY_ESCAPE, GLFW.GLFW_KEY_ENTER, GLFW.GLFW_KEY_TAB, GLFW.GLFW_KEY_BACKSPACE, GLFW.GLFW_KEY_DELETE,
-                GLFW.GLFW_KEY_O, GLFW.GLFW_KEY_R, GLFW.GLFW_KEY_J, GLFW.GLFW_KEY_N, GLFW.GLFW_KEY_LEFT, GLFW.GLFW_KEY_HOME};
+        int[] keys = {
+            GLFW.GLFW_KEY_ESCAPE,
+            GLFW.GLFW_KEY_ESCAPE,
+            GLFW.GLFW_KEY_ENTER,
+            GLFW.GLFW_KEY_TAB,
+            GLFW.GLFW_KEY_BACKSPACE,
+            GLFW.GLFW_KEY_DELETE,
+            GLFW.GLFW_KEY_O,
+            GLFW.GLFW_KEY_R,
+            GLFW.GLFW_KEY_J,
+            GLFW.GLFW_KEY_N,
+            GLFW.GLFW_KEY_LEFT,
+            GLFW.GLFW_KEY_HOME
+        };
         for (int i = 0; i < steps; i++) {
             String op = "?";
             try {
@@ -409,7 +488,8 @@ public class BugHuntGameTest extends MapUiGameTest {
                     double x = 40 + r.nextDouble() * (width - 80), y = 16 + r.nextDouble() * (height - 40);
                     if (roll < 36) {
                         List<AbstractWidget> list = new ArrayList<>();
-                        for (AbstractWidget w : ui.widgets) if (w.visible && w.active && !skip.contains(nameOf(w))) list.add(w);
+                        for (AbstractWidget w : ui.widgets)
+                            if (w.visible && w.active && !skip.contains(nameOf(w))) list.add(w);
                         if (!list.isEmpty()) {
                             AbstractWidget w = list.get(r.nextInt(list.size()));
                             op = "widget " + nameOf(w);
@@ -418,7 +498,12 @@ public class BugHuntGameTest extends MapUiGameTest {
                     } else if (roll < 58) {
                         op = "click";
                         at(x, y);
-                        pressMods(r.nextInt(5) == 0 ? GLFW.GLFW_MOD_SUPER : r.nextInt(8) == 0 ? GLFW.GLFW_MOD_SHIFT : r.nextInt(8) == 0 ? GLFW.GLFW_MOD_ALT : 0);
+                        pressMods(
+                                r.nextInt(5) == 0
+                                        ? GLFW.GLFW_MOD_SUPER
+                                        : r.nextInt(8) == 0
+                                                ? GLFW.GLFW_MOD_SHIFT
+                                                : r.nextInt(8) == 0 ? GLFW.GLFW_MOD_ALT : 0);
                     } else if (roll < 63) {
                         op = "double click";
                         at(x, y);
@@ -438,7 +523,13 @@ public class BugHuntGameTest extends MapUiGameTest {
                         in.releaseMouse(GLFW.GLFW_MOUSE_BUTTON_LEFT);
                     } else if (roll < 78) {
                         op = "same frame clicks";
-                        in.setCursorPos(x * c.computeOnClient(mc -> (double) mc.getWindow().getGuiScale()), y * c.computeOnClient(mc -> (double) mc.getWindow().getGuiScale()));
+                        in.setCursorPos(
+                                x
+                                        * c.computeOnClient(
+                                                mc -> (double) mc.getWindow().getGuiScale()),
+                                y
+                                        * c.computeOnClient(
+                                                mc -> (double) mc.getWindow().getGuiScale()));
                         in.holdMouse(GLFW.GLFW_MOUSE_BUTTON_LEFT);
                         in.releaseMouse(GLFW.GLFW_MOUSE_BUTTON_LEFT);
                         in.holdMouse(GLFW.GLFW_MOUSE_BUTTON_LEFT);
@@ -459,7 +550,7 @@ public class BugHuntGameTest extends MapUiGameTest {
                         else cmd(GLFW.GLFW_KEY_Z);
                     } else if (roll < 98) {
                         op = "type";
-                        in.typeChars(new String[]{"a", "12", "-", "Зона", "#ff0000", " "}[r.nextInt(6)]);
+                        in.typeChars(new String[] {"a", "12", "-", "Зона", "#ff0000", " "}[r.nextInt(6)]);
                     } else if (roll < 99) {
                         op = "map key";
                         in.pressKey(ControlsRegister.keyOpenMap);
@@ -477,13 +568,25 @@ public class BugHuntGameTest extends MapUiGameTest {
             } catch (Throwable t) {
                 StackTraceElement[] trace = t.getStackTrace();
                 StringBuilder where = new StringBuilder();
-                for (Throwable x = t; x != null; x = x.getCause()) for (StackTraceElement e : x.getStackTrace()) {
-                    if (e.getClassName().startsWith("dev.exactselection") && !e.getClassName().contains("GameTest")) { where.append(e.getClassName().replace("dev.exactselection.", "")).append('.').append(e.getMethodName()).append(':').append(e.getLineNumber()); break; }
-                }
-                problem("CRASH after " + op.split(" ")[0] + " in window " + (ui() == null ? "?" : ui().dialog) + " at " + where + ": " + t);
+                for (Throwable x = t; x != null; x = x.getCause())
+                    for (StackTraceElement e : x.getStackTrace()) {
+                        if (e.getClassName().startsWith("dev.exactselection")
+                                && !e.getClassName().contains("GameTest")) {
+                            where.append(e.getClassName().replace("dev.exactselection.", ""))
+                                    .append('.')
+                                    .append(e.getMethodName())
+                                    .append(':')
+                                    .append(e.getLineNumber());
+                            break;
+                        }
+                    }
+                problem("CRASH after " + op.split(" ")[0] + " in window " + (ui() == null ? "?" : ui().dialog) + " at "
+                        + where + ": " + t);
                 t.printStackTrace(System.out);
             }
-            if (i % 500 == 0) System.out.println("E2E: random step " + i + " zones=" + ui().areas().size());
+            if (i % 500 == 0)
+                System.out.println(
+                        "E2E: random step " + i + " zones=" + ui().areas().size());
         }
         System.out.println("E2E: random messages: " + messages);
         in.resizeWindow(1600, 900);

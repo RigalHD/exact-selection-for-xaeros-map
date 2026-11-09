@@ -1,5 +1,7 @@
 package dev.exactselection;
 
+import static dev.exactselection.ExactSelectionController.place;
+
 import dev.exactselection.ExactSelectionController.Dialog;
 import dev.exactselection.ExactSelectionController.DialogField;
 import dev.exactselection.SavedAreaStore.Area;
@@ -7,22 +9,28 @@ import java.util.List;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.input.MouseButtonEvent;
-import static dev.exactselection.ExactSelectionController.place;
 
 /** The color window with its swatches and the full color picker. */
 final class ColorWindows extends UiPart {
     Button colorHexApply;
     Dialog colorReturn = Dialog.AREAS;
     /** What the pointer drags in the full color picker while the left button is held. */
-    enum PickerDrag { NONE, SQUARE, HUE }
+    enum PickerDrag {
+        NONE,
+        SQUARE,
+        HUE
+    }
     /** The full color picker: the window it returns to, then its hue, saturation and brightness. */
     Dialog pickerReturn = Dialog.AREA_NAME;
+
     private double pickerHue;
     private double pickerSat;
     private double pickerValue;
     PickerDrag pickerDrag = PickerDrag.NONE;
 
-    ColorWindows(ExactSelectionController ui) { super(ui); }
+    ColorWindows(ExactSelectionController ui) {
+        super(ui);
+    }
 
     /** The color window for the area of the right-click menu; a swatch or hex applies at once. */
     void openQuickColor() {
@@ -32,25 +40,36 @@ final class ColorWindows extends UiPart {
         colorReturn = Dialog.NONE;
         ui.dialog = Dialog.COLOR;
         ui.setDialogValue(DialogField.HEX, AreaPalette.format(area.color()));
-        ui.message = ""; ui.focus(null);
+        ui.message = "";
+        ui.focus(null);
     }
 
     void openColorDialog(Dialog returnTo) {
         if (returnTo == Dialog.AREAS && (ui.areasWindow.selectedAreas().isEmpty() || ui.loadFailed)) return;
         if (returnTo == Dialog.WAYPOINTS && !ui.waypointsWindow.validatePointSnapshot()) return;
-        if (returnTo == Dialog.WAYPOINTS && ui.waypointsWindow.filteredChosenPoints().isEmpty()) return;
+        if (returnTo == Dialog.WAYPOINTS
+                && ui.waypointsWindow.filteredChosenPoints().isEmpty()) return;
         colorReturn = returnTo;
         ui.dialog = Dialog.COLOR;
         Area area = ui.areasWindow.selectedArea();
-        if (area == null && !ui.areasWindow.selectedAreas().isEmpty()) area = ui.areasWindow.selectedAreas().get(0);
-        ui.setDialogValue(DialogField.HEX, AreaPalette.format(ui.areaEdits.areaDraft.color != null ? ui.areaEdits.areaDraft.color
-                : area == null ? AreaPalette.DEFAULT : area.color()));
-        ui.message = ""; ui.focus(null);
+        if (area == null && !ui.areasWindow.selectedAreas().isEmpty())
+            area = ui.areasWindow.selectedAreas().get(0);
+        ui.setDialogValue(
+                DialogField.HEX,
+                AreaPalette.format(
+                        ui.areaEdits.areaDraft.color != null
+                                ? ui.areaEdits.areaDraft.color
+                                : area == null ? AreaPalette.DEFAULT : area.color()));
+        ui.message = "";
+        ui.focus(null);
     }
 
     void applyHexColor() {
         int color = AreaPalette.parse(ui.field(DialogField.HEX).getValue());
-        if (color < 0) { ui.say("color_invalid"); return; }
+        if (color < 0) {
+            ui.say("color_invalid");
+            return;
+        }
         applyColor(color);
     }
 
@@ -68,7 +87,9 @@ final class ColorWindows extends UiPart {
         }
         if (ui.loadFailed) return;
         ui.areaEdits.areaDraft.color = color;
-        ui.dialog = Dialog.AREAS; ui.message = ""; ui.focus(null);
+        ui.dialog = Dialog.AREAS;
+        ui.message = "";
+        ui.focus(null);
         ui.areaEdits.stage(AutosaveSettings.Field.COLOR);
     }
 
@@ -80,7 +101,9 @@ final class ColorWindows extends UiPart {
     }
 
     /** The dialog's side margin; the swatch grid spans the same width as its fields. */
-    private int swatchMargin() { return ui.dialog == Dialog.AREA_NAME ? 16 : 12; }
+    private int swatchMargin() {
+        return ui.dialog == Dialog.AREA_NAME ? 16 : 12;
+    }
 
     int colorSampleWidth(int width) {
         return (width - 2 * swatchMargin() - 4 * (AreaPalette.COLUMNS - 1)) / AreaPalette.COLUMNS;
@@ -94,7 +117,9 @@ final class ColorWindows extends UiPart {
     }
 
     /** Top of the swatch grid: below the title in the color window, below group and fill in the new-area window. */
-    private int swatchTop(int y) { return y + (ui.dialog == Dialog.AREA_NAME ? 98 : 34); }
+    private int swatchTop(int y) {
+        return y + (ui.dialog == Dialog.AREA_NAME ? 98 : 34);
+    }
 
     /** The swatch under the pointer, or -1. */
     int swatchAt(int x, int y, int w, int count, double mouseX, double mouseY) {
@@ -116,7 +141,9 @@ final class ColorWindows extends UiPart {
     }
 
     /** The color window's preview, between the hex field and Apply. */
-    private static int colorPreviewX(int x, int w) { return x + w - 146; }
+    private static int colorPreviewX(int x, int w) {
+        return x + w - 146;
+    }
 
     void renderColorDialog(GuiGraphics g, int x, int y, int w, int h) {
         List<WaypointAccess.Point> points = ui.waypointsWindow.filteredChosenPoints();
@@ -129,39 +156,59 @@ final class ColorWindows extends UiPart {
             g.fill(px, y + 110, px + 40, y + 128, current < 0 ? 0xFF000000 : 0xFF000000 | current);
             g.renderOutline(px, y + 110, 40, 18, current < 0 ? Theme.INVALID : -1);
         }
-        if (!ui.message.isEmpty()) g.drawString(ui.mc.font, ui.mc.font.plainSubstrByWidth(ui.message, w - 24),
-                x + 12, y + (colorReturn == Dialog.WAYPOINTS ? 86 : 98), Theme.WARNING);
+        if (!ui.message.isEmpty())
+            g.drawString(
+                    ui.mc.font,
+                    ui.mc.font.plainSubstrByWidth(ui.message, w - 24),
+                    x + 12,
+                    y + (colorReturn == Dialog.WAYPOINTS ? 86 : 98),
+                    Theme.WARNING);
     }
 
     /** Opens the full color picker on {@code color}; Apply hands the color back to {@code returnTo}. */
     void openPicker(Dialog returnTo, int color) {
         double[] hsv = AreaPalette.toHsv(color);
-        pickerHue = hsv[0]; pickerSat = hsv[1]; pickerValue = hsv[2];
-        pickerReturn = returnTo; pickerDrag = PickerDrag.NONE;
+        pickerHue = hsv[0];
+        pickerSat = hsv[1];
+        pickerValue = hsv[2];
+        pickerReturn = returnTo;
+        pickerDrag = PickerDrag.NONE;
         ui.dialog = Dialog.PICKER;
-        ui.message = ""; ui.focus(null);
+        ui.message = "";
+        ui.focus(null);
     }
 
-    private int pickerColor() { return AreaPalette.hsv(pickerHue, pickerSat, pickerValue); }
+    private int pickerColor() {
+        return AreaPalette.hsv(pickerHue, pickerSat, pickerValue);
+    }
 
     void applyPicker() {
         int color = pickerColor();
-        ui.dialog = pickerReturn; pickerDrag = PickerDrag.NONE;
+        ui.dialog = pickerReturn;
+        pickerDrag = PickerDrag.NONE;
         ui.setDialogValue(DialogField.HEX, AreaPalette.format(color));
         // The color window applies a choice at once, like a swatch.
-        if (pickerReturn == Dialog.COLOR) { applyColor(color); return; }
+        if (pickerReturn == Dialog.COLOR) {
+            applyColor(color);
+            return;
+        }
         ui.newAreaWindow.newAreaColor = color;
         ui.focus(null);
     }
 
     /** Saturation and brightness: {x, y, width, height}; the hue bar stands to its right. */
-    private static Rect pickerSquare(int x, int y, int w, int h) { return new Rect(x + 16, y + 30, w - 58, h - 92); }
+    private static Rect pickerSquare(int x, int y, int w, int h) {
+        return new Rect(x + 16, y + 30, w - 58, h - 92);
+    }
 
-    private static Rect pickerHueBar(int x, int y, int w, int h) { return new Rect(x + w - 34, y + 30, 18, h - 92); }
+    private static Rect pickerHueBar(int x, int y, int w, int h) {
+        return new Rect(x + w - 34, y + 30, 18, h - 92);
+    }
 
     void dragPicker(double mouseX, double mouseY) {
         Rect r = ui.windows.dialogRect();
-        Rect square = pickerSquare(r.x(), r.y(), r.width(), r.height()), hue = pickerHueBar(r.x(), r.y(), r.width(), r.height());
+        Rect square = pickerSquare(r.x(), r.y(), r.width(), r.height()),
+                hue = pickerHueBar(r.x(), r.y(), r.width(), r.height());
         if (pickerDrag == PickerDrag.SQUARE) {
             pickerSat = Math.max(0, Math.min(1, (mouseX - square.x()) / Math.max(1, square.width() - 1)));
             pickerValue = 1 - Math.max(0, Math.min(1, (mouseY - square.y()) / Math.max(1, square.height() - 1)));
@@ -174,10 +221,20 @@ final class ColorWindows extends UiPart {
         Rect square = pickerSquare(x, y, w, h), hue = pickerHueBar(x, y, w, h);
         // Each column runs from its saturation at full brightness down to black.
         for (int i = 0; i < square.width(); i++)
-            g.fillGradient(square.x() + i, square.y(), square.x() + i + 1, square.y() + square.height(),
-                    0xFF000000 | AreaPalette.hsv(pickerHue, i / (double) Math.max(1, square.width() - 1), 1), 0xFF000000);
+            g.fillGradient(
+                    square.x() + i,
+                    square.y(),
+                    square.x() + i + 1,
+                    square.y() + square.height(),
+                    0xFF000000 | AreaPalette.hsv(pickerHue, i / (double) Math.max(1, square.width() - 1), 1),
+                    0xFF000000);
         for (int j = 0; j < hue.height(); j++)
-            g.fill(hue.x(), hue.y() + j, hue.x() + hue.width(), hue.y() + j + 1, 0xFF000000 | AreaPalette.hsv(j / (double) hue.height(), 1, 1));
+            g.fill(
+                    hue.x(),
+                    hue.y() + j,
+                    hue.x() + hue.width(),
+                    hue.y() + j + 1,
+                    0xFF000000 | AreaPalette.hsv(j / (double) hue.height(), 1, 1));
         g.renderOutline(square.x() - 1, square.y() - 1, square.width() + 2, square.height() + 2, Theme.BORDER);
         g.renderOutline(hue.x() - 1, hue.y() - 1, hue.width() + 2, hue.height() + 2, Theme.BORDER);
         int mx = square.x() + (int) Math.round(pickerSat * (square.width() - 1));
@@ -193,8 +250,11 @@ final class ColorWindows extends UiPart {
 
     void clickColorDialog(MouseButtonEvent event, int x, int y, int w, int h) {
         int px = colorPreviewX(x, w);
-        if (colorReturn != Dialog.WAYPOINTS && event.x() >= px && event.x() < px + 40
-                && event.y() >= y + 110 && event.y() < y + 128) {
+        if (colorReturn != Dialog.WAYPOINTS
+                && event.x() >= px
+                && event.x() < px + 40
+                && event.y() >= y + 110
+                && event.y() < y + 128) {
             int typed = AreaPalette.parse(ui.field(DialogField.HEX).getValue());
             openPicker(Dialog.COLOR, typed < 0 ? AreaPalette.DEFAULT : typed);
             return;
@@ -206,7 +266,8 @@ final class ColorWindows extends UiPart {
 
     void clickPicker(MouseButtonEvent event, int x, int y, int w, int h) {
         Rect square = pickerSquare(x, y, w, h), hue = pickerHueBar(x, y, w, h);
-        pickerDrag = square.contains(event.x(), event.y()) ? PickerDrag.SQUARE
+        pickerDrag = square.contains(event.x(), event.y())
+                ? PickerDrag.SQUARE
                 : hue.contains(event.x(), event.y()) ? PickerDrag.HUE : PickerDrag.NONE;
         dragPicker(event.x(), event.y());
     }

@@ -7,5 +7,7 @@ final class ModFiles {
     private ModFiles() {}
 
     /** {@code <config>/xaero-exact-selection}: settings, area files of every world and the exchange folder. */
-    static Path directory(Path configRoot) { return configRoot.resolve("xaero-exact-selection"); }
+    static Path directory(Path configRoot) {
+        return configRoot.resolve("xaero-exact-selection");
+    }
 }

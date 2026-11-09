@@ -1,12 +1,13 @@
 package dev.exactselection;
 
+import static dev.exactselection.ExactSelectionController.CLICK_SLOP;
+import static dev.exactselection.SelectionPanel.formatLength;
+
 import java.util.ArrayList;
 import java.util.List;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.input.MouseButtonEvent;
 import org.lwjgl.glfw.GLFW;
-import static dev.exactselection.ExactSelectionController.CLICK_SLOP;
-import static dev.exactselection.SelectionPanel.formatLength;
 
 /** The ruler: measures the length of a line through block corners on the map, which can be saved as a route. */
 final class RulerTool extends UiPart {
@@ -14,22 +15,27 @@ final class RulerTool extends UiPart {
     static final int COLOR = Theme.WARNING;
     /** Ruler: block corners A and B (B null while it follows the cursor); a press that drags sets B on release. */
     boolean mode;
+
     boolean pressed;
     private boolean compactBefore;
     GridPoint pointA;
     /** The points between A and B, added with Ctrl/Cmd + click. */
     private final List<GridPoint> via = new ArrayList<>();
+
     GridPoint pointB;
     private GridPoint cursor;
 
-    RulerTool(ExactSelectionController ui) { super(ui); }
+    RulerTool(ExactSelectionController ui) {
+        super(ui);
+    }
 
     void toggleRulerMode() {
         if (!ui.enabled() || ui.holding() || !ui.polygonTool.draft.isEmpty()) return;
         setRulerMode(!mode);
         if (mode) {
             if (ui.state.phase() == SelectionState.Phase.PREVIEW) {
-                if (!(ui.gesture instanceof MapGesture.Corners corners && corners.cancel(ui.gestureHost))) ui.state.reset();
+                if (!(ui.gesture instanceof MapGesture.Corners corners && corners.cancel(ui.gestureHost)))
+                    ui.state.reset();
                 ui.syncFields();
             }
             ui.polygonTool.mode = false;
@@ -64,7 +70,9 @@ final class RulerTool extends UiPart {
         else clearRuler();
     }
 
-    boolean routeReady() { return pointB != null && rulerDistance() > 0; }
+    boolean routeReady() {
+        return pointB != null && rulerDistance() > 0;
+    }
 
     void saveRoute() {
         if (routeReady()) ui.newAreaWindow.openRouteNameDialog(new PolylineGeometry(rulerRoute()));
@@ -81,23 +89,31 @@ final class RulerTool extends UiPart {
 
     /** The block corner nearest the pointer, as for a contour vertex. Null outside the world. */
     private GridPoint rulerPoint(MapBridge.Frame frame, double x, double y, GridPoint anchor) {
-        try { return ui.polygonTool.polygonPoint(frame, x, y, anchor); }
-        catch (IllegalArgumentException e) { return null; }
+        try {
+            return ui.polygonTool.polygonPoint(frame, x, y, anchor);
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
     }
 
-    private GridPoint rulerEnd() { return pointB != null ? pointB : cursor; }
+    private GridPoint rulerEnd() {
+        return pointB != null ? pointB : cursor;
+    }
 
     /** Length of the line from A to the current end. */
     private double rulerDistance() {
         List<GridPoint> route = rulerRoute();
         double length = 0;
         for (int i = 1; i < route.size(); i++)
-            length += Math.hypot(route.get(i).x() - route.get(i - 1).x(), route.get(i).z() - route.get(i - 1).z());
+            length += Math.hypot(
+                    route.get(i).x() - route.get(i - 1).x(),
+                    route.get(i).z() - route.get(i - 1).z());
         return length;
     }
 
     String rulerDistanceText() {
-        return pointA == null || rulerEnd() == null ? ui.tr("ruler_distance_empty").getString()
+        return pointA == null || rulerEnd() == null
+                ? ui.tr("ruler_distance_empty").getString()
                 : ui.tr("ruler_distance", formatLength(rulerDistance())).getString();
     }
 
@@ -105,14 +121,19 @@ final class RulerTool extends UiPart {
         GridPoint end = rulerEnd();
         if (pointA == null || end == null) return List.of(ui.tr("ruler_start").getString());
         long dx = Math.abs(end.x() - pointA.x()), dz = Math.abs(end.z() - pointA.z());
-        return List.of(ui.tr("ruler_dx", dx).getString(), ui.tr("ruler_dz", dz).getString(), ui.tr("ruler_axes", dx + dz).getString());
+        return List.of(
+                ui.tr("ruler_dx", dx).getString(),
+                ui.tr("ruler_dz", dz).getString(),
+                ui.tr("ruler_axes", dx + dz).getString());
     }
 
     /** The same distance in the Nether (one block per eight) or, from the Nether, in the Overworld. */
     String rulerOtherDimensionText() {
         if (pointA == null || rulerEnd() == null || ui.context == null) return null;
         // By name: the Level constants would load the game's registries.
-        String dimension = ui.context.dimension() == null ? "" : ui.context.dimension().identifier().toString();
+        String dimension = ui.context.dimension() == null
+                ? ""
+                : ui.context.dimension().identifier().toString();
         if (dimension.equals("minecraft:the_nether"))
             return ui.tr("ruler_overworld", formatLength(rulerDistance() * 8)).getString();
         if (dimension.equals("minecraft:overworld"))
@@ -123,7 +144,10 @@ final class RulerTool extends UiPart {
     void copyRulerDistance() {
         if (pointA == null || pointB == null) return;
         double distance = rulerDistance();
-        ui.selectionPanel.copyToClipboard(ui.autosave.rounding() == AutosaveSettings.Rounding.EXACT ? formatLength(distance) : ui.selectionPanel.rounded(distance));
+        ui.selectionPanel.copyToClipboard(
+                ui.autosave.rounding() == AutosaveSettings.Rounding.EXACT
+                        ? formatLength(distance)
+                        : ui.selectionPanel.rounded(distance));
     }
 
     void renderRuler(GuiGraphics g, MapBridge.Frame frame) {
@@ -131,8 +155,16 @@ final class RulerTool extends UiPart {
         if (route.isEmpty()) return;
         for (int i = 1; i < route.size(); i++) {
             GridPoint a = route.get(i - 1), b = route.get(i);
-            if (!a.equals(b)) GeometryScreenRenderer.drawSegment(g, frame.screenX(a.x()), frame.screenY(a.z()),
-                    frame.screenX(b.x()), frame.screenY(b.z()), ui.screen.width, ui.screen.height, COLOR);
+            if (!a.equals(b))
+                GeometryScreenRenderer.drawSegment(
+                        g,
+                        frame.screenX(a.x()),
+                        frame.screenY(a.z()),
+                        frame.screenX(b.x()),
+                        frame.screenY(b.z()),
+                        ui.screen.width,
+                        ui.screen.height,
+                        COLOR);
         }
         g.nextStratum();
         for (GridPoint point : route) {
@@ -142,8 +174,12 @@ final class RulerTool extends UiPart {
         }
         if (rulerDistance() > 0) {
             GridPoint a = route.get(route.size() - 2), b = route.getLast();
-            ui.mapOverlays.label(g, ui.tr("ruler_label", formatLength(rulerDistance())),
-                    (int) ((frame.screenX(a.x()) + frame.screenX(b.x())) / 2), (int) ((frame.screenY(a.z()) + frame.screenY(b.z())) / 2) - 14, COLOR);
+            ui.mapOverlays.label(
+                    g,
+                    ui.tr("ruler_label", formatLength(rulerDistance())),
+                    (int) ((frame.screenX(a.x()) + frame.screenX(b.x())) / 2),
+                    (int) ((frame.screenY(a.z()) + frame.screenY(b.z())) / 2) - 14,
+                    COLOR);
         }
     }
 
@@ -156,12 +192,19 @@ final class RulerTool extends UiPart {
         ui.message = "";
         if (extend) extendRoute(point);
         else if (pointA != null && pointB == null) pointB = point;
-        else { clearRuler(); pointA = cursor = point; pressed = true; }
+        else {
+            clearRuler();
+            pointA = cursor = point;
+            pressed = true;
+        }
     }
 
     private void extendRoute(GridPoint point) {
         if (point.equals(pointB)) return;
-        if (rulerRoute().size() >= PolygonGeometry.MAX_VERTICES) { ui.say("polygon_too_many_points"); return; }
+        if (rulerRoute().size() >= PolygonGeometry.MAX_VERTICES) {
+            ui.say("polygon_too_many_points");
+            return;
+        }
         // A B on top of A has no length of its own to keep.
         if (!via.isEmpty() || !pointB.equals(pointA)) via.add(pointB);
         pointB = point;
@@ -170,7 +213,10 @@ final class RulerTool extends UiPart {
     void releaseRuler(MouseButtonEvent event) {
         pressed = false;
         MapBridge.Frame frame = ui.checkedFrame();
-        if (frame != null && pointA != null && pointB == null && Math.hypot(event.x() - ui.mapPointer.pressX, event.y() - ui.mapPointer.pressY) >= CLICK_SLOP) {
+        if (frame != null
+                && pointA != null
+                && pointB == null
+                && Math.hypot(event.x() - ui.mapPointer.pressX, event.y() - ui.mapPointer.pressY) >= CLICK_SLOP) {
             GridPoint point = rulerPoint(frame, event.x(), event.y(), pointA);
             if (point != null) pointB = point;
         }

@@ -32,18 +32,22 @@ final class AreaTransfer {
     private AreaTransfer() {}
 
     /** {@code <root>/xaero-exact-selection/exports}: the folder exports go to and imports are listed from. */
-    static Path folder(Path root) { return ModFiles.directory(root).resolve("exports"); }
+    static Path folder(Path root) {
+        return ModFiles.directory(root).resolve("exports");
+    }
 
     /** Writes {@code areas} and the groups they use; returns the new file. */
-    static Path export(Path folder, String label, List<Area> areas, List<Group> groups)
-            throws IOException {
+    static Path export(Path folder, String label, List<Area> areas, List<Group> groups) throws IOException {
         Set<String> used = new HashSet<>();
         for (Area area : areas) if (area.groupId() != null) used.add(area.groupId());
-        State state = new State(areas,
+        State state = new State(
+                areas,
                 groups.stream().filter(group -> used.contains(group.id())).toList());
         JsonObject json = SavedAreaStore.encode(state);
         json.addProperty("format", FORMAT);
-        json.remove("showOnMap"); json.remove("showOnMinimap"); json.remove("showNames");
+        json.remove("showOnMap");
+        json.remove("showOnMinimap");
+        json.remove("showNames");
         String stamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss", Locale.ROOT));
         Path file = unique(folder, safe(label) + "-" + stamp);
         SavedAreaStore.writeAtomically(file, json.toString());
@@ -54,12 +58,20 @@ final class AreaTransfer {
     static List<Path> list(Path folder) throws IOException {
         if (!Files.isDirectory(folder)) return List.of();
         try (var files = Files.list(folder)) {
-            return files.filter(path -> path.getFileName().toString().toLowerCase(Locale.ROOT).endsWith(".json"))
+            return files.filter(path -> path.getFileName()
+                            .toString()
+                            .toLowerCase(Locale.ROOT)
+                            .endsWith(".json"))
                     .filter(Files::isRegularFile)
                     .sorted(Comparator.comparing((Path path) -> {
-                        try { return Files.getLastModifiedTime(path).toMillis(); }
-                        catch (IOException e) { return 0L; }
-                    }).reversed().thenComparing(Path::toString))
+                                try {
+                                    return Files.getLastModifiedTime(path).toMillis();
+                                } catch (IOException e) {
+                                    return 0L;
+                                }
+                            })
+                            .reversed()
+                            .thenComparing(Path::toString))
                     .toList();
         }
     }
@@ -69,7 +81,8 @@ final class AreaTransfer {
         // Files come from other people; the largest valid one (1000 areas of 256 vertices) is about 8 MB.
         if (Files.size(file) > MAX_FILE_BYTES) throw new IOException("Area file is too large");
         try {
-            JsonObject json = JsonParser.parseString(Files.readString(file, StandardCharsets.UTF_8)).getAsJsonObject();
+            JsonObject json = JsonParser.parseString(Files.readString(file, StandardCharsets.UTF_8))
+                    .getAsJsonObject();
             if (!json.has("format") || !FORMAT.equals(json.get("format").getAsString()))
                 throw new IOException("Not an Exact Selection area file");
             return SavedAreaStore.decode(json);
@@ -90,7 +103,10 @@ final class AreaTransfer {
         int groupsAdded = 0;
         for (Group group : incoming.groups()) {
             String groupName = clean(group.name());
-            Group existing = groups.stream().filter(g -> g.name().equals(groupName)).findFirst().orElse(null);
+            Group existing = groups.stream()
+                    .filter(g -> g.name().equals(groupName))
+                    .findFirst()
+                    .orElse(null);
             if (existing == null) {
                 existing = new Group(UUID.randomUUID().toString(), groupName, group.visible());
                 groups.add(existing);
@@ -103,18 +119,27 @@ final class AreaTransfer {
         for (Area incomingArea : incoming.areas()) {
             Area area = incomingArea.withName(clean(incomingArea.name()));
             String groupId = area.groupId() == null ? null : groupIds.get(area.groupId());
-            boolean duplicate = areas.stream().anyMatch(a -> a.name().equals(area.name()) && a.color() == area.color()
-                    && a.opacity() == area.opacity() && Objects.equals(a.groupId(), groupId)
-                    // The kind and the outline, not the geometry itself: a rectangle in memory may keep its
-                    // corners in the order they were drawn.
-                    && a.geometry().getClass() == area.geometry().getClass()
-                    && a.geometry().vertices().equals(area.geometry().vertices()));
-            if (duplicate) { skipped++; continue; }
+            boolean duplicate = areas.stream()
+                    .anyMatch(a -> a.name().equals(area.name())
+                            && a.color() == area.color()
+                            && a.opacity() == area.opacity()
+                            && Objects.equals(a.groupId(), groupId)
+                            // The kind and the outline, not the geometry itself: a rectangle in memory may keep its
+                            // corners in the order they were drawn.
+                            && a.geometry().getClass() == area.geometry().getClass()
+                            && a.geometry().vertices().equals(area.geometry().vertices()));
+            if (duplicate) {
+                skipped++;
+                continue;
+            }
             areas.add(area.withId(UUID.randomUUID().toString()).withGroup(groupId));
             added++;
         }
-        return new Merge(new State(areas, groups, current.showOnMap(), current.showOnMinimap(), current.showNames()),
-                added, skipped, groupsAdded);
+        return new Merge(
+                new State(areas, groups, current.showOnMap(), current.showOnMinimap(), current.showNames()),
+                added,
+                skipped,
+                groupsAdded);
     }
 
     /** A name from someone else's file without control characters and the game's formatting sign. */

@@ -20,7 +20,8 @@ public final class ToolKeys implements ClientModInitializer {
         return new KeyMapping("exactselection.key_" + name, code, CATEGORY);
     }
 
-    @Override public void onInitializeClient() {
+    @Override
+    public void onInitializeClient() {
         for (KeyMapping key : List.of(POLYGON, RULER, AREAS, UNITS)) KeyBindingHelper.registerKeyBinding(key);
     }
 }

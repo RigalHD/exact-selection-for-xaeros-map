@@ -10,9 +10,9 @@ import net.fabricmc.fabric.api.client.gametest.v1.FabricClientGameTest;
 import net.fabricmc.fabric.api.client.gametest.v1.TestInput;
 import net.fabricmc.fabric.api.client.gametest.v1.context.ClientGameTestContext;
 import net.fabricmc.fabric.api.client.gametest.v1.context.TestSingleplayerContext;
-import net.minecraft.client.gui.components.AbstractWidget;
 import net.minecraft.client.KeyboardHandler;
 import net.minecraft.client.MouseHandler;
+import net.minecraft.client.gui.components.AbstractWidget;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.input.KeyEvent;
 import net.minecraft.client.input.MouseButtonInfo;
@@ -28,14 +28,18 @@ public class MapUiGameTest implements FabricClientGameTest {
     int passed;
     final List<String> failures = new ArrayList<>();
 
-    interface Step { void run() throws Exception; }
+    interface Step {
+        void run() throws Exception;
+    }
 
     ExactSelectionController ui() {
         try {
             Field current = ExactSelectionController.class.getDeclaredField("current");
             current.setAccessible(true);
             return (ExactSelectionController) current.get(null);
-        } catch (ReflectiveOperationException e) { throw new AssertionError(e); }
+        } catch (ReflectiveOperationException e) {
+            throw new AssertionError(e);
+        }
     }
 
     Object field(String name) throws Exception {
@@ -50,25 +54,39 @@ public class MapUiGameTest implements FabricClientGameTest {
                 Field f = holder.getClass().getDeclaredField(name);
                 f.setAccessible(true);
                 return f.get(holder);
-            } catch (NoSuchFieldException absent) { }
+            } catch (NoSuchFieldException absent) {
+            }
         }
         throw new NoSuchFieldException(name);
     }
 
-    AbstractWidget w(String name) throws Exception { return (AbstractWidget) field(name); }
+    AbstractWidget w(String name) throws Exception {
+        return (AbstractWidget) field(name);
+    }
 
     void check(boolean ok, String what) {
-        if (ok) { passed++; System.out.println("E2E: ok   " + what); return; }
+        if (ok) {
+            passed++;
+            System.out.println("E2E: ok   " + what);
+            return;
+        }
         String detail = "";
-        try { detail = " [window=" + ui().dialog + " message='" + ui().message + "' phase=" + ui().state.phase() + "]"; }
-        catch (RuntimeException ignored) { }
+        try {
+            detail = " [window=" + ui().dialog + " message='" + ui().message + "' phase="
+                    + ui().state.phase() + "]";
+        } catch (RuntimeException ignored) {
+        }
         failures.add(what + detail);
         System.out.println("E2E: FAIL " + what + detail);
     }
 
     void pause() {
         // Longer than the mod's 500 ms double-click window, and Minecraft's 250 ms one.
-        try { Thread.sleep(560); } catch (InterruptedException e) { throw new RuntimeException(e); }
+        try {
+            Thread.sleep(560);
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     void at(double x, double y) {
@@ -119,38 +137,52 @@ public class MapUiGameTest implements FabricClientGameTest {
         click(x.getX() + x.getWidth() / 2.0, x.getY() + x.getHeight() / 2.0);
     }
 
-    void clickWidget(AbstractWidget x) { click(x.getX() + x.getWidth() / 2.0, x.getY() + x.getHeight() / 2.0); }
+    void clickWidget(AbstractWidget x) {
+        click(x.getX() + x.getWidth() / 2.0, x.getY() + x.getHeight() / 2.0);
+    }
 
-    void key(int code) { in.pressKey(code); }
+    void key(int code) {
+        in.pressKey(code);
+    }
 
     /** A key with modifiers as GLFW reports them; TestInput always reports none. */
     void keyMods(int code, int mods) {
         c.runOnClient(mc -> {
             try {
-            Method press = KeyboardHandler.class.getDeclaredMethod("keyPress", long.class, int.class, KeyEvent.class);
-            press.setAccessible(true);
-            long window = mc.getWindow().handle();
-            press.invoke(mc.keyboardHandler, window, GLFW.GLFW_PRESS, new KeyEvent(code, 0, mods));
-            press.invoke(mc.keyboardHandler, window, GLFW.GLFW_RELEASE, new KeyEvent(code, 0, mods));
-            } catch (ReflectiveOperationException e) { throw new RuntimeException(e); }
+                Method press =
+                        KeyboardHandler.class.getDeclaredMethod("keyPress", long.class, int.class, KeyEvent.class);
+                press.setAccessible(true);
+                long window = mc.getWindow().handle();
+                press.invoke(mc.keyboardHandler, window, GLFW.GLFW_PRESS, new KeyEvent(code, 0, mods));
+                press.invoke(mc.keyboardHandler, window, GLFW.GLFW_RELEASE, new KeyEvent(code, 0, mods));
+            } catch (ReflectiveOperationException e) {
+                throw new RuntimeException(e);
+            }
         });
         c.waitTick();
     }
 
-    void cmd(int code) { keyMods(code, GLFW.GLFW_MOD_SUPER); }
+    void cmd(int code) {
+        keyMods(code, GLFW.GLFW_MOD_SUPER);
+    }
 
-    void cmdShift(int code) { keyMods(code, GLFW.GLFW_MOD_SUPER | GLFW.GLFW_MOD_SHIFT); }
+    void cmdShift(int code) {
+        keyMods(code, GLFW.GLFW_MOD_SUPER | GLFW.GLFW_MOD_SHIFT);
+    }
 
     void pressMods(int mods) {
         c.runOnClient(mc -> {
             try {
-            Method button = MouseHandler.class.getDeclaredMethod("onButton", long.class, MouseButtonInfo.class, int.class);
-            button.setAccessible(true);
-            long window = mc.getWindow().handle();
-            MouseButtonInfo info = new MouseButtonInfo(GLFW.GLFW_MOUSE_BUTTON_LEFT, mods);
-            button.invoke(mc.mouseHandler, window, info, GLFW.GLFW_PRESS);
-            button.invoke(mc.mouseHandler, window, info, GLFW.GLFW_RELEASE);
-            } catch (ReflectiveOperationException e) { throw new RuntimeException(e); }
+                Method button =
+                        MouseHandler.class.getDeclaredMethod("onButton", long.class, MouseButtonInfo.class, int.class);
+                button.setAccessible(true);
+                long window = mc.getWindow().handle();
+                MouseButtonInfo info = new MouseButtonInfo(GLFW.GLFW_MOUSE_BUTTON_LEFT, mods);
+                button.invoke(mc.mouseHandler, window, info, GLFW.GLFW_PRESS);
+                button.invoke(mc.mouseHandler, window, info, GLFW.GLFW_RELEASE);
+            } catch (ReflectiveOperationException e) {
+                throw new RuntimeException(e);
+            }
         });
         c.waitTick();
     }
@@ -161,7 +193,9 @@ public class MapUiGameTest implements FabricClientGameTest {
         pause();
     }
 
-    void rowMods(int index, int mods) { clickMods(rect()[0] + 54, rect()[1] + 58 + index * 20, mods); }
+    void rowMods(int index, int mods) {
+        clickMods(rect()[0] + 54, rect()[1] + 58 + index * 20, mods);
+    }
 
     void typeInto(EditBox field, String text) {
         cmd(GLFW.GLFW_KEY_A);
@@ -180,30 +214,47 @@ public class MapUiGameTest implements FabricClientGameTest {
         click(x2, y2);
     }
 
-    MapBridge.Frame frame() { return c.computeOnClient(mc -> ui().bridge.exactselection$frame()); }
+    MapBridge.Frame frame() {
+        return c.computeOnClient(mc -> ui().bridge.exactselection$frame());
+    }
 
-    List<WaypointAccess.Point> points() { return c.computeOnClient(mc -> ui().waypoints.all(ui().context).points()); }
+    List<WaypointAccess.Point> points() {
+        return c.computeOnClient(mc -> ui().waypoints.all(ui().context).points());
+    }
 
-    double sx(long worldX) { return frame().screenX(worldX); }
+    double sx(long worldX) {
+        return frame().screenX(worldX);
+    }
 
-    double sy(long worldZ) { return frame().screenY(worldZ); }
+    double sy(long worldZ) {
+        return frame().screenY(worldZ);
+    }
 
-    int[] rect() { return ui().windows.dialogRect(); }
+    int[] rect() {
+        return ui().windows.dialogRect();
+    }
 
-    void row(int index) { click(rect()[0] + 54, rect()[1] + 58 + index * 20); }
+    void row(int index) {
+        click(rect()[0] + 54, rect()[1] + 58 + index * 20);
+    }
 
     void clickSwatch(int index, int count) {
         int[] r = rect();
-        for (int y = r[1]; y < r[1] + r[3]; y += 2) for (int x = r[0]; x < r[0] + r[2]; x += 2) {
-            if (ui().colorWindows.swatchAt(r[0], r[1], r[2], count, x, y) == index) { click(x, y); return; }
-        }
+        for (int y = r[1]; y < r[1] + r[3]; y += 2)
+            for (int x = r[0]; x < r[0] + r[2]; x += 2) {
+                if (ui().colorWindows.swatchAt(r[0], r[1], r[2], count, x, y) == index) {
+                    click(x, y);
+                    return;
+                }
+            }
         check(false, "No swatch " + index);
     }
 
     void section(String name, Step step) {
         System.out.println("E2E: == " + name);
-        try { step.run(); }
-        catch (Throwable t) {
+        try {
+            step.run();
+        } catch (Throwable t) {
             check(false, name + " threw " + t);
             t.printStackTrace(System.out);
         }
@@ -228,14 +279,19 @@ public class MapUiGameTest implements FabricClientGameTest {
         pause();
     }
 
-    @Override public void runTest(ClientGameTestContext context) {
+    @Override
+    public void runTest(ClientGameTestContext context) {
         c = context;
         in = c.getInput();
-        c.runOnClient(mc -> mc.options.getSoundSourceOptionInstance(SoundSource.MASTER).set(0.0));
+        c.runOnClient(mc ->
+                mc.options.getSoundSourceOptionInstance(SoundSource.MASTER).set(0.0));
         try (TestSingleplayerContext world = c.worldBuilder().create()) {
             world.getClientWorld().waitForChunksRender();
             in.resizeWindow(1600, 900);
-            c.runOnClient(mc -> { mc.options.guiScale().set(2); mc.resizeDisplay(); });
+            c.runOnClient(mc -> {
+                mc.options.guiScale().set(2);
+                mc.resizeDisplay();
+            });
             c.waitTicks(10);
             in.pressKey(ControlsRegister.keyOpenMap);
             c.waitForScreen(GuiMap.class);
@@ -268,7 +324,9 @@ public class MapUiGameTest implements FabricClientGameTest {
         check(!ui.enabled(), "the tool starts off");
         press("toggle");
         check(ui.enabled(), "the toggle turns the tool on");
-        check(w("areasButton").visible && w("undo").visible && w("polygonModeButton").visible, "the panel's buttons show");
+        check(
+                w("areasButton").visible && w("undo").visible && w("polygonModeButton").visible,
+                "the panel's buttons show");
         check(!ui.selectionPanel.fields[0].visible, "the compact panel hides the coordinate fields");
         shot("01_tool_on");
         key(GLFW.GLFW_KEY_N);
@@ -276,7 +334,12 @@ public class MapUiGameTest implements FabricClientGameTest {
         shot("01b_chunks");
         selectRect(420, 120, 520, 220);
         SelectionBounds b = ui.state.bounds();
-        check(b != null && ui.state.phase() == Phase.SELECTED && Math.floorMod(b.minX(), 16) == 0 && Math.floorMod(b.maxX() + 1, 16) == 0, "a selection in chunks snaps to chunks");
+        check(
+                b != null
+                        && ui.state.phase() == Phase.SELECTED
+                        && Math.floorMod(b.minX(), 16) == 0
+                        && Math.floorMod(b.maxX() + 1, 16) == 0,
+                "a selection in chunks snaps to chunks");
         shot("01c_chunk_selection");
         c.runOnClient(mc -> ui.reset());
         key(GLFW.GLFW_KEY_N);
@@ -292,7 +355,9 @@ public class MapUiGameTest implements FabricClientGameTest {
         c.waitTicks(2);
         SelectionBounds hover = ui.state.bounds();
         check(hover.x2() != first.x2() && hover.z2() != first.z2(), "the second corner follows the pointer");
-        check(ui.selectionPanel.fields[2].getValue().equals(Integer.toString(hover.x2())), "the fields follow the preview");
+        check(
+                ui.selectionPanel.fields[2].getValue().equals(Integer.toString(hover.x2())),
+                "the fields follow the preview");
         shot("02_preview");
         key(GLFW.GLFW_KEY_ESCAPE);
         check(ui.state.phase() == Phase.READY && ui.state.bounds() == null, "Esc drops the preview");
@@ -311,12 +376,17 @@ public class MapUiGameTest implements FabricClientGameTest {
         double right = sx(done.maxX() + 1L), bottom = sy(done.maxZ() + 1L);
         drag(right, bottom, right + 40, bottom + 24);
         SelectionBounds resized = ui.state.bounds();
-        check(resized.maxX() > done.maxX() && resized.maxZ() > done.maxZ() && resized.minX() == done.minX(), "the corner handle resizes");
+        check(
+                resized.maxX() > done.maxX() && resized.maxZ() > done.maxZ() && resized.minX() == done.minX(),
+                "the corner handle resizes");
         check(ui.gesture == null, "the resize gesture ended");
-        double cx = (sx(resized.minX()) + sx(resized.maxX() + 1L)) / 2, cy = (sy(resized.minZ()) + sy(resized.maxZ() + 1L)) / 2;
+        double cx = (sx(resized.minX()) + sx(resized.maxX() + 1L)) / 2,
+                cy = (sy(resized.minZ()) + sy(resized.maxZ() + 1L)) / 2;
         drag(cx, cy, cx + 30, cy + 16);
         SelectionBounds moved = ui.state.bounds();
-        check(moved.minX() > resized.minX() && moved.width() == resized.width() && moved.length() == resized.length(), "a drag inside moves it");
+        check(
+                moved.minX() > resized.minX() && moved.width() == resized.width() && moved.length() == resized.length(),
+                "a drag inside moves it");
         at(cx + 30, cy + 16);
         in.holdMouse(GLFW.GLFW_MOUSE_BUTTON_LEFT);
         c.waitTick();
@@ -336,7 +406,9 @@ public class MapUiGameTest implements FabricClientGameTest {
         ExactSelectionController ui = ui();
         selectRect(400, 120, 560, 300);
         press("panelModeButton");
-        check(!ui.selectionPanel.compact && ui.selectionPanel.fields[0].visible && w("clear").visible, "the panel expands");
+        check(
+                !ui.selectionPanel.compact && ui.selectionPanel.fields[0].visible && w("clear").visible,
+                "the panel expands");
         shot("04_expanded");
         EditBox x1 = ui.selectionPanel.fields[0];
         clickWidget(x1);
@@ -357,7 +429,11 @@ public class MapUiGameTest implements FabricClientGameTest {
         check(ui.dirty && ui.message.length() > 0, "bad coordinates give a message");
         shot("05b_bad_coordinates");
         key(GLFW.GLFW_KEY_ESCAPE);
-        check(!ui.dirty && ui.state.bounds() != null && ui.selectionPanel.fields[0].getValue().equals("100"), "Esc drops typed coordinates, not the selection");
+        check(
+                !ui.dirty
+                        && ui.state.bounds() != null
+                        && ui.selectionPanel.fields[0].getValue().equals("100"),
+                "Esc drops typed coordinates, not the selection");
         ui.focus(null);
         key(GLFW.GLFW_KEY_TAB);
         Object one = ui.screen.getFocused();
@@ -382,7 +458,9 @@ public class MapUiGameTest implements FabricClientGameTest {
         SelectionBounds b = ui.state.bounds();
         rightClick(480, 210);
         check(ui.rightClickMenu.quickMenu && w("quickMenuSave").visible, "a right click opens the menu");
-        check(w("sizeButton").visible && w("moveButton").visible && w("centerButton").visible, "the menu has Size, Move, Center");
+        check(
+                w("sizeButton").visible && w("moveButton").visible && w("centerButton").visible,
+                "the menu has Size, Move, Center");
         shot("06_menu");
         key(GLFW.GLFW_KEY_ESCAPE);
         check(!ui.rightClickMenu.quickMenu && b.equals(ui.state.bounds()), "Esc closes only the menu");
@@ -427,7 +505,11 @@ public class MapUiGameTest implements FabricClientGameTest {
         c.waitTick();
         check(w("modalApply").active, "typing a name enables Create");
         key(GLFW.GLFW_KEY_ENTER);
-        check(ui.dialog == Dialog.NONE && ui.areas().size() == 1 && ui.areas().get(0).name().equals("Alpha"), "Enter saves the area");
+        check(
+                ui.dialog == Dialog.NONE
+                        && ui.areas().size() == 1
+                        && ui.areas().get(0).name().equals("Alpha"),
+                "Enter saves the area");
         check(ui.areas().get(0).color() == AreaPalette.COLORS[5], "the area has the chosen color");
         check(ui.state.bounds() == null, "saving clears the selection");
         shot("08_saved");
@@ -442,7 +524,9 @@ public class MapUiGameTest implements FabricClientGameTest {
         check(!w("areaLoad").active, "nothing is checked at first");
         shot("09_areas");
         row(0);
-        check(ui.areasWindow.selectedAreaIds.size() == 1 && w("areaLoad").active && w("areaDelete").active, "a row click checks the area");
+        check(
+                ui.areasWindow.selectedAreaIds.size() == 1 && w("areaLoad").active && w("areaDelete").active,
+                "a row click checks the area");
         shot("10_area_row");
         EditBox name = ui.dialogFields[ExactSelectionController.AREA_NAME_FIELD];
         clickWidget(name);
@@ -491,11 +575,17 @@ public class MapUiGameTest implements FabricClientGameTest {
         press("areaVisibility");
         check(ui.areas().get(0).visible(), "Show shows it again");
         press("areaDelete");
-        check(ui.areasWindow.areaDeleteConfirmation && w("confirm").visible && ui.screen.getFocused() == w("confirm"), "Delete asks, with the focus on its button");
+        check(
+                ui.areasWindow.areaDeleteConfirmation && w("confirm").visible && ui.screen.getFocused() == w("confirm"),
+                "Delete asks, with the focus on its button");
         check(!w("areaDelete").visible, "the other buttons hide while it asks");
         shot("14_delete");
         key(GLFW.GLFW_KEY_ESCAPE);
-        check(!ui.areasWindow.areaDeleteConfirmation && ui.dialog == Dialog.AREAS && ui.areas().size() == 1, "Esc only cancels the question");
+        check(
+                !ui.areasWindow.areaDeleteConfirmation
+                        && ui.dialog == Dialog.AREAS
+                        && ui.areas().size() == 1,
+                "Esc only cancels the question");
         press("areaDelete");
         press("confirm");
         check(ui.areas().isEmpty(), "Confirm deletes");
@@ -531,7 +621,9 @@ public class MapUiGameTest implements FabricClientGameTest {
         key(GLFW.GLFW_KEY_J);
         row(0);
         press("areaLoad");
-        check(ui.dialog == Dialog.NONE && ui.state.source() != null && ui.state.bounds() != null, "Edit loads the area");
+        check(
+                ui.dialog == Dialog.NONE && ui.state.source() != null && ui.state.bounds() != null,
+                "Edit loads the area");
         shot("18_editing");
         press("panelModeButton");
         shot("18b_editing_expanded");
@@ -556,7 +648,11 @@ public class MapUiGameTest implements FabricClientGameTest {
         c.waitTick();
         check(w("modalApply").active, "a typed name enables Create");
         key(GLFW.GLFW_KEY_ENTER);
-        check(ui.dialog == Dialog.GROUPS && ui.groups().size() == 1 && ui.groups().get(0).name().equals("Town"), "Enter creates the group");
+        check(
+                ui.dialog == Dialog.GROUPS
+                        && ui.groups().size() == 1
+                        && ui.groups().get(0).name().equals("Town"),
+                "Enter creates the group");
         press("groupRename");
         check(ui.dialog == Dialog.GROUP_NAME, "Rename asks for a name");
         clickWidget(name);
@@ -615,7 +711,12 @@ public class MapUiGameTest implements FabricClientGameTest {
         c.runOnClient(mc -> {
             List<SavedAreaStore.Area> areas = new ArrayList<>(ui.areas());
             for (int i = 0; i < 40; i++)
-                areas.add(SavedAreaStore.create("Zone " + i, new SelectionBounds(1000 + i * 20, 1000, 1010 + i * 20, 1010), 0x336699, 25, null));
+                areas.add(SavedAreaStore.create(
+                        "Zone " + i,
+                        new SelectionBounds(1000 + i * 20, 1000, 1010 + i * 20, 1010),
+                        0x336699,
+                        25,
+                        null));
             ui.areaEdits.changeAreas(ui.areaEdits.areaState(areas, ui.groups()), "area_save");
         });
         key(GLFW.GLFW_KEY_J);
@@ -628,12 +729,18 @@ public class MapUiGameTest implements FabricClientGameTest {
         in.scroll(1);
         c.waitTick();
         check(ui.areasWindow.areaScroll == 0, "the list stops at the top");
-        for (int i = 0; i < 60; i++) { in.scroll(-1); }
+        for (int i = 0; i < 60; i++) {
+            in.scroll(-1);
+        }
         c.waitTick();
         int end = ui.areasWindow.areaScroll;
-        check(end == ui.areasWindow.displayedAreas().size() - ui.areasWindow.visibleAreaDialogRows(rect()[3]), "the list stops at the end: " + end);
+        check(
+                end == ui.areasWindow.displayedAreas().size() - ui.areasWindow.visibleAreaDialogRows(rect()[3]),
+                "the list stops at the end: " + end);
         shot("29_long_list");
-        for (int i = 0; i < 60; i++) { in.scroll(1); }
+        for (int i = 0; i < 60; i++) {
+            in.scroll(1);
+        }
         c.waitTick();
         press("areaSelectAll");
         check(ui.areasWindow.selectedAreaIds.size() == ui.areas().size(), "All checks every area");
@@ -647,12 +754,16 @@ public class MapUiGameTest implements FabricClientGameTest {
         shot("30_range");
         press("areaDelete");
         press("confirm");
-        check(ui.areas().size() == 37, "Delete removes the checked ones: " + ui.areas().size());
+        check(
+                ui.areas().size() == 37,
+                "Delete removes the checked ones: " + ui.areas().size());
         cmd(GLFW.GLFW_KEY_Z);
         check(ui.areas().size() == 41, "undo restores them all: " + ui.areas().size());
         press("managementClose");
         c.runOnClient(mc -> {
-            List<SavedAreaStore.Area> keep = ui.areas().stream().filter(a -> !a.name().startsWith("Zone ")).toList();
+            List<SavedAreaStore.Area> keep = ui.areas().stream()
+                    .filter(a -> !a.name().startsWith("Zone "))
+                    .toList();
             ui.areaEdits.changeAreas(ui.areaEdits.areaState(keep, ui.groups()), "area_delete");
         });
         check(ui.areas().size() == 1, "test zones removed");
@@ -679,26 +790,39 @@ public class MapUiGameTest implements FabricClientGameTest {
         check(ui.polygonTool.draft.size() == 3, "Backspace removes the last vertex");
         click(420, 280);
         check(ui.polygonTool.draft.size() == 4, "a click adds it again");
-        double midX = (sx(ui.polygonTool.draft.get(0).x()) + sx(ui.polygonTool.draft.get(1).x())) / 2;
-        double midZ = (sy(ui.polygonTool.draft.get(0).z()) + sy(ui.polygonTool.draft.get(1).z())) / 2;
+        double midX = (sx(ui.polygonTool.draft.get(0).x())
+                        + sx(ui.polygonTool.draft.get(1).x()))
+                / 2;
+        double midZ = (sy(ui.polygonTool.draft.get(0).z())
+                        + sy(ui.polygonTool.draft.get(1).z()))
+                / 2;
         click(midX, midZ);
         check(ui.polygonTool.draft.size() == 4, "a click on a side only shows the controls");
         doubleClick(midX, midZ);
         check(ui.polygonTool.draft.size() == 5, "a double click on a side adds a vertex");
         GridPoint third = ui.polygonTool.draft.get(3);
         drag(sx(third.x()), sy(third.z()), sx(third.x()) + 20, sy(third.z()) + 20);
-        check(!ui.polygonTool.draft.get(3).equals(third) && ui.polygonTool.draft.size() == 5, "dragging moves a vertex");
+        check(
+                !ui.polygonTool.draft.get(3).equals(third) && ui.polygonTool.draft.size() == 5,
+                "dragging moves a vertex");
         cmd(GLFW.GLFW_KEY_Z);
         check(ui.polygonTool.draft.get(3).equals(third), "undo returns the vertex");
         shot("33_contour_edited");
         GridPoint start = ui.polygonTool.draft.get(0);
         click(sx(start.x()), sy(start.z()));
-        check(ui.state.geometry() instanceof PolygonGeometry && ui.state.phase() == Phase.SELECTED && ui.polygonTool.draft.isEmpty(), "a click on the first vertex closes the contour");
+        check(
+                ui.state.geometry() instanceof PolygonGeometry
+                        && ui.state.phase() == Phase.SELECTED
+                        && ui.polygonTool.draft.isEmpty(),
+                "a click on the first vertex closes the contour");
         shot("34_polygon");
         int vertices = ui.state.geometry().vertices().size();
-        GridPoint a = ui.state.geometry().vertices().get(0), b = ui.state.geometry().vertices().get(1);
+        GridPoint a = ui.state.geometry().vertices().get(0),
+                b = ui.state.geometry().vertices().get(1);
         doubleClick((sx(a.x()) + sx(b.x())) / 2, (sy(a.z()) + sy(b.z())) / 2);
-        check(ui.state.geometry().vertices().size() == vertices + 1, "a double click on a side of the polygon adds a vertex");
+        check(
+                ui.state.geometry().vertices().size() == vertices + 1,
+                "a double click on a side of the polygon adds a vertex");
         GridPoint added = ui.state.geometry().vertices().get(1);
         at(sx(added.x()), sy(added.z()));
         pressMods(GLFW.GLFW_MOD_SUPER);
@@ -709,8 +833,12 @@ public class MapUiGameTest implements FabricClientGameTest {
         check(!ui.polygonTool.mode || ui.state.geometry() != null, "Esc steps back");
         if (ui.polygonTool.mode) key(GLFW.GLFW_KEY_O);
         check(!ui.polygonTool.mode, "the Polygon tool is off");
-        if (ui.state.geometry() == null) { cmd(GLFW.GLFW_KEY_Z); }
-        check(ui.state.geometry() instanceof PolygonGeometry, "the polygon is still there or back: " + ui.state.geometry());
+        if (ui.state.geometry() == null) {
+            cmd(GLFW.GLFW_KEY_Z);
+        }
+        check(
+                ui.state.geometry() instanceof PolygonGeometry,
+                "the polygon is still there or back: " + ui.state.geometry());
         AreaGeometry shape = ui.state.geometry();
         rightClick(500, 190);
         check(ui.rightClickMenu.quickMenu, "a right click on the polygon opens the menu");
@@ -719,7 +847,11 @@ public class MapUiGameTest implements FabricClientGameTest {
         EditBox name = ui.dialogFields[ExactSelectionController.NEW_AREA_FIELD];
         typeInto(name, "Poly");
         key(GLFW.GLFW_KEY_ENTER);
-        check(ui.areas().stream().anyMatch(area -> area.name().equals("Poly") && area.geometry().equals(shape)), "the polygon is saved as an area");
+        check(
+                ui.areas().stream()
+                        .anyMatch(area ->
+                                area.name().equals("Poly") && area.geometry().equals(shape)),
+                "the polygon is saved as an area");
         shot("36_polygon_saved");
     }
 
@@ -774,13 +906,19 @@ public class MapUiGameTest implements FabricClientGameTest {
 
     void zones() throws Exception {
         ExactSelectionController ui = ui();
-        SavedAreaStore.Area poly = ui.areas().stream().filter(a -> a.name().equals("Poly")).findFirst().orElseThrow();
+        SavedAreaStore.Area poly = ui.areas().stream()
+                .filter(a -> a.name().equals("Poly"))
+                .findFirst()
+                .orElseThrow();
         GridPoint vertex = poly.geometry().vertices().get(0);
         at(sx(vertex.x()) + 40, sy(vertex.z()) - 2);
-        at((sx(poly.bounds().minX()) + sx(poly.bounds().maxX())) / 2, (sy(poly.bounds().minZ()) + sy(poly.bounds().maxZ())) / 2);
+        at(
+                (sx(poly.bounds().minX()) + sx(poly.bounds().maxX())) / 2,
+                (sy(poly.bounds().minZ()) + sy(poly.bounds().maxZ())) / 2);
         c.waitTick();
         shot("43_zone_hover_tool_on");
-        double px = (sx(poly.bounds().minX()) + sx(poly.bounds().maxX())) / 2, py = (sy(poly.bounds().minZ()) + sy(poly.bounds().maxZ())) / 2;
+        double px = (sx(poly.bounds().minX()) + sx(poly.bounds().maxX())) / 2,
+                py = (sy(poly.bounds().minZ()) + sy(poly.bounds().maxZ())) / 2;
         rightClick(px, py);
         check(ui.rightClickMenu.quickMenu && w("quickMenuEdit").visible, "a right click on a zone opens its menu");
         shot("44_zone_menu");
@@ -790,18 +928,24 @@ public class MapUiGameTest implements FabricClientGameTest {
         check(ui.areasWindow.area(poly.id()).visible(), "undo shows it again");
         key(GLFW.GLFW_KEY_O);
         click(sx(vertex.x()) + 1, sy(vertex.z()) + 1);
-        check(ui.polygonTool.draft.size() == 1 && ui.polygonTool.draft.get(0).equals(vertex), "a vertex snaps to a zone's vertex");
+        check(
+                ui.polygonTool.draft.size() == 1 && ui.polygonTool.draft.get(0).equals(vertex),
+                "a vertex snaps to a zone's vertex");
         shot("45_snapped");
         cmd(GLFW.GLFW_KEY_Z);
         clickMods(sx(vertex.x()) + 2, sy(vertex.z()) + 2, GLFW.GLFW_MOD_ALT);
-        check(ui.polygonTool.draft.size() == 1 && !ui.polygonTool.draft.get(0).equals(vertex), "Alt turns snapping off");
+        check(
+                ui.polygonTool.draft.size() == 1 && !ui.polygonTool.draft.get(0).equals(vertex),
+                "Alt turns snapping off");
         key(GLFW.GLFW_KEY_ESCAPE);
         click(px, py);
         check(ui.state.phase() == Phase.PREVIEW, "a press on a zone starts a selection");
         key(GLFW.GLFW_KEY_ESCAPE);
         rightClick(px, py);
         press("quickMenuEdit");
-        check(ui.state.source() != null && poly.geometry().equals(ui.state.geometry()), "Edit from the menu loads the zone");
+        check(
+                ui.state.source() != null && poly.geometry().equals(ui.state.geometry()),
+                "Edit from the menu loads the zone");
         shot("46_zone_edit");
     }
 
@@ -836,8 +980,11 @@ public class MapUiGameTest implements FabricClientGameTest {
         check(ui.dialog == Dialog.WAYPOINTS, "the waypoint window opens");
         shot("50_points");
         int[] r = rect();
-        System.out.println("E2E: rows " + ui.waypointsWindow.filteredPoints().size() + " pending " + ui.waypointsWindow.pending);
-        check(ui.waypointsWindow.chosenPoints.size() == 1 && w("confirm").active, "a waypoint in the selection opens checked");
+        System.out.println(
+                "E2E: rows " + ui.waypointsWindow.filteredPoints().size() + " pending " + ui.waypointsWindow.pending);
+        check(
+                ui.waypointsWindow.chosenPoints.size() == 1 && w("confirm").active,
+                "a waypoint in the selection opens checked");
         click(r[0] + 60, r[1] + 88);
         check(ui.waypointsWindow.chosenPoints.isEmpty() && !w("confirm").active, "a row click unchecks it");
         shot("50b_unchecked");
@@ -868,7 +1015,9 @@ public class MapUiGameTest implements FabricClientGameTest {
         cmd(GLFW.GLFW_KEY_Z);
         check(points().size() == before + 1, "undo restores it (restore)");
         check(ui.waypointsWindow.filteredPoints().size() == 1, "the window's list shows the restored waypoint");
-        check(ui.waypointsWindow.chosenPoints.isEmpty() && !w("confirm").active, "the restored waypoint comes back unchecked");
+        check(
+                ui.waypointsWindow.chosenPoints.isEmpty() && !w("confirm").active,
+                "the restored waypoint comes back unchecked");
         shot("54_restored");
         if (ui.dialog != Dialog.NONE) press(ui.dialog == Dialog.WAYPOINTS ? "cancel" : "modalCancel");
         cmdShift(GLFW.GLFW_KEY_Z);
@@ -876,9 +1025,14 @@ public class MapUiGameTest implements FabricClientGameTest {
         press("pointsButton");
         check(ui.dialog == Dialog.WAYPOINTS, "the window opens again");
         cmd(GLFW.GLFW_KEY_Z);
-        check(points().size() == before + 1 && ui.waypointsWindow.filteredPoints().size() == 1, "undo inside the window shows it");
+        check(
+                points().size() == before + 1
+                        && ui.waypointsWindow.filteredPoints().size() == 1,
+                "undo inside the window shows it");
         cmdShift(GLFW.GLFW_KEY_Z);
-        check(points().size() == before && ui.waypointsWindow.filteredPoints().isEmpty(), "redo inside the window hides it");
+        check(
+                points().size() == before && ui.waypointsWindow.filteredPoints().isEmpty(),
+                "redo inside the window hides it");
         press("cancel");
         press("panelModeButton");
     }
@@ -898,7 +1052,9 @@ public class MapUiGameTest implements FabricClientGameTest {
         press("run");
         check(ui.mapExport.exportRunning || ui.mapExport.lastExport != null, "the export started");
         c.waitFor(mc -> !ui.mapExport.exportRunning, 1200);
-        check(ui.mapExport.lastExport != null && java.nio.file.Files.exists(ui.mapExport.lastExport), "the PNG exists: " + ui.mapExport.lastExport + " message=" + ui.message);
+        check(
+                ui.mapExport.lastExport != null && java.nio.file.Files.exists(ui.mapExport.lastExport),
+                "the PNG exists: " + ui.mapExport.lastExport + " message=" + ui.message);
         c.waitTick();
         shot("56_exported");
         check(w("openExportButton").visible || ui.dialog != Dialog.NONE, "the file button shows");
@@ -944,8 +1100,14 @@ public class MapUiGameTest implements FabricClientGameTest {
         c.runOnClient(mc -> ui.reset());
         press("toggle");
         check(!ui.enabled(), "the toggle turns the tool off");
-        SavedAreaStore.Area poly = ui.areas().stream().filter(a -> a.name().equals("Poly")).findFirst().orElse(null);
-        if (poly != null) at((sx(poly.bounds().minX()) + sx(poly.bounds().maxX())) / 2, (sy(poly.bounds().minZ()) + sy(poly.bounds().maxZ())) / 2);
+        SavedAreaStore.Area poly = ui.areas().stream()
+                .filter(a -> a.name().equals("Poly"))
+                .findFirst()
+                .orElse(null);
+        if (poly != null)
+            at(
+                    (sx(poly.bounds().minX()) + sx(poly.bounds().maxX())) / 2,
+                    (sy(poly.bounds().minZ()) + sy(poly.bounds().maxZ())) / 2);
         c.waitTick();
         shot("60_tool_off_hover");
         press("toggle");
@@ -964,9 +1126,15 @@ public class MapUiGameTest implements FabricClientGameTest {
         String typed = ui.dialogFields[ExactSelectionController.AREA_NAME_FIELD].getValue();
         in.resizeWindow(1024, 640);
         c.waitTicks(3);
-        check(ui.dialogFields[ExactSelectionController.AREA_NAME_FIELD].getValue().equals(typed), "a resize keeps typed text");
+        check(
+                ui.dialogFields[ExactSelectionController.AREA_NAME_FIELD]
+                        .getValue()
+                        .equals(typed),
+                "a resize keeps typed text");
         AbstractWidget close = w("managementClose");
-        check(close.visible && close.getX() + close.getWidth() <= ui.screen.width && close.getY() >= 0, "the window fits after a resize");
+        check(
+                close.visible && close.getX() + close.getWidth() <= ui.screen.width && close.getY() >= 0,
+                "the window fits after a resize");
         shot("61_small_areas");
         cmd(GLFW.GLFW_KEY_A);
         key(GLFW.GLFW_KEY_BACKSPACE);

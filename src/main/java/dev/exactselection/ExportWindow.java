@@ -1,5 +1,8 @@
 package dev.exactselection;
 
+import static dev.exactselection.ExactSelectionController.place;
+import static dev.exactselection.ModLog.LOG;
+
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDateTime;
@@ -18,8 +21,6 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
 import net.minecraft.util.Util;
 import org.lwjgl.util.tinyfd.TinyFileDialogs;
-import static dev.exactselection.ExactSelectionController.place;
-import static dev.exactselection.ModLog.LOG;
 
 /**
  * The PNG export window: target folder, day or night, scale, saved areas and labels. The controller shows it as one
@@ -34,13 +35,18 @@ final class ExportWindow {
     private AreaGeometry target;
     /** The saved area being exported, whose fill can be left out; null for a plain selection. */
     private String targetArea;
+
     private Component title = Component.empty();
     /** The file this window writes, named when it opened so the path it shows is the one it uses. */
     private String fileName = newFileName();
-    /** This window's scale: the remembered one, lowered until the target fits; only the Scale button changes the preference. */
+    /**
+     * This window's scale: the remembered one, lowered until the target fits; only the Scale button changes the
+     * preference.
+     */
     int windowScale;
     /** Minecraft's pixel font, read once from the game's resources; null when they are unavailable. */
     private PixelFont pixelFont;
+
     private boolean pixelFontLoaded;
 
     ExportWindow(Minecraft mc, ExportPreferences preferences, Supplier<Path> defaultFolder) {
@@ -78,7 +84,10 @@ final class ExportWindow {
             Path target = folder();
             if (target != null && Files.isDirectory(target)) Util.getPlatform().openPath(target);
         });
-        time = button("export_day", "export_time_tooltip", () -> { preferences.night = !preferences.night; preferences.save(); });
+        time = button("export_day", "export_time_tooltip", () -> {
+            preferences.night = !preferences.night;
+            preferences.save();
+        });
         scale = button("export_scale", "export_scale_tooltip", () -> {
             int[] scales = ExportPreferences.SCALES;
             int index = 0;
@@ -86,9 +95,18 @@ final class ExportWindow {
             windowScale = preferences.scale = scales[(index + 1) % scales.length];
             preferences.save();
         });
-        labels = button("export_labels_on", "export_labels_tooltip", () -> { preferences.labels = !preferences.labels; preferences.save(); });
-        areas = button("export_areas_on", "export_areas_tooltip", () -> { preferences.areas = !preferences.areas; preferences.save(); });
-        ownFill = button("export_own_fill_on", "export_own_fill_tooltip", () -> { preferences.ownFill = !preferences.ownFill; preferences.save(); });
+        labels = button("export_labels_on", "export_labels_tooltip", () -> {
+            preferences.labels = !preferences.labels;
+            preferences.save();
+        });
+        areas = button("export_areas_on", "export_areas_tooltip", () -> {
+            preferences.areas = !preferences.areas;
+            preferences.save();
+        });
+        ownFill = button("export_own_fill_on", "export_own_fill_tooltip", () -> {
+            preferences.ownFill = !preferences.ownFill;
+            preferences.save();
+        });
         run = button("export_run", export);
         return List.of(folder, pick, standardFolder, openFolder, time, scale, areas, labels, ownFill, run);
     }
@@ -104,12 +122,18 @@ final class ExportWindow {
         folder.setValue(preferences.folder);
     }
 
-    AreaGeometry target() { return target; }
+    AreaGeometry target() {
+        return target;
+    }
 
-    boolean hasTargetArea() { return targetArea != null; }
+    boolean hasTargetArea() {
+        return targetArea != null;
+    }
 
     /** The saved area to export without its fill, or null when every area keeps its fill. */
-    String unfilledArea() { return targetArea != null && preferences.areas && !preferences.ownFill ? targetArea : null; }
+    String unfilledArea() {
+        return targetArea != null && preferences.areas && !preferences.ownFill ? targetArea : null;
+    }
 
     /** The folder typed in the window (empty: the default one), or null when it is not an absolute path. */
     Path folder() {
@@ -124,8 +148,8 @@ final class ExportWindow {
     }
 
     private static String newFileName() {
-        return "ExactSelection-" + LocalDateTime.now().format(
-                DateTimeFormatter.ofPattern("yyyy-MM-dd_HH-mm-ss", Locale.ROOT)) + ".png";
+        return "ExactSelection-"
+                + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd_HH-mm-ss", Locale.ROOT)) + ".png";
     }
 
     /** The system folder picker; it blocks the game until it closes, like other mods' file dialogs. */
@@ -150,13 +174,15 @@ final class ExportWindow {
             pixelFontLoaded = true;
             try {
                 pixelFont = PixelFont.load(path -> mc.getResourceManager()
-                        .getResource(Identifier.withDefaultNamespace(path)).orElseThrow().open());
+                        .getResource(Identifier.withDefaultNamespace(path))
+                        .orElseThrow()
+                        .open());
             } catch (Exception e) {
                 LOG.warn("Minecraft font unavailable; labels use a system font", e);
             }
         }
-        return new AreaExportService.Options(target, fileName, preferences.night, windowScale, preferences.labels,
-                preferences.areas, pixelFont);
+        return new AreaExportService.Options(
+                target, fileName, preferences.night, windowScale, preferences.labels, preferences.areas, pixelFont);
     }
 
     void layout(int x, int y, int w, int buttonY) {
@@ -185,26 +211,52 @@ final class ExportWindow {
         ownFill.setMessage(tr(preferences.ownFill ? "export_own_fill_on" : "export_own_fill_off"));
         Path target = folder();
         openFolder.active = target != null && Files.isDirectory(target);
-        run.active = target != null && this.target != null && !exportRunning
+        run.active = target != null
+                && this.target != null
+                && !exportRunning
                 && AreaExportService.fits(this.target.bounds(), windowScale);
     }
 
     void render(GuiGraphics g, int x, int y, int w, String message) {
         GeometryBounds b = target == null ? null : target.bounds();
-        if (b != null) g.drawString(mc.font, mc.font.plainSubstrByWidth(Component.literal(title.getString() + " · ")
-                .append(tr("export_blocks", b.width(), b.length())).getString(), w - 24), x + 12, y + 30, -1);
+        if (b != null)
+            g.drawString(
+                    mc.font,
+                    mc.font.plainSubstrByWidth(
+                            Component.literal(title.getString() + " · ")
+                                    .append(tr("export_blocks", b.width(), b.length()))
+                                    .getString(),
+                            w - 24),
+                    x + 12,
+                    y + 30,
+                    -1);
         g.drawString(mc.font, tr("export_folder"), x + 12, y + 46, Theme.TEXT_MUTED);
         Path target = folder();
-        String file = target == null ? tr("export_folder_invalid").getString() : target.resolve(fileName).toString();
+        String file = target == null
+                ? tr("export_folder_invalid").getString()
+                : target.resolve(fileName).toString();
         // Keep the end of a long path, where the file name is.
         String shown = tail(file, w - 24 - mc.font.width(tr("export_file", "").getString()));
-        g.drawString(mc.font, tr("export_file", shown), x + 12, y + 104, target == null ? Theme.WARNING : Theme.TEXT_MUTED);
+        g.drawString(
+                mc.font, tr("export_file", shown), x + 12, y + 104, target == null ? Theme.WARNING : Theme.TEXT_MUTED);
         if (b != null) {
             boolean fits = AreaExportService.fits(b, windowScale);
-            g.drawString(mc.font, fits ? tr("export_size", b.width() * windowScale, b.length() * windowScale)
-                    : tr("export_size_too_large", AreaExportService.MAX_OUTPUT_PIXELS), x + 12, y + (hasTargetArea() ? 190 : 168), fits ? Theme.TEXT_MUTED : Theme.WARNING);
+            g.drawString(
+                    mc.font,
+                    fits
+                            ? tr("export_size", b.width() * windowScale, b.length() * windowScale)
+                            : tr("export_size_too_large", AreaExportService.MAX_OUTPUT_PIXELS),
+                    x + 12,
+                    y + (hasTargetArea() ? 190 : 168),
+                    fits ? Theme.TEXT_MUTED : Theme.WARNING);
         }
-        if (!message.isEmpty()) g.drawString(mc.font, mc.font.plainSubstrByWidth(message, w - 24), x + 12, y + (hasTargetArea() ? 204 : 182), Theme.WARNING);
+        if (!message.isEmpty())
+            g.drawString(
+                    mc.font,
+                    mc.font.plainSubstrByWidth(message, w - 24),
+                    x + 12,
+                    y + (hasTargetArea() ? 204 : 182),
+                    Theme.WARNING);
     }
 
     /** The end of a text that fits {@code width}, with an ellipsis in place of what was cut from its start. */

@@ -13,9 +13,7 @@ public final class ChunkSelection {
     public static int endpoint(int cursorBlock, int originBlock) {
         int originChunk = Math.floorDiv(originBlock, 16);
         int cursorChunk = Math.floorDiv(cursorBlock, 16);
-        int coordinate = cursorChunk < originChunk
-                ? cursorChunk * 16
-                : cursorChunk * 16 + 15;
+        int coordinate = cursorChunk < originChunk ? cursorChunk * 16 : cursorChunk * 16 + 15;
         return checked(coordinate);
     }
 

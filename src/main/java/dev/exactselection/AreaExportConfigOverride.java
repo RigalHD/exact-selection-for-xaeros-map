@@ -5,6 +5,7 @@ import xaero.map.config.primary.option.WorldMapPrimaryClientConfigOptions;
 
 public final class AreaExportConfigOverride {
     public record Values(boolean multipleImages, int scaleDownSquare, boolean highlights, boolean night) {}
+
     private static final ThreadLocal<Values> ACTIVE = new ThreadLocal<>();
 
     private AreaExportConfigOverride() {}
@@ -29,7 +30,9 @@ public final class AreaExportConfigOverride {
         return original;
     }
 
-    @FunctionalInterface public interface Scope extends AutoCloseable {
-        @Override void close();
+    @FunctionalInterface
+    public interface Scope extends AutoCloseable {
+        @Override
+        void close();
     }
 }

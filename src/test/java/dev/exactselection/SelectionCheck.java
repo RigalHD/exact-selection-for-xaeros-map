@@ -14,42 +14,62 @@ public final class SelectionCheck {
         assert !negative.contains(3, 3) && !negative.contains(-2, -4);
         assert new SelectionBounds(0, 0, 99_999, 99_999).area() == 10_000_000_000L;
         assert new SelectionBounds(-30_000_000, -30_000_000, 29_999_999, 29_999_999).area() == 3_600_000_000_000_000L;
-        var reverseChunk = new SelectionBounds(ChunkSelection.anchor(180, 160), ChunkSelection.anchor(80, 60),
-                ChunkSelection.endpoint(160, 180), ChunkSelection.endpoint(60, 80));
+        var reverseChunk = new SelectionBounds(
+                ChunkSelection.anchor(180, 160),
+                ChunkSelection.anchor(80, 60),
+                ChunkSelection.endpoint(160, 180),
+                ChunkSelection.endpoint(60, 80));
         assert reverseChunk.equals(new SelectionBounds(191, 95, 160, 48));
         assert reverseChunk.chunkCount() == 6 && reverseChunk.area() == 32L * 48;
-        var forwardChunk = new SelectionBounds(ChunkSelection.anchor(-17, -1), ChunkSelection.anchor(16, 31),
-                ChunkSelection.endpoint(-1, -17), ChunkSelection.endpoint(31, 16));
+        var forwardChunk = new SelectionBounds(
+                ChunkSelection.anchor(-17, -1),
+                ChunkSelection.anchor(16, 31),
+                ChunkSelection.endpoint(-1, -17),
+                ChunkSelection.endpoint(31, 16));
         assert forwardChunk.equals(new SelectionBounds(-32, 16, -1, 31));
-        var sameChunk = new SelectionBounds(ChunkSelection.anchor(33, 47), ChunkSelection.anchor(-1, -14),
-                ChunkSelection.endpoint(47, 33), ChunkSelection.endpoint(-14, -1));
+        var sameChunk = new SelectionBounds(
+                ChunkSelection.anchor(33, 47),
+                ChunkSelection.anchor(-1, -14),
+                ChunkSelection.endpoint(47, 33),
+                ChunkSelection.endpoint(-14, -1));
         assert sameChunk.equals(new SelectionBounds(32, -16, 47, -1));
-        var cachedArea = SavedAreaStore.create("Cached", new PolygonGeometry(java.util.List.of(
-                new GridPoint(0, 0), new GridPoint(16, 0), new GridPoint(16, 16), new GridPoint(0, 16))),
-                0x59E3CE, 30, null);
+        var cachedArea = SavedAreaStore.create(
+                "Cached",
+                new PolygonGeometry(java.util.List.of(
+                        new GridPoint(0, 0), new GridPoint(16, 0), new GridPoint(16, 16), new GridPoint(0, 16))),
+                0x59E3CE,
+                30,
+                null);
         assert cachedArea.geometry() == cachedArea.geometry();
         assert SelectionBounds.block(-0.2) == -1 && SelectionBounds.block(0.2) == 0;
-        for (double bad : new double[]{Double.NaN, Double.POSITIVE_INFINITY, -30_000_001, 30_000_000}) {
-            try { SelectionBounds.block(bad); throw new AssertionError("Accepted " + bad); }
-            catch (IllegalArgumentException expected) { }
+        for (double bad : new double[] {Double.NaN, Double.POSITIVE_INFINITY, -30_000_001, 30_000_000}) {
+            try {
+                SelectionBounds.block(bad);
+                throw new AssertionError("Accepted " + bad);
+            } catch (IllegalArgumentException expected) {
+            }
         }
         var state = new SelectionState();
         state.click(1, 2);
         assert state.phase() == SelectionState.Phase.OFF && state.bounds() == null;
-        state.enable(); state.click(1, 2); state.hover(-5, -8);
+        state.enable();
+        state.click(1, 2);
+        state.hover(-5, -8);
         assert state.phase() == SelectionState.Phase.PREVIEW && state.bounds().x2() == -5;
-        state.click(-5, -8); state.hover(99, 99);
+        state.click(-5, -8);
+        state.hover(99, 99);
         assert state.phase() == SelectionState.Phase.SELECTED && state.bounds().x2() == -5;
         state.click(6, 7);
         assert state.phase() == SelectionState.Phase.PREVIEW && state.bounds().area() == 1;
         state.reset();
         assert state.phase() == SelectionState.Phase.READY && state.bounds() == null;
-        state.disable(); assert !state.enabled();
+        state.disable();
+        assert !state.enabled();
         // Same block at different zoom levels, odd framebuffer dimensions and GUI scales.
-        for (double guiScale : new double[]{1, 2, 3, 4}) {
-            for (double zoom : new double[]{0.0625, 0.5, 1, 3.25, 50}) {
+        for (double guiScale : new double[] {1, 2, 3, 4}) {
+            for (double zoom : new double[] {0.0625, 0.5, 1, 3.25, 50}) {
                 var frame = new MapBridge.Frame(null, -17.25, 250.75, zoom, guiScale, 1921, 1081);
-                for (double x : new double[]{-29999999.5, -0.2, 0.5, 128.5, 29999999.5}) {
+                for (double x : new double[] {-29999999.5, -0.2, 0.5, 128.5, 29999999.5}) {
                     double restoredX = frame.worldX(frame.screenX(x));
                     double restoredZ = frame.worldZ(frame.screenY(x));
                     assert Math.abs(restoredX - x) < 0.00001;
@@ -59,7 +79,8 @@ public final class SelectionCheck {
             }
         }
         assert new RectangleGeometry(new SelectionBounds(0, 0, 2, 5)).perimeter() == 18.0;
-        var triangle = new PolygonGeometry(java.util.List.of(new GridPoint(0, 0), new GridPoint(3, 0), new GridPoint(0, 4)));
+        var triangle =
+                new PolygonGeometry(java.util.List.of(new GridPoint(0, 0), new GridPoint(3, 0), new GridPoint(0, 4)));
         assert triangle.perimeter() == 12.0;
         assert AreaPalette.COLORS.length == 24;
         assert AreaPalette.parse("#abc") == 0xAABBCC;
@@ -72,31 +93,57 @@ public final class SelectionCheck {
         assert state.source().equals("saved-area");
         state.setGeometry(triangle);
         assert state.source().equals("saved-area");
-        state.reset(); assert state.source() == null;
-        state.restore(linked); assert state.source().equals("saved-area");
-        state.disable(); assert state.source() == null;
+        state.reset();
+        assert state.source() == null;
+        state.restore(linked);
+        assert state.source().equals("saved-area");
+        state.disable();
+        assert state.source() == null;
         // Xaero draws a waypoint in floor(coordinate / dimDiv), e.g. Overworld waypoints on a Nether map (dimDiv 8).
         assert WaypointAccess.mapBlock(15, 1) == 15 && WaypointAccess.mapBlock(15, 8) == 1;
-        assert WaypointAccess.mapBlock(-1, 8) == -1 && WaypointAccess.mapBlock(-9, 8) == -2 && WaypointAccess.mapBlock(4, 0.125) == 32;
+        assert WaypointAccess.mapBlock(-1, 8) == -1
+                && WaypointAccess.mapBlock(-9, 8) == -2
+                && WaypointAccess.mapBlock(4, 0.125) == 32;
         // A step that can no longer be undone (a waypoint removed elsewhere) must not block the older steps.
         var history = new SelectionHistory();
         int[] olderUndone = {0};
         history.recordApplied(step(() -> olderUndone[0]++));
-        history.recordApplied(step(() -> { throw new IllegalStateException("Waypoint changed"); }));
-        try { history.undo(); throw new AssertionError("Failed undo was reported as done"); }
-        catch (Exception expected) { }
-        try { history.undo(); } catch (Exception e) { throw new AssertionError("Older step is blocked", e); }
+        history.recordApplied(step(() -> {
+            throw new IllegalStateException("Waypoint changed");
+        }));
+        try {
+            history.undo();
+            throw new AssertionError("Failed undo was reported as done");
+        } catch (Exception expected) {
+        }
+        try {
+            history.undo();
+        } catch (Exception e) {
+            throw new AssertionError("Older step is blocked", e);
+        }
         assert olderUndone[0] == 1 && !history.canUndo() && history.canRedo();
-        System.out.println("PASS: inclusive bounds, negative coordinates, long area, state transitions, map transforms, failed history steps");
+        System.out.println(
+                "PASS: inclusive bounds, negative coordinates, long area, state transitions, map transforms, failed history steps");
     }
 
-    private interface Body { void run() throws Exception; }
+    private interface Body {
+        void run() throws Exception;
+    }
 
     private static SelectionHistory.Action step(Body undo) {
         return new SelectionHistory.Action() {
-            @Override public void undo() throws Exception { undo.run(); }
-            @Override public void redo() { }
-            @Override public String label() { return "step"; }
+            @Override
+            public void undo() throws Exception {
+                undo.run();
+            }
+
+            @Override
+            public void redo() {}
+
+            @Override
+            public String label() {
+                return "step";
+            }
         };
     }
 }

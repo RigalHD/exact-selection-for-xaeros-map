@@ -1,5 +1,7 @@
 package dev.exactselection;
 
+import static dev.exactselection.ExactSelectionController.place;
+
 import dev.exactselection.ExactSelectionController.Dialog;
 import dev.exactselection.SavedAreaStore.Area;
 import dev.exactselection.SavedAreaStore.Group;
@@ -9,7 +11,6 @@ import java.util.List;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.network.chat.Component;
-import static dev.exactselection.ExactSelectionController.place;
 
 /** The right-click menu on the selection or on a saved area, drawn like Xaero's own. */
 final class RightClickMenu extends UiPart {
@@ -17,34 +18,51 @@ final class RightClickMenu extends UiPart {
     private static final int MENU_ROW = 11;
     /** Xaero's menu colors: the title row, the row under the pointer and the line between rows. */
     private static final int TITLE_ROW = 0xFF606060, HOVERED_ROW = 0xFF323232, ROW_LINE = 0xFF323232;
+
     private Button quickMenuSave, quickMenuEdit, quickMenuHide, quickMenuColor, quickMenuOpacity, quickMenuDelete;
     private Button quickMenuRaise, quickMenuLower;
     private Button quickMenuClear;
-    /** The rows with a saved area's details, in place of the title row and above the actions; a click copies the value. */
+    /**
+     * The rows with a saved area's details, in place of the title row and above the actions; a click copies the value.
+     */
     private Button quickInfoName, quickInfoGroup, quickInfoSize;
+
     boolean quickMenu;
     /** Where the menu opened; it stays there while it is open. */
     private int quickMenuX;
+
     private int quickMenuY;
     /** The saved area the menu opened on; null when it opened on the selection. */
     private String zoneId;
 
-    RightClickMenu(ExactSelectionController ui) { super(ui); }
+    RightClickMenu(ExactSelectionController ui) {
+        super(ui);
+    }
 
-    /** Opens the quick menu at the pointer when a right click (not a drag) lands inside the finished selection or a saved area. */
+    /**
+     * Opens the quick menu at the pointer when a right click (not a drag) lands inside the finished selection or a
+     * saved area.
+     */
     boolean openQuickMenu(MapBridge.Frame frame, double x, double y) {
-        if (frame == null || ui.dialog != Dialog.NONE || ui.gesture != null || ui.dirty || !ui.polygonTool.draft.isEmpty()) return false;
+        if (frame == null
+                || ui.dialog != Dialog.NONE
+                || ui.gesture != null
+                || ui.dirty
+                || !ui.polygonTool.draft.isEmpty()) return false;
         boolean onSelection = ui.insideBounds(frame, x, y);
         Area zone = onSelection ? null : ui.areasWindow.areaAt(frame, x, y);
         if (!onSelection && zone == null) return false;
         zoneId = zone == null ? null : zone.id();
         quickMenu = true;
-        quickMenuX = (int) x; quickMenuY = (int) y;
+        quickMenuX = (int) x;
+        quickMenuY = (int) y;
         return true;
     }
 
     /** The saved area the menu acts on: the one it opened on, or the territory being edited. */
-    Area menuArea() { return zoneId != null ? ui.areasWindow.area(zoneId) : ui.areasWindow.editedArea(); }
+    Area menuArea() {
+        return zoneId != null ? ui.areasWindow.area(zoneId) : ui.areasWindow.editedArea();
+    }
 
     List<Button> quickMenuButtons() {
         if (zoneId != null) {
@@ -52,12 +70,23 @@ final class RightClickMenu extends UiPart {
             List<Button> rows = new ArrayList<>(List.of(quickInfoName));
             if (zone != null && ui.groupsWindow.findGroup(zone.groupId()) != null) rows.add(quickInfoGroup);
             rows.add(quickInfoSize);
-            rows.addAll(zone != null && !zone.geometry().closed() ? List.of(quickMenuColor, quickMenuRaise, quickMenuLower, quickMenuHide, quickMenuDelete)
-                    : List.of(quickMenuEdit, quickMenuColor, quickMenuOpacity, quickMenuRaise, quickMenuLower, quickMenuHide, quickMenuDelete));
+            rows.addAll(
+                    zone != null && !zone.geometry().closed()
+                            ? List.of(quickMenuColor, quickMenuRaise, quickMenuLower, quickMenuHide, quickMenuDelete)
+                            : List.of(
+                                    quickMenuEdit,
+                                    quickMenuColor,
+                                    quickMenuOpacity,
+                                    quickMenuRaise,
+                                    quickMenuLower,
+                                    quickMenuHide,
+                                    quickMenuDelete));
             return rows;
         }
-        List<Button> items = new ArrayList<>(ui.areasWindow.editedArea() == null ? List.of(quickMenuSave)
-                : List.of(quickMenuColor, quickMenuOpacity, quickMenuRaise, quickMenuLower));
+        List<Button> items = new ArrayList<>(
+                ui.areasWindow.editedArea() == null
+                        ? List.of(quickMenuSave)
+                        : List.of(quickMenuColor, quickMenuOpacity, quickMenuRaise, quickMenuLower));
         // A polygon has no width and length to set.
         if (!(ui.state.geometry() instanceof PolygonGeometry)) items.add(ui.selectionPanel.sizeButton);
         items.addAll(List.of(ui.selectionPanel.moveButton, ui.selectionPanel.centerButton));
@@ -83,19 +112,29 @@ final class RightClickMenu extends UiPart {
         for (Button item : items) {
             int y = item.getY();
             boolean hovered = item.active && mouseX >= x && mouseX < x + w && mouseY >= y && mouseY < y + MENU_ROW;
-            int idle = item == quickInfoName ? TITLE_ROW : 0xC8000000, under = item == quickInfoName ? 0xFF787878 : HOVERED_ROW;
+            int idle = item == quickInfoName ? TITLE_ROW : 0xC8000000,
+                    under = item == quickInfoName ? 0xFF787878 : HOVERED_ROW;
             g.fill(x, y, x + w, y + MENU_ROW, hovered ? under : idle);
             g.hLine(x, x + w - 1, y + MENU_ROW - 1, ROW_LINE);
             boolean info = item == quickInfoName || item == quickInfoGroup || item == quickInfoSize;
-            g.drawCenteredString(ui.mc.font, item.getMessage(), x + w / 2, y + 2, !item.active ? 0xFF808080 : info && item != quickInfoName ? 0xFFB8C4CE : 0xFFFFFFFF);
-            if (info) PixelIcons.renderIcon(g, PixelIcons.COPY, x + w - PixelIcons.COPY[0].length() - 2, y + 1, Theme.ICON);
+            g.drawCenteredString(
+                    ui.mc.font,
+                    item.getMessage(),
+                    x + w / 2,
+                    y + 2,
+                    !item.active ? 0xFF808080 : info && item != quickInfoName ? 0xFFB8C4CE : 0xFFFFFFFF);
+            if (info)
+                PixelIcons.renderIcon(g, PixelIcons.COPY, x + w - PixelIcons.COPY[0].length() - 2, y + 1, Theme.ICON);
         }
         g.renderOutline(x - 1, top - 1, w + 2, (items.size() + titleRows) * MENU_ROW + 2, 0xFFFFFFFF);
     }
 
     void placeQuickMenu(boolean main) {
-        if (quickMenu && (!main || ui.gesture != null
-                || (zoneId == null ? ui.state.phase() != SelectionState.Phase.SELECTED : menuArea() == null))) quickMenu = false;
+        if (quickMenu
+                && (!main
+                        || ui.gesture != null
+                        || (zoneId == null ? ui.state.phase() != SelectionState.Phase.SELECTED : menuArea() == null)))
+            quickMenu = false;
         if (quickMenu) {
             List<Button> items = quickMenuButtons();
             Area area = menuArea();
@@ -122,10 +161,13 @@ final class RightClickMenu extends UiPart {
     private void describe(Area area) {
         quickInfoName.setMessage(Component.literal(ui.mc.font.plainSubstrByWidth(area.name(), 160)));
         Group group = ui.groupsWindow.findGroup(area.groupId());
-        if (group != null) quickInfoGroup.setMessage(ui.tr("area_group_button", ui.mc.font.plainSubstrByWidth(group.name(), 140)));
+        if (group != null)
+            quickInfoGroup.setMessage(ui.tr("area_group_button", ui.mc.font.plainSubstrByWidth(group.name(), 140)));
         AreaGeometry shape = area.geometry();
-        quickInfoSize.setMessage(shape.closed() ? ui.tr("area", SelectionDialogs.formatNumber(shape.area()))
-                : ui.tr("route_length", SelectionPanel.formatLength(shape.perimeter())));
+        quickInfoSize.setMessage(
+                shape.closed()
+                        ? ui.tr("area", SelectionDialogs.formatNumber(shape.area()))
+                        : ui.tr("route_length", SelectionPanel.formatLength(shape.perimeter())));
     }
 
     private void moveLayer(int direction) {
@@ -146,9 +188,14 @@ final class RightClickMenu extends UiPart {
         // Rounded like the Areas window's copy buttons, by the same setting.
         quickInfoSize = ui.button("area_fill", () -> {
             Area area = menuArea();
-            if (area != null) ui.selectionPanel.copyMetric(area.geometry().closed() ? Metric.AREA : Metric.PERIMETER, area.geometry(), area.bounds());
+            if (area != null)
+                ui.selectionPanel.copyMetric(
+                        area.geometry().closed() ? Metric.AREA : Metric.PERIMETER, area.geometry(), area.bounds());
         });
-        quickMenuSave = ui.button("quick_menu_save", () -> { quickMenu = false; ui.selectionPanel.quickSave(); });
+        quickMenuSave = ui.button("quick_menu_save", () -> {
+            quickMenu = false;
+            ui.selectionPanel.quickSave();
+        });
         quickMenuColor = ui.button("area_color", ui.colorWindows::openQuickColor);
         quickMenuOpacity = ui.button("area_new_opacity", () -> {
             Area area = menuArea();
@@ -156,7 +203,10 @@ final class RightClickMenu extends UiPart {
         });
         quickMenuRaise = ui.button("quick_menu_raise", () -> moveLayer(1));
         quickMenuLower = ui.button("quick_menu_lower", () -> moveLayer(-1));
-        quickMenuEdit = ui.button("quick_menu_edit", () -> { quickMenu = false; ui.areasWindow.loadArea(menuArea()); });
+        quickMenuEdit = ui.button("quick_menu_edit", () -> {
+            quickMenu = false;
+            ui.areasWindow.loadArea(menuArea());
+        });
         quickMenuHide = ui.button("quick_menu_hide", () -> {
             Area area = menuArea();
             quickMenu = false;
@@ -167,13 +217,18 @@ final class RightClickMenu extends UiPart {
             quickMenu = false;
             if (area == null) return;
             // The Areas window's confirmation; either answer returns to the map.
-            ui.areasWindow.selectedAreaIds.clear(); ui.areasWindow.selectedAreaIds.add(area.id()); ui.areasWindow.areaId = area.id();
+            ui.areasWindow.selectedAreaIds.clear();
+            ui.areasWindow.selectedAreaIds.add(area.id());
+            ui.areasWindow.areaId = area.id();
             ui.areaEdits.areaDraft.clear();
             ui.dialog = Dialog.AREAS;
             ui.areasWindow.areaDeleteConfirmation = ui.areasWindow.areaDeleteFromMenu = true;
             ui.message = "";
             ui.focus(ui.confirm);
         });
-        quickMenuClear = ui.button("quick_menu_clear", () -> { quickMenu = false; ui.reset(); });
+        quickMenuClear = ui.button("quick_menu_clear", () -> {
+            quickMenu = false;
+            ui.reset();
+        });
     }
 }

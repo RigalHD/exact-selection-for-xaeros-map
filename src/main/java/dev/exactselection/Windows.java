@@ -68,6 +68,7 @@ final class Windows extends UiPart {
             case IMPORT -> ui.transferWindow.importWindow;
             case ASSIGN_GROUP -> ui.groupsWindow.chooserWindow;
             case GROUPS -> ui.groupsWindow.window;
+            case WAYPOINTS -> ui.waypointsWindow.window;
             default -> null;
         };
     }

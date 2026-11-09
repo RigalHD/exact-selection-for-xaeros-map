@@ -45,6 +45,45 @@ final class WaypointsWindow extends UiPart {
     /** The waypoint list scrollbar follows the pointer while the left button stays down. */
     boolean scrollbarDragging;
 
+    final Window window = new Window() {
+        @Override
+        int width() {
+            return 560;
+        }
+
+        @Override
+        int height() {
+            return 330;
+        }
+
+        @Override
+        String title() {
+            return "dialog_waypoints";
+        }
+
+        @Override
+        void layout(Rect r, int buttonY) {
+            layoutWaypoints(r.x(), r.y(), r.width(), r.height(), buttonY);
+        }
+
+        @Override
+        void render(GuiGraphics g, Rect r) {
+            renderWaypointsDialog(g, r.x(), r.y(), r.width(), r.height());
+        }
+
+        @Override
+        void click(MouseButtonEvent event, Rect r) {
+            clickWaypointRow(event, r.x(), r.y(), r.width(), r.height());
+        }
+
+        @Override
+        void scroll(int step, int height) {
+            if (pending != null)
+                modalScroll =
+                        InputRouter.scrolled(modalScroll, step, filteredPoints().size(), waypointRows(height));
+        }
+    };
+
     WaypointsWindow(ExactSelectionController ui) {
         super(ui);
     }

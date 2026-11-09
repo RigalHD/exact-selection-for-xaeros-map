@@ -31,7 +31,7 @@ final class SelectionDialogs extends UiPart {
     }
 
     static String formatNumber(double value) {
-        return value == Math.rint(value) ? Long.toString((long) value) : new BigDecimal(value).toPlainString();
+        return value == Math.rint(value) ? Long.toString((long) value) : BigDecimal.valueOf(value).toPlainString();
     }
 
     void createCenterWaypoint() {

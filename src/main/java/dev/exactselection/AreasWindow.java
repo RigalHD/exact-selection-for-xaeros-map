@@ -88,6 +88,7 @@ final class AreasWindow extends UiPart {
         selectedAreaIds.retainAll(existing);
         if (!selectedAreaIds.contains(areaId)) areaId = lastOf(selectedAreaIds);
         if (ui.groupsWindow.selectedGroup() == null) ui.groupsWindow.groupId = null;
+        ui.detachMissingSource();
         // History replaced the stored areas; a draft based on the old values no longer applies.
         ui.areaEdits.areaDraft.clear();
         syncNameField();
@@ -184,6 +185,7 @@ final class AreasWindow extends UiPart {
         List<Area> areas = new ArrayList<>(ui.areas());
         areas.removeIf(area -> ids.contains(area.id()));
         int count = targets.size();
+        boolean editing = ids.contains(ui.state.source());
         if (!ui.areaEdits.changeAreas(ui.areaEdits.areaState(areas, ui.groups()), "area_delete")) return;
         areaId = null;
         selectedAreaIds.clear();
@@ -195,9 +197,11 @@ final class AreasWindow extends UiPart {
             areaDeleteFromMenu = false;
             ui.dialog = Dialog.NONE;
             // The selection goes only when it was this area opened for editing.
-            if (ids.contains(ui.state.source())) ui.reset();
+            if (editing) ui.reset();
             ui.say("quick_menu_deleted", targets.get(0).name());
         }
+        // Deleted from the window, the area's shape stays on the map as a new selection.
+        ui.detachMissingSource();
         ui.focus(null);
     }
 
@@ -467,7 +471,7 @@ final class AreasWindow extends UiPart {
     }
 
     void renderManagementStatus(GuiGraphics g, int x, int y, int w, int h, String hint) {
-        String text = ui.message.isEmpty() ? ui.tr(ui.loadFailed ? "area_load_failed" : hint).getString() : ui.message;
+        String text = ui.message.isEmpty() ? ui.tr(ui.loadFailed ? ui.loadFailedKey() : hint).getString() : ui.message;
         // In Areas the right half of the bottom row holds the autosave button.
         int textWidth = ui.dialog == Dialog.AREAS ? (w - 36) / 2 : w - 24;
         g.drawString(ui.mc.font, ui.mc.font.plainSubstrByWidth(text, textWidth), x + 12, y + h - 12,
@@ -606,8 +610,8 @@ final class AreasWindow extends UiPart {
         areaLoad.setMessage(ui.tr(editingThis ? "area_editing_now" : "area_edit"));
         areaSaveChanges.active = !ui.areaEdits.areaDraft.isEmpty() && selectedCount > 0 && !ui.loadFailed;
         for (Button copy : areaCopies) copy.active = singleArea;
-        areaCopies[1].setTooltip(Tooltip.create(ui.tr(area != null && !(area.geometry() instanceof RectangleGeometry)
-                ? "copy_coordinates_tooltip" : "copy_corner_nw_tooltip")));
+        ui.tip(areaCopies[1], ui.tr(area != null && !(area.geometry() instanceof RectangleGeometry)
+                ? "copy_coordinates_tooltip" : "copy_corner_nw_tooltip"));
         autosaveToggle.setMessage(ui.tr(ui.autosave.enabled() ? "autosave_on" : "autosave_off"));
         autosaveFields.forEach((field, button) -> {
             button.setMessage(ui.tr("autosave_field", ui.tr("autosave_field_" + field.name().toLowerCase(Locale.ROOT)),
@@ -644,7 +648,7 @@ final class AreasWindow extends UiPart {
         areaSelectAll.active = !ui.loadFailed
                 && displayedAreas().stream().anyMatch(a -> !selectedAreaIds.contains(a.id()));
         areaClearSelection.active = selectedCount > 0;
-        areaSave.setTooltip(Tooltip.create(ui.tr(ui.loadFailed ? "area_load_failed" : "area_save_tooltip")));
+        ui.tip(areaSave, ui.tr(ui.loadFailed ? ui.loadFailedKey() : "area_save_tooltip"));
     }
 
     void createAreaWidgets() {

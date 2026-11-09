@@ -89,7 +89,15 @@ public final class AreaExportService {
     /** Whether a shape of these bounds can be exported at {@code scale} image pixels per block. */
     public static boolean fits(GeometryBounds bounds, int scale) {
         long width = bounds.width(), height = bounds.length();
-        return width * height <= MAX_PIXELS && width * scale * height * scale <= MAX_OUTPUT_PIXELS;
+        return width * height <= MAX_PIXELS && rawPixels(bounds) <= MAX_PIXELS
+                && width * scale * height * scale <= MAX_OUTPUT_PIXELS;
+    }
+
+    /** Xaero renders whole chunks: the size of the image it makes for these bounds, which has the same limit. */
+    static long rawPixels(GeometryBounds bounds) {
+        long chunksX = Math.floorDiv(bounds.maxX() - 1, 16L) - Math.floorDiv(bounds.minX(), 16L) + 1;
+        long chunksZ = Math.floorDiv(bounds.maxZ() - 1, 16L) - Math.floorDiv(bounds.minZ(), 16L) + 1;
+        return chunksX * 16 * chunksZ * 16;
     }
 
     /** Xaero's own export folder, where the window starts unless the user chose another one; null when not ready. */

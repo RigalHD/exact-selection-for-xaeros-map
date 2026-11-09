@@ -32,8 +32,25 @@ public record PolylineGeometry(List<GridPoint> vertices) implements AreaGeometry
         return new PolylineGeometry(vertices.stream().map(p -> new GridPoint(p.x() + dx, p.z() + dz)).toList());
     }
 
-    // shortcut: a route crossing a shape with no point inside it does not count; test its segments if that matters.
+    /** A route overlaps a shape when one of its points lies in it or one of its segments crosses a side of it. */
     @Override public boolean overlaps(AreaGeometry other) {
-        return vertices.stream().anyMatch(p -> other.containsPoint(p.x(), p.z()));
+        if (!other.closed()) return false;
+        for (GridPoint p : vertices) if (other.containsPoint(p.x(), p.z())) return true;
+        List<GridPoint> outline = other.vertices();
+        for (int i = 1; i < vertices.size(); i++)
+            for (int j = 0; j < outline.size(); j++)
+                if (crosses(vertices.get(i - 1), vertices.get(i), outline.get(j), outline.get((j + 1) % outline.size())))
+                    return true;
+        return false;
+    }
+
+    /** Segments a–b and c–d cross at a point inside both; touching ends do not count. */
+    private static boolean crosses(GridPoint a, GridPoint b, GridPoint c, GridPoint d) {
+        long abC = side(a, b, c), abD = side(a, b, d), cdA = side(c, d, a), cdB = side(c, d, b);
+        return (abC > 0 && abD < 0 || abC < 0 && abD > 0) && (cdA > 0 && cdB < 0 || cdA < 0 && cdB > 0);
+    }
+
+    private static long side(GridPoint a, GridPoint b, GridPoint p) {
+        return (b.x() - a.x()) * (p.z() - a.z()) - (b.z() - a.z()) * (p.x() - a.x());
     }
 }

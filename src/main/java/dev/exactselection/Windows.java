@@ -5,6 +5,7 @@ import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.network.chat.Component;
 import static dev.exactselection.ExactSelectionController.ACCENT;
+import static dev.exactselection.ModLog.LOG;
 import static dev.exactselection.ExactSelectionController.AREA_NAME_FIELD;
 import static dev.exactselection.ExactSelectionController.CENTER_NAME_FIELD;
 import static dev.exactselection.ExactSelectionController.GROUP_NAME_FIELD;
@@ -236,7 +237,12 @@ final class Windows extends UiPart {
         try {
             ui.selectionDialogs.applySizeOrMove();
             ui.dialog = Dialog.NONE; ui.focus(null); ui.message = "";
-        } catch (Exception e) { ui.say("invalid_dimensions"); }
+        } catch (IllegalArgumentException | ArithmeticException e) {
+            ui.say("invalid_dimensions");
+        } catch (Exception e) {
+            ui.say("invalid_dimensions");
+            LOG.error("Could not apply the size or move window", e);
+        }
     }
 
     void renderDialog(GuiGraphics g) {

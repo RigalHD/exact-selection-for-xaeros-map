@@ -6,8 +6,16 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-public record PolygonGeometry(List<GridPoint> vertices) implements AreaGeometry {
+/**
+ * A simple polygon through block corners: 3 to 256 vertices, no side crossing or touching another. Immutable; its
+ * bounds and its triangles are worked out once, since both are asked for every frame the polygon is on screen.
+ */
+public final class PolygonGeometry implements AreaGeometry {
     public static final int MAX_VERTICES = 256;
+    private final List<GridPoint> vertices;
+    private final GeometryBounds bounds;
+    /** Filled on the first {@link #triangulate}; a race only computes the same value twice. */
+    private List<List<GridPoint>> triangles;
     private static final Map<List<GridPoint>, List<List<GridPoint>>> TRIANGULATIONS =
             Collections.synchronizedMap(new LinkedHashMap<>(128, 0.75f, true) {
                 @Override protected boolean removeEldestEntry(Map.Entry<List<GridPoint>, List<List<GridPoint>>> eldest) {
@@ -15,19 +23,28 @@ public record PolygonGeometry(List<GridPoint> vertices) implements AreaGeometry 
                 }
             });
 
-    public PolygonGeometry {
-        vertices = List.copyOf(vertices);
-        validate(vertices);
-    }
-
-    @Override public GeometryBounds bounds() {
+    public PolygonGeometry(List<GridPoint> vertices) {
+        this.vertices = List.copyOf(vertices);
+        validate(this.vertices);
         long minX = Long.MAX_VALUE, minZ = Long.MAX_VALUE, maxX = Long.MIN_VALUE, maxZ = Long.MIN_VALUE;
-        for (GridPoint p : vertices) {
+        for (GridPoint p : this.vertices) {
             minX = Math.min(minX, p.x()); minZ = Math.min(minZ, p.z());
             maxX = Math.max(maxX, p.x()); maxZ = Math.max(maxZ, p.z());
         }
-        return new GeometryBounds(minX, minZ, maxX, maxZ);
+        bounds = new GeometryBounds(minX, minZ, maxX, maxZ);
     }
+
+    @Override public List<GridPoint> vertices() { return vertices; }
+
+    @Override public GeometryBounds bounds() { return bounds; }
+
+    @Override public boolean equals(Object other) {
+        return other instanceof PolygonGeometry polygon && vertices.equals(polygon.vertices);
+    }
+
+    @Override public int hashCode() { return vertices.hashCode(); }
+
+    @Override public String toString() { return "PolygonGeometry[vertices=" + vertices + "]"; }
 
     @Override public long areaTwice() { return Math.abs(signedAreaTwice(vertices)); }
 
@@ -52,13 +69,18 @@ public record PolygonGeometry(List<GridPoint> vertices) implements AreaGeometry 
     }
 
     @Override public List<List<GridPoint>> triangulate() {
+        List<List<GridPoint>> result = triangles;
+        if (result != null) return result;
+        // The shared cache spares an equal polygon read again from the file the work of clipping its ears.
         synchronized (TRIANGULATIONS) {
-            List<List<GridPoint>> cached = TRIANGULATIONS.get(vertices);
-            if (cached != null) return cached;
-            List<List<GridPoint>> result = triangulateUncached();
-            TRIANGULATIONS.put(vertices, result);
-            return result;
+            result = TRIANGULATIONS.get(vertices);
+            if (result == null) {
+                result = triangulateUncached();
+                TRIANGULATIONS.put(vertices, result);
+            }
         }
+        triangles = result;
+        return result;
     }
 
     private List<List<GridPoint>> triangulateUncached() {

@@ -141,7 +141,7 @@ final class AreaEdits extends UiPart {
             ui.loadFailed = false;
             ui.say("area_restored");
         } catch (IOException e) {
-            ui.say("area_load_failed");
+            ui.say("area_restore_failed");
             LOG.error("Could not restore saved areas", e);
         }
     }

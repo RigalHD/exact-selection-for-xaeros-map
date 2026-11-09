@@ -68,7 +68,10 @@ final class TransferWindow extends UiPart {
         if (ui.loadFailed) return;
         ui.areaEdits.flushDraft();
         try { importFiles = AreaTransfer.list(transferFolder()); }
-        catch (Exception e) { importFiles = List.of(); }
+        catch (Exception e) {
+            importFiles = List.of();
+            LOG.warn("Could not list the exchange files in {}", transferFolder(), e);
+        }
         DateTimeFormatter time = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")
                 .withZone(ZoneId.systemDefault());
         importDates = new HashMap<>();

@@ -89,9 +89,10 @@ final class AreaTransfer {
         Map<String, String> groupIds = new HashMap<>();
         int groupsAdded = 0;
         for (Group group : incoming.groups()) {
-            Group existing = groups.stream().filter(g -> g.name().equals(group.name())).findFirst().orElse(null);
+            String groupName = clean(group.name());
+            Group existing = groups.stream().filter(g -> g.name().equals(groupName)).findFirst().orElse(null);
             if (existing == null) {
-                existing = new Group(UUID.randomUUID().toString(), group.name(), group.visible());
+                existing = new Group(UUID.randomUUID().toString(), groupName, group.visible());
                 groups.add(existing);
                 groupsAdded++;
             }
@@ -99,18 +100,27 @@ final class AreaTransfer {
         }
         List<Area> areas = new ArrayList<>(current.areas());
         int added = 0, skipped = 0;
-        for (Area area : incoming.areas()) {
+        for (Area incomingArea : incoming.areas()) {
+            Area area = incomingArea.withName(clean(incomingArea.name()));
             String groupId = area.groupId() == null ? null : groupIds.get(area.groupId());
             boolean duplicate = areas.stream().anyMatch(a -> a.name().equals(area.name()) && a.color() == area.color()
                     && a.opacity() == area.opacity() && Objects.equals(a.groupId(), groupId)
-                    // Bounds, not the geometry: a rectangle in memory may keep its corners in the order they were drawn.
-                    && a.geometry().bounds().equals(area.geometry().bounds()) && a.vertices().equals(area.vertices()));
+                    // The kind and the outline, not the geometry itself: a rectangle in memory may keep its
+                    // corners in the order they were drawn.
+                    && a.geometry().getClass() == area.geometry().getClass()
+                    && a.geometry().vertices().equals(area.geometry().vertices()));
             if (duplicate) { skipped++; continue; }
             areas.add(area.withId(UUID.randomUUID().toString()).withGroup(groupId));
             added++;
         }
         return new Merge(new State(areas, groups, current.showOnMap(), current.showOnMinimap(), current.showNames()),
                 added, skipped, groupsAdded);
+    }
+
+    /** A name from someone else's file without control characters and the game's formatting sign. */
+    static String clean(String name) {
+        String cleaned = name.replaceAll("[\\p{Cntrl}\u00A7]", "").trim();
+        return cleaned.isEmpty() ? "?" : cleaned;
     }
 
     private static String safe(String label) {

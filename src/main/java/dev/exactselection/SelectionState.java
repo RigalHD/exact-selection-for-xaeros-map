@@ -63,6 +63,8 @@ public final class SelectionState {
         bounds = geometry.bounds().blocks();
         phase = Phase.SELECTED;
     }
+    /** The saved area this selection edited is gone: the shape stays as a new selection. */
+    public void detach() { source = null; }
     public void load(AreaGeometry geometry, String source) {
         setGeometry(geometry);
         this.source = geometry == null ? null : source;

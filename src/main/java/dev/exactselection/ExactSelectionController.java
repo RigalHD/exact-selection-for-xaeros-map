@@ -18,6 +18,7 @@ import net.minecraft.client.input.CharacterEvent;
 import net.minecraft.client.input.KeyEvent;
 import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.network.chat.Component;
+import net.minecraft.util.Util;
 import xaero.map.gui.GuiMap;
 import static dev.exactselection.ModLog.LOG;
 
@@ -151,6 +152,14 @@ public final class ExactSelectionController {
 
     List<Area> areas() { return areaStore.state().areas(); }
 
+    /** Why the saved areas are unavailable: a damaged file, or one a newer version of the mod wrote. */
+    String loadFailedKey() { return areaStore.newerFile() ? "area_file_newer" : "area_load_failed"; }
+
+    /** After the stored areas changed: a selection whose saved area no longer exists stops editing it. */
+    void detachMissingSource() {
+        if (state.source() != null && areasWindow.area(state.source()) == null) state.detach();
+    }
+
     List<Group> groups() { return areaStore.state().groups(); }
 
     public void init() {
@@ -158,6 +167,7 @@ public final class ExactSelectionController {
         String[] draft = selectionPanel.fields[0] == null ? null : Arrays.stream(selectionPanel.fields).map(EditBox::getValue).toArray(String[]::new);
         String[] dialogDraft = dialogFields[WIDTH_FIELD] == null ? null : Arrays.stream(dialogFields).map(EditBox::getValue).toArray(String[]::new);
         widgets.clear();
+        tooltips.clear();
         selectionPanel.createPanelWidgets();
         windows.createWindowWidgets();
         areasWindow.createAreaWidgets();
@@ -188,6 +198,16 @@ public final class ExactSelectionController {
         if (tooltipKey != null) result.setTooltip(Tooltip.create(tr(tooltipKey)));
         widgets.add(result);
         return result;
+    }
+
+    /** The last tooltip text of each widget; cleared with the widgets. */
+    private final java.util.Map<AbstractWidget, String> tooltips = new java.util.HashMap<>();
+
+    /** Sets a tooltip that follows the state; called every frame, it makes a new one only when the text changed. */
+    void tip(AbstractWidget widget, Component text) {
+        String shown = text.getString();
+        if (shown.equals(tooltips.put(widget, shown))) return;
+        widget.setTooltip(Tooltip.create(text));
     }
 
     Button button(String key, Runnable action) { return addButton(tr(key), null, action); }
@@ -294,7 +314,7 @@ public final class ExactSelectionController {
             try { areaStore.useContext(frame.context()); loadFailed = areaStore.loadFailed(); }
             catch (Exception e) {
                 loadFailed = true;
-                say("area_load_failed");
+                say(loadFailedKey());
                 LOG.error("Could not load saved areas", e);
             }
         }
@@ -439,12 +459,37 @@ public final class ExactSelectionController {
         return Math.abs(exact - renderMouseY) < 1 ? exact : renderMouseY;
     }
 
+    /** The shape the waypoints were last counted for, and when. */
+    private AreaGeometry countedFor;
+    private long countedAt;
+
+    /** Every frame: the waypoints in the selection are counted again when its shape changed, or a few times a second. */
+    private void followWaypoints() {
+        if (state.geometry() != countedFor || Util.getMillis() - countedAt >= 250) updateSelection();
+    }
+
     void updateSelection() {
+        countedFor = state.geometry();
+        countedAt = Util.getMillis();
         selected = waypoints == null || !polygonTool.draft.isEmpty() || state.phase() != SelectionState.Phase.SELECTED
                 ? null : waypoints.select(context, state.geometry());
     }
 
+    /** An error while drawing must not reach Xaero's own rendering, where it would close the game. */
+    private boolean drawErrorLogged;
+
+    private void drawFailed(RuntimeException error) {
+        if (drawErrorLogged) return;
+        drawErrorLogged = true;
+        LOG.error("Could not draw the selection tool; this frame is skipped", error);
+    }
+
     public void renderMapOverlays(GuiGraphics g, int renderMouseX, int renderMouseY) {
+        try { drawMapOverlays(g, renderMouseX, renderMouseY); }
+        catch (RuntimeException error) { drawFailed(error); }
+    }
+
+    private void drawMapOverlays(GuiGraphics g, int renderMouseX, int renderMouseY) {
         double mouseX = pointerX(renderMouseX), mouseY = pointerY(renderMouseY);
         MapBridge.Frame frame = checkedFrame();
         if (frame == null || !enabled() && (!areaStore.state().showOnMap() || areas().isEmpty())) return;
@@ -466,7 +511,7 @@ public final class ExactSelectionController {
                     syncFields();
                 } catch (IllegalArgumentException ignored) { /* Cursor outside world bounds. */ }
             }
-            updateSelection();
+            followWaypoints();
             // With the tool on, saved areas always show: the Map switch is for the overlay outside it.
             g.nextStratum();
             mapOverlays.renderSavedAreas(g, frame, mapLabels);
@@ -488,6 +533,11 @@ public final class ExactSelectionController {
     }
 
     public void render(GuiGraphics g, int mouseX, int mouseY, float delta) {
+        try { drawInterface(g, mouseX, mouseY, delta); }
+        catch (RuntimeException error) { drawFailed(error); }
+    }
+
+    private void drawInterface(GuiGraphics g, int mouseX, int mouseY, float delta) {
         MapBridge.Frame frame = checkedFrame();
         updateVisibility();
         if (enabled() && frame != null && dialog == Dialog.NONE) selectionPanel.renderPanel(g);

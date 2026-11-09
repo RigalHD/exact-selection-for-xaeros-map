@@ -34,6 +34,21 @@
 - The Center and Color windows have a Cancel button; they closed only with Esc.
 - Switching units to chunks no longer resizes a saved area being edited; it keeps its shape until you change it.
 - Saved-area and settings files are flushed to disk before replacing the old file, so a power cut cannot leave an empty one.
+- Fix: with both the area file and its previous version unreadable, a second Restore replaced the kept damaged file, losing the latest areas. Restore now checks the previous version first and changes nothing when it cannot be read, and an earlier `.broken` file is never overwritten.
+- Fix: an area file saved by a newer version of the mod was treated as damaged and offered a restore; it now says to update the mod.
+- Fix: deleting the area being edited from the Areas window left the selection editing an area that no longer existed.
+- Fix: Areas in selection missed a route that crosses the selection with none of its points inside.
+- Fix: Export was offered for an area just under the limit whose whole chunks exceed it, and then refused.
+- Fix: importing a route was skipped as a duplicate of a polygon with the same points, name and style.
+- Fix: the export tooltip still promised 1 pixel per block; the scale is chosen in the export window.
+- Fix: the export window's day or night, scale, areas, labels and fill choices were kept only when an export ran; the file name it shows no longer changes every second and is the one it writes.
+- The waypoint color filter shows the color instead of its number.
+- Two groups cannot share a name, since import matches groups by name.
+- Names from an imported file lose control characters and the game's formatting sign.
+- An error while drawing the tool skips the frame and is written to the game log instead of closing the game.
+- Faster with many areas: an unchanged area file is not read again when the map opens, the minimap reuses what the map read, polygons keep their triangles and bounds, sticking skips areas away from the pointer, and tooltips are rebuilt only when their text changes.
+- The Russian interface says «область» everywhere instead of mixing it with «зона».
+- Internal: a saved area is a record over one geometry; the in-game test scenarios are kept in `gametest/`.
 - Internal: the 4100-line controller is split by job into the panel, map overlays, map input, right-click menu, Polygon tool, ruler, and the Areas, Groups, waypoint, color, transfer and Size/Move/Center windows. `tools/build_cached.py`, which no longer built the mod, is removed.
 
 ## 1.3.3+1.21.11

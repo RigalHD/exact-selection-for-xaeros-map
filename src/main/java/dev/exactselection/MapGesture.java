@@ -215,12 +215,14 @@ abstract sealed class MapGesture {
                 if (draftBefore != null) {
                     host.draft().clear(); host.draft().addAll(moved);
                 } else {
-                    host.state().setGeometry(new PolygonGeometry(moved));
+                    PolygonGeometry next = new PolygonGeometry(moved);
+                    next.triangulate();
+                    host.state().setGeometry(next);
                     host.selectionMoved();
                 }
                 invalid = false;
                 host.message("polygon_vertex_drag");
-            } catch (IllegalArgumentException e) {
+            } catch (IllegalArgumentException | IllegalStateException e) {
                 invalid = true;
                 host.message("polygon_vertex_invalid");
             }

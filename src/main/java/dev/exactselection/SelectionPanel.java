@@ -274,13 +274,13 @@ final class SelectionPanel extends UiPart {
             Component count = ui.waypoints == null ? ui.tr("minimap_missing") : ui.selected == null
                     ? ui.tr("waypoints_unavailable") : ui.tr("count", n, setNameDisplay(ui.selected.setName()));
             line(g, count, 194 + sh, 0xFFFFCF62);
-            line(g, ui.tr(ui.loadFailed ? "area_load_failed" : "scope"), 206 + sh, 0xFF9BAAB7);
+            line(g, ui.tr(ui.loadFailed ? ui.loadFailedKey() : "scope"), 206 + sh, 0xFF9BAAB7);
         }
         Area editing = ui.areasWindow.editedArea();
         // Messages go to the bottom of the screen (renderToast); the panel keeps the controls or the edited area.
         // The compact panel has no scope line, so it keeps the load failure in the status line.
         boolean loadWarning = compact && ui.loadFailed;
-        Component status = loadWarning ? ui.tr("area_load_failed")
+        Component status = loadWarning ? ui.tr(ui.loadFailedKey())
                 : compact && ui.dirty ? ui.tr("coordinates_pending")
                 : editing == null ? ui.tr("controls") : ui.tr("editing_area", editing.name());
         if (!ui.mapExport.hasExportNotice()) line(g, status, (compact ? 96 : 221) + sh, loadWarning ? 0xFFFFCF62 : 0xFF9BAAB7);
@@ -334,8 +334,8 @@ final class SelectionPanel extends UiPart {
         Area editing = route ? null : ui.areasWindow.editedArea();
         boolean autoGeometry = editing != null && ui.autosave.covers(AutosaveSettings.Field.GEOMETRY);
         quickSave.setMessage(ui.tr(editing == null ? "quick_save" : autoGeometry ? "quick_autosaved" : "quick_apply"));
-        quickSave.setTooltip(Tooltip.create(route ? ui.tr("route_save_tooltip") : editing == null ? ui.tr("quick_save_tooltip")
-                : autoGeometry ? ui.tr("quick_autosaved_tooltip", editing.name()) : ui.tr("quick_apply_tooltip", editing.name())));
+        ui.tip(quickSave, route ? ui.tr("route_save_tooltip") : editing == null ? ui.tr("quick_save_tooltip")
+                : autoGeometry ? ui.tr("quick_autosaved_tooltip", editing.name()) : ui.tr("quick_apply_tooltip", editing.name()));
         quickSave.active = route ? !ui.loadFailed : ui.state.phase() == SelectionState.Phase.SELECTED && !ui.dirty && ui.polygonTool.draft.isEmpty()
                 && !ui.holding() && !ui.loadFailed && (editing == null || !editing.geometry().equals(ui.state.geometry()));
         // Compact: in the header beside the mode icon; expanded: under Apply, beside the second coordinate row.
@@ -343,7 +343,7 @@ final class SelectionPanel extends UiPart {
         if (compact) place(quickSave, rulerButton.getX() - 3 - saveWidth, PANEL_Y + 3, saveWidth, 18);
         else place(quickSave, apply.getX(), apply.getY() - 24, apply.getWidth(), 18);
         panelModeButton.setMessage(Component.empty());
-        panelModeButton.setTooltip(Tooltip.create(ui.tr(compact ? "panel_expand_tooltip" : "panel_compact_tooltip")));
+        ui.tip(panelModeButton, ui.tr(compact ? "panel_expand_tooltip" : "panel_compact_tooltip"));
         if (main) placePanelCopies();
         if (main && !compact) {
             for (AbstractWidget widget : ui.widgets) {
@@ -363,19 +363,19 @@ final class SelectionPanel extends UiPart {
                 && !ui.dirty && ui.gesture == null;
         // Name the stored action only when the button would apply it rather than discard a draft or gesture.
         boolean historyStep = !draftHistory && !ui.dirty && ui.gesture == null;
-        undo.setTooltip(historyTooltip("undo_tooltip", historyStep ? ui.history.undoLabel() : ""));
-        redo.setTooltip(historyTooltip("redo_tooltip", historyStep && redo.active ? ui.history.redoLabel() : ""));
-        ui.managementUndo.setTooltip(historyTooltip("undo_tooltip", ui.history.undoLabel()));
-        ui.managementRedo.setTooltip(historyTooltip("redo_tooltip", ui.history.redoLabel()));
+        ui.tip(undo, historyTooltip("undo_tooltip", historyStep ? ui.history.undoLabel() : ""));
+        ui.tip(redo, historyTooltip("redo_tooltip", historyStep && redo.active ? ui.history.redoLabel() : ""));
+        ui.tip(ui.managementUndo, historyTooltip("undo_tooltip", ui.history.undoLabel()));
+        ui.tip(ui.managementRedo, historyTooltip("redo_tooltip", ui.history.redoLabel()));
         chunkMode.setMessage(ui.tr(ui.chunks ? "units_chunks" : "units_blocks"));
         ui.mapExport.selectionExportButton.active = ui.mapExport.canExportSelection();
         toggle.visible = ui.dialog == Dialog.NONE;
         toggle.setMessage(Component.literal(ui.enabled() ? "■" : "□"));
         polygonModeButton.setMessage(ui.tr(ui.polygonTool.mode ? "polygon_mode_on" : "polygon_mode"));
         polygonModeButton.active = ui.enabled() && !ui.dirty && !ui.holding() && ui.dialog == Dialog.NONE;
-        polygonModeButton.setTooltip(Tooltip.create(ui.tr(ui.polygonTool.mode ? "polygon_controls" : "polygon_mode_tooltip")));
+        ui.tip(polygonModeButton, ui.tr(ui.polygonTool.mode ? "polygon_controls" : "polygon_mode_tooltip"));
         rulerButton.active = ui.enabled() && !ui.dirty && !ui.holding() && ui.dialog == Dialog.NONE && ui.polygonTool.draft.isEmpty();
-        rulerButton.setTooltip(Tooltip.create(ui.tr(ui.rulerTool.mode ? "ruler_mode_on_tooltip" : "ruler_mode_tooltip")));
+        ui.tip(rulerButton, ui.tr(ui.rulerTool.mode ? "ruler_mode_on_tooltip" : "ruler_mode_tooltip"));
         copyRulerDistance.active = ui.rulerTool.pointA != null && ui.rulerTool.pointB != null;
         boolean finished = ui.state.phase() == SelectionState.Phase.SELECTED && ui.state.bounds() != null;
         sizeButton.active = finished && !(ui.state.geometry() instanceof PolygonGeometry) && !ui.dirty && !contourDraft && !ui.holding();
@@ -498,7 +498,7 @@ final class SelectionPanel extends UiPart {
         ui.say("copied");
     }
 
-    Tooltip historyTooltip(String key, String label) {
-        return Tooltip.create(label.isEmpty() ? ui.tr(key + "_plain") : ui.tr(key, label));
+    Component historyTooltip(String key, String label) {
+        return label.isEmpty() ? ui.tr(key + "_plain") : ui.tr(key, label);
     }
 }

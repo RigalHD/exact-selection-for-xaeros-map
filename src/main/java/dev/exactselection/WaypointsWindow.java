@@ -8,6 +8,7 @@ import java.util.Set;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.input.MouseButtonEvent;
+import net.minecraft.network.chat.Component;
 import static dev.exactselection.ExactSelectionController.POINT_SEARCH_FIELD;
 import static dev.exactselection.ExactSelectionController.RENAME_FIELD;
 import static dev.exactselection.ExactSelectionController.place;
@@ -235,7 +236,9 @@ final class WaypointsWindow extends UiPart {
         if (ui.dialog == Dialog.WAYPOINTS) ui.show(true, ui.dialogFields[POINT_SEARCH_FIELD], ui.dialogFields[RENAME_FIELD],
                 pointVisibility, pointColor, pointScope, pointRename, pointRecolor, ui.confirm, ui.cancel);
         pointVisibility.setMessage(ui.tr(new String[]{"filter_all", "filter_visible", "filter_hidden"}[visibilityFilter]));
-        pointColor.setMessage(ui.tr(colorFilter < 0 ? "filter_color_all" : "filter_color", colorFilter));
+        // The color itself, not its number in Xaero's list.
+        pointColor.setMessage(colorFilter < 0 ? ui.tr("filter_color_all") : ui.tr("filter_color", ui.waypoints == null ? colorFilter
+                : Component.literal("■").withColor(ui.waypoints.colorRgb(colorFilter))));
         pointScope.setMessage(ui.tr(pointsInSelection ? "point_scope_selection" : "point_scope_all"));
         pointScope.active = ui.state.phase() == SelectionState.Phase.SELECTED;
         int chosenShown = filteredChosenPoints().size();

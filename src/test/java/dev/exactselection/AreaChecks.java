@@ -235,6 +235,18 @@ final class AreaChecks {
             require(store.state().areas().size() == 1 && ((Set<?>) get(controller, "selectedAreaIds")).isEmpty()
                     && get(controller, "areaId") == null && draft.isEmpty() && text(controller, 4).getValue().isEmpty(),
                     "Deleting an area checked another one or kept its draft");
+            // Deleting the area being edited leaves its shape on the map as a new selection, not as an edit of nothing.
+            SelectionState edited = (SelectionState) get(controller, "state");
+            SelectionState.Snapshot selectionBefore = edited.snapshot();
+            SavedAreaStore.Area last = store.state().areas().get(0);
+            edited.load(last.geometry(), last.id());
+            pick(controller, store, last.id());
+            press(controller, "areaDelete"); press(controller, "confirm");
+            require(store.state().areas().isEmpty() && edited.source() == null && edited.geometry() != null,
+                    "Deleting the area being edited left the selection editing it");
+            press(controller, "managementUndo");
+            require(store.state().areas().size() == 1, "Undo did not bring the deleted area back");
+            edited.restore(selectionBefore);
         } finally {
             if (!autosave.enabled()) autosave.setEnabled(true);
             if (!autosave.includes(AutosaveSettings.Field.NAME)) autosave.toggle(AutosaveSettings.Field.NAME);

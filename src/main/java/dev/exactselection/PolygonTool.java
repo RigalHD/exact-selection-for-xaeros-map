@@ -172,6 +172,8 @@ final class PolygonTool extends UiPart {
         if (draft.size() < 3) { ui.say("polygon_minimum_points"); return; }
         try {
             PolygonGeometry polygon = new PolygonGeometry(draft);
+            // A shape that cannot be filled must not reach the map, where drawing it would fail every frame.
+            polygon.triangulate();
             SelectionState.Snapshot before = stateBefore == null ? ui.state.snapshot() : stateBefore;
             // A new contour is a new selection: it no longer edits the area that was loaded.
             ui.state.load(polygon, null);
@@ -179,7 +181,7 @@ final class PolygonTool extends UiPart {
             clearDraft();
             ui.commitSelection(before, ui.state.snapshot(), "polygon");
             ui.say("polygon_created");
-        } catch (IllegalArgumentException e) {
+        } catch (IllegalArgumentException | IllegalStateException e) {
             ui.say("polygon_invalid");
         }
     }

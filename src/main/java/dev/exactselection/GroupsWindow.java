@@ -5,8 +5,10 @@ import dev.exactselection.SavedAreaStore.Area;
 import dev.exactselection.SavedAreaStore.Group;
 import dev.exactselection.SavedAreaStore.State;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
@@ -29,6 +31,9 @@ final class GroupsWindow extends UiPart {
     int assignmentScroll;
     String groupId;
     int groupScroll;
+    private State indexedState;
+    private Map<String, Group> groupsById = Map.of();
+    private Map<String, double[]> totals = new HashMap<>();
 
     GroupsWindow(ExactSelectionController ui) { super(ui); }
 
@@ -76,13 +81,37 @@ final class GroupsWindow extends UiPart {
         return findGroup(groupId);
     }
 
+    /** Asked for every area in every frame, so the groups of the current state are indexed once. */
     Group findGroup(String id) {
-        return ui.groups().stream().filter(g -> Objects.equals(g.id(), id)).findFirst().orElse(null);
+        State state = ui.areaStore.state();
+        if (state != indexedState) {
+            indexedState = state;
+            groupsById = new HashMap<>();
+            for (Group group : state.groups()) groupsById.put(group.id(), group);
+            totals = new HashMap<>();
+        }
+        return id == null ? null : groupsById.get(id);
+    }
+
+    /** Member count and total area of a group ({@code null}: the areas in no group), counted once per state. */
+    private double[] totals(String groupId) {
+        findGroup(null);
+        return totals.computeIfAbsent(groupId == null ? "" : groupId, key -> {
+            List<Area> members = groupAreas(groupId);
+            return new double[]{members.size(), totalArea(members)};
+        });
+    }
+
+    /** Import matches groups by name, so two groups cannot share one; {@code except} is the group being renamed. */
+    private boolean nameTaken(String name, String except) {
+        boolean taken = ui.groups().stream().anyMatch(g -> !g.id().equals(except) && g.name().equalsIgnoreCase(name));
+        if (taken) ui.say("group_name_taken", name);
+        return taken;
     }
 
     void createGroup() {
         String name = ui.dialogFields[GROUP_NAME_FIELD].getValue().trim();
-        if (name.isEmpty() || ui.loadFailed) return;
+        if (name.isEmpty() || ui.loadFailed || nameTaken(name, null)) return;
         List<Group> groups = new ArrayList<>(ui.groups());
         Group group = new Group(UUID.randomUUID().toString(), name, true);
         groups.add(group);
@@ -97,7 +126,7 @@ final class GroupsWindow extends UiPart {
     void renameGroup() {
         Group current = selectedGroup();
         String name = ui.dialogFields[GROUP_NAME_FIELD].getValue().trim();
-        if (current == null || name.isEmpty() || ui.loadFailed) return;
+        if (current == null || name.isEmpty() || ui.loadFailed || nameTaken(name, current.id())) return;
         List<Group> groups = new ArrayList<>(ui.groups());
         groups.replaceAll(group -> group.id().equals(current.id())
                 ? new Group(group.id(), name, group.visible()) : group);
@@ -174,10 +203,10 @@ final class GroupsWindow extends UiPart {
             if (Objects.equals(group.id(), groupId)) g.fill(x + 10, rowY, x + 14 + col, rowY + 20, 0x8842636D);
             g.fill(x + 14, rowY + 5, x + 22, rowY + 13, group.visible() ? ACCENT : 0xFF64717A);
             g.drawString(ui.mc.font, ui.mc.font.plainSubstrByWidth(group.name(), col - 22), x + 28, rowY + 1, -1);
-            List<Area> members = groupAreas(group.id());
+            double[] members = totals(group.id());
             String details = ui.tr(group.visible() ? "group_state_shown" : "group_state_hidden").getString()
-                    + " · " + ui.tr("group_member_count", members.size()).getString()
-                    + " · " + ui.tr("group_area_total", formatLength(totalArea(members))).getString();
+                    + " · " + ui.tr("group_member_count", (int) members[0]).getString()
+                    + " · " + ui.tr("group_area_total", formatLength(members[1])).getString();
             g.drawString(ui.mc.font, ui.mc.font.plainSubstrByWidth(details, col - 22), x + 28, rowY + 11, 0xFF9BAAB7);
         }
         Group group = selectedGroup();
@@ -185,11 +214,12 @@ final class GroupsWindow extends UiPart {
         g.drawString(ui.mc.font, ui.mc.font.plainSubstrByWidth(group == null ? ui.tr("group_not_selected").getString() : group.name(), col), right, y + 48, -1);
         // Below the group buttons, while the window is tall enough to leave them clear of the export notice.
         if (h >= 264) {
-            List<Area> all = ui.areas(), ungrouped = groupAreas(null);
-            g.drawString(ui.mc.font, ui.mc.font.plainSubstrByWidth(ui.tr("groups_total", all.size(),
-                    formatLength(totalArea(all))).getString(), col), right, y + 194, 0xFF9BAAB7);
-            g.drawString(ui.mc.font, ui.mc.font.plainSubstrByWidth(ui.tr("groups_ungrouped", ungrouped.size(),
-                    formatLength(totalArea(ungrouped))).getString(), col), right, y + 206, 0xFF9BAAB7);
+            double[] ungrouped = totals(null);
+            double all = totals.computeIfAbsent("\u0000all", key -> new double[]{0, totalArea(ui.areas())})[1];
+            g.drawString(ui.mc.font, ui.mc.font.plainSubstrByWidth(ui.tr("groups_total", ui.areas().size(),
+                    formatLength(all)).getString(), col), right, y + 194, 0xFF9BAAB7);
+            g.drawString(ui.mc.font, ui.mc.font.plainSubstrByWidth(ui.tr("groups_ungrouped", (int) ungrouped[0],
+                    formatLength(ungrouped[1])).getString(), col), right, y + 206, 0xFF9BAAB7);
         }
         ui.areasWindow.renderManagementStatus(g, x, y, w, h, "groups_window_hint");
     }

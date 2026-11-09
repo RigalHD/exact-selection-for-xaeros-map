@@ -230,7 +230,7 @@
   "exactselection.panel_compact_tooltip": "Compact exact selection panel",
   "exactselection.panel_scroll": "Mouse wheel: scroll panel",
   "exactselection.selection_export": "Export selection as PNG…",
-  "exactselection.selection_export_tooltip": "Export the finished selection at 1 pixel per block with visible saved areas. Saving the selection as an area is not required.",
+  "exactselection.selection_export_tooltip": "Export the finished selection as a PNG with visible saved areas; the scale is chosen in the export window. Saving the selection as an area is not required.",
   "exactselection.export_show_file": "Show file in folder",
   "exactselection.export_file_missing": "The file was moved or deleted.",
   "exactselection.polygon_close": "Close area",
@@ -402,5 +402,8 @@
   "exactselection.route_new_title": "New route",
   "exactselection.route_length": "Length: %s blocks",
   "exactselection.route_save_tooltip": "Save this line as a route in the Areas window…",
-  "exactselection.route_saved": "Route “%s” saved"
+  "exactselection.route_saved": "Route “%s” saved",
+  "exactselection.area_file_newer": "A newer version of the mod saved these areas; update the mod to use them",
+  "exactselection.area_restore_failed": "The previous version cannot be read either; nothing was changed",
+  "exactselection.group_name_taken": "A group named \"%s\" already exists"
 }

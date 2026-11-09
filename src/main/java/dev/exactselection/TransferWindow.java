@@ -1,5 +1,6 @@
 package dev.exactselection;
 
+import static dev.exactselection.ExactSelectionController.place;
 import static dev.exactselection.ModLog.LOG;
 
 import dev.exactselection.ExactSelectionController.Dialog;
@@ -29,6 +30,60 @@ final class TransferWindow extends UiPart {
     private Map<Path, String> importDates = Map.of();
 
     int importScroll;
+
+    final Window importWindow = new Window() {
+        @Override
+        int width() {
+            return 560;
+        }
+
+        @Override
+        int height() {
+            return 330;
+        }
+
+        @Override
+        String title() {
+            return "import_title";
+        }
+
+        @Override
+        boolean titleOnLeft() {
+            return true;
+        }
+
+        @Override
+        Dialog returnTo() {
+            return Dialog.AREAS;
+        }
+
+        @Override
+        void show() {
+            ui.show(true, ui.managementClose, importOpenFolder);
+        }
+
+        @Override
+        void layout(Rect r, int buttonY) {
+            int x = r.x(), y = r.y(), w = r.width(), h = r.height();
+            place(ui.managementClose, x + w - 82, y + 7, 70, 18);
+            place(importOpenFolder, x + 12, y + h - 28, 150, 18);
+        }
+
+        @Override
+        void render(GuiGraphics g, Rect r) {
+            renderImportDialog(g, r.x(), r.y(), r.width(), r.height());
+        }
+
+        @Override
+        void click(MouseButtonEvent event, Rect r) {
+            clickImportRow(event, r.x(), r.y(), r.width(), r.height());
+        }
+
+        @Override
+        void scroll(int step, int height) {
+            importScroll = InputRouter.scrolled(importScroll, step, importFiles.size(), importRows(height));
+        }
+    };
 
     TransferWindow(ExactSelectionController ui) {
         super(ui);

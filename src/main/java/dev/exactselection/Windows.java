@@ -65,6 +65,7 @@ final class Windows extends UiPart {
             case AREA_NAME -> ui.newAreaWindow.window;
             case PICKER -> ui.colorWindows.pickerWindow;
             case COLOR -> ui.colorWindows.colorWindow;
+            case IMPORT -> ui.transferWindow.importWindow;
             default -> null;
         };
     }

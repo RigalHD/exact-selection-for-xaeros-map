@@ -14,6 +14,8 @@ import static dev.exactselection.ExactSelectionController.place;
 final class RightClickMenu extends UiPart {
     /** Row height of the right-click menu, as in Xaero's. */
     private static final int MENU_ROW = 11;
+    /** Xaero's menu colors: the title row, the row under the pointer and the line between rows. */
+    private static final int TITLE_ROW = 0xFF606060, HOVERED_ROW = 0xFF323232, ROW_LINE = 0xFF323232;
     private Button quickMenuSave, quickMenuEdit, quickMenuHide, quickMenuColor, quickMenuOpacity, quickMenuDelete;
     private Button quickMenuRaise, quickMenuLower;
     private Button quickMenuClear;
@@ -74,18 +76,18 @@ final class RightClickMenu extends UiPart {
         int x = first.getX(), w = first.getWidth(), top = first.getY() - titleRows * MENU_ROW;
         g.nextStratum();
         if (titleRows > 0) {
-            g.fill(x, top, x + w, top + MENU_ROW, 0xFF606060);
+            g.fill(x, top, x + w, top + MENU_ROW, TITLE_ROW);
             g.drawCenteredString(ui.mc.font, ui.tr("quick_menu_title"), x + w / 2, top + 2, 0xFFFFFFFF);
         }
         for (Button item : items) {
             int y = item.getY();
             boolean hovered = item.active && mouseX >= x && mouseX < x + w && mouseY >= y && mouseY < y + MENU_ROW;
-            int idle = item == quickInfoName ? 0xFF606060 : 0xC8000000, under = item == quickInfoName ? 0xFF787878 : 0xFF323232;
+            int idle = item == quickInfoName ? TITLE_ROW : 0xC8000000, under = item == quickInfoName ? 0xFF787878 : HOVERED_ROW;
             g.fill(x, y, x + w, y + MENU_ROW, hovered ? under : idle);
-            g.hLine(x, x + w - 1, y + MENU_ROW - 1, 0xFF323232);
+            g.hLine(x, x + w - 1, y + MENU_ROW - 1, ROW_LINE);
             boolean info = item == quickInfoName || item == quickInfoGroup || item == quickInfoSize;
             g.drawCenteredString(ui.mc.font, item.getMessage(), x + w / 2, y + 2, !item.active ? 0xFF808080 : info && item != quickInfoName ? 0xFFB8C4CE : 0xFFFFFFFF);
-            if (info) PixelIcons.renderIcon(g, PixelIcons.COPY, x + w - PixelIcons.COPY[0].length() - 2, y + 1, 0xFFE0E0E0);
+            if (info) PixelIcons.renderIcon(g, PixelIcons.COPY, x + w - PixelIcons.COPY[0].length() - 2, y + 1, Theme.ICON);
         }
         g.renderOutline(x - 1, top - 1, w + 2, (items.size() + titleRows) * MENU_ROW + 2, 0xFFFFFFFF);
     }

@@ -49,7 +49,6 @@ public final class ExactSelectionController {
     /** Places in {@link #dialogFields}. */
     static final int WIDTH_FIELD = 0, LENGTH_FIELD = 1, OFFSET_X_FIELD = 2, OFFSET_Z_FIELD = 3, AREA_NAME_FIELD = 4, GROUP_NAME_FIELD = 5,
             CENTER_NAME_FIELD = 6, POINT_SEARCH_FIELD = 7, NEW_AREA_FIELD = 8, RENAME_FIELD = 9, HEX_FIELD = 10;
-    static final int ACCENT = 0xFF59E3CE;
     enum Dialog { NONE, SIZE, MOVE, CENTER, AREAS, GROUPS, ASSIGN_GROUP, AREA_NAME, GROUP_NAME, WAYPOINTS, COLOR, IMPORT, EXPORT, PICKER }
     /** Xaero builds a new screen for every map opening; the tool outlives them, so its selection and history survive. */
     private static ExactSelectionController current;
@@ -433,8 +432,9 @@ public final class ExactSelectionController {
         if (waypointsWindow.scrollbarDragging) {
             if (dialog == Dialog.WAYPOINTS) waypointsWindow.dragWaypointScrollbar(mouseY); else waypointsWindow.scrollbarDragging = false;
         }
-        if (colorWindows.pickerDrag != 0) {
-            if (dialog == Dialog.PICKER) colorWindows.dragPicker(mouseX, mouseY); else colorWindows.pickerDrag = 0;
+        if (colorWindows.pickerDrag != ColorWindows.PickerDrag.NONE) {
+            if (dialog == Dialog.PICKER) colorWindows.dragPicker(mouseX, mouseY);
+            else colorWindows.pickerDrag = ColorWindows.PickerDrag.NONE;
         }
         MapBridge.Frame frame = checkedFrame();
         if (frame != null && enabled() && dragging && waypointsWindow.pending == null && dialog == Dialog.NONE)
@@ -549,17 +549,17 @@ public final class ExactSelectionController {
         }
         g.nextStratum();
         if (selectionPanel.panelModeButton.visible)
-            PixelIcons.renderIcon(g, selectionPanel.compact ? PixelIcons.EXPAND : PixelIcons.COLLAPSE, selectionPanel.panelModeButton, 0xFFE0E0E0);
-        if (areasWindow.autosaveButton.visible) PixelIcons.renderIcon(g, PixelIcons.GEAR, areasWindow.autosaveButton, areasWindow.autosaveOpen ? ACCENT : 0xFFE0E0E0);
-        if (transferWindow.transferFolderButton.visible) PixelIcons.renderIcon(g, PixelIcons.FOLDER, transferWindow.transferFolderButton, 0xFFE0E0E0);
+            PixelIcons.renderIcon(g, selectionPanel.compact ? PixelIcons.EXPAND : PixelIcons.COLLAPSE, selectionPanel.panelModeButton, Theme.ICON);
+        if (areasWindow.autosaveButton.visible) PixelIcons.renderIcon(g, PixelIcons.GEAR, areasWindow.autosaveButton, areasWindow.autosaveOpen ? Theme.ACCENT : Theme.ICON);
+        if (transferWindow.transferFolderButton.visible) PixelIcons.renderIcon(g, PixelIcons.FOLDER, transferWindow.transferFolderButton, Theme.ICON);
         if (selectionPanel.rulerButton.visible)
             PixelIcons.renderIcon(g, PixelIcons.RULER, selectionPanel.rulerButton,
-                    !selectionPanel.rulerButton.active ? 0xFF8A8A8A : rulerTool.mode ? RulerTool.COLOR : 0xFFE0E0E0);
-        if (areasWindow.areaShow.visible) PixelIcons.renderIcon(g, PixelIcons.TARGET, areasWindow.areaShow, 0xFFE0E0E0);
+                    !selectionPanel.rulerButton.active ? Theme.ICON_DISABLED : rulerTool.mode ? RulerTool.COLOR : Theme.ICON);
+        if (areasWindow.areaShow.visible) PixelIcons.renderIcon(g, PixelIcons.TARGET, areasWindow.areaShow, Theme.ICON);
         for (Button copy : List.of(selectionPanel.copyCoordinates, selectionPanel.copyCornerB, selectionPanel.copyArea, selectionPanel.copyPerimeter,
                 selectionPanel.copyLength, selectionPanel.copyWidth, selectionPanel.copyRulerDistance))
-            if (copy.visible) PixelIcons.renderIcon(g, PixelIcons.COPY, copy, copy.active ? 0xFFE0E0E0 : 0xFF8A8A8A);
-        for (Button copy : areasWindow.copyIcons()) if (copy.visible) PixelIcons.renderIcon(g, PixelIcons.COPY, copy, copy.active ? 0xFFE0E0E0 : 0xFF8A8A8A);
+            if (copy.visible) PixelIcons.renderIcon(g, PixelIcons.COPY, copy, copy.active ? Theme.ICON : Theme.ICON_DISABLED);
+        for (Button copy : areasWindow.copyIcons()) if (copy.visible) PixelIcons.renderIcon(g, PixelIcons.COPY, copy, copy.active ? Theme.ICON : Theme.ICON_DISABLED);
         exportWindow.renderPlaceholder(g, screen.getFocused() == exportWindow.folder);
         if (rightClickMenu.quickMenu) rightClickMenu.renderQuickMenu(g, menu, mouseX, mouseY);
         if (enabled() && frame != null && dialog == Dialog.NONE) selectionPanel.renderToast(g);

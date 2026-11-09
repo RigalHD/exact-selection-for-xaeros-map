@@ -10,7 +10,8 @@ import static dev.exactselection.SelectionPanel.formatLength;
 
 /** The ruler: measures the length of a line through block corners on the map, which can be saved as a route. */
 final class RulerTool extends UiPart {
-    static final int COLOR = 0xFFFFCF62;
+    /** The ruler is drawn in the warning yellow, which stands out against the teal selection. */
+    static final int COLOR = Theme.WARNING;
     /** Ruler: block corners A and B (B null while it follows the cursor); a press that drags sets B on release. */
     boolean mode;
     boolean pressed;

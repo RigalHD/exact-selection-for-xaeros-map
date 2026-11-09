@@ -49,7 +49,7 @@ final class SessionChecks {
             require(get(controller, "newAreaGroupId").equals("release-group"), "New-area group button did not choose the group");
             press(controller, "newAreaOpacityButton");
             require((Integer) get(controller, "newAreaOpacity") == 50, "New-area fill did not advance from 25% to 50%");
-            int[] nameRect = (int[]) call(controller, "dialogRect");
+            int[] nameRect = dialogRect(controller);
             int sample = (Integer) call(controller, "colorSampleWidth", nameRect[2]);
             EditBox nameField = ((EditBox[]) get(controller, "dialogFields"))[8];
             EditBox hexField = ((EditBox[]) get(controller, "dialogFields"))[10];
@@ -93,7 +93,7 @@ final class SessionChecks {
             enter(controller, map, 10, "invalid");
             require(window(controller).equals("COLOR") && get(controller, "message").toString().contains("color_invalid"),
                     "Invalid RGB color was accepted");
-            int[] rect = (int[]) call(controller, "dialogRect");
+            int[] rect = dialogRect(controller);
             controller.mouseClicked(left(rect[0] + 14, rect[1] + 36, 0), false);
             require(window(controller).equals("AREAS") && store.state().areas().stream().allMatch(a -> a.color() == AreaPalette.COLORS[0]),
                     "Palette did not recolor every selected area");
@@ -167,7 +167,7 @@ final class SessionChecks {
         press(tool, "areasButton");
         Button edit = (Button) get(tool, "areaLoad"), close = (Button) get(tool, "managementClose");
         require(!edit.active && close.visible, "The Areas window did not open with nothing checked");
-        int[] window = (int[]) call(tool, "dialogRect");
+        int[] window = dialogRect(tool);
         tool.mouseClicked(left(window[0] + 54, window[1] + 54, 0), false);
         require(edit.active, "A click left the buttons out of date for the next event of its frame");
         key(tool, GLFW.GLFW_KEY_ESCAPE, 0);
@@ -413,7 +413,7 @@ final class SessionChecks {
             require(Math.abs(camera.camera[2] - 0.8 * 360 / 101) < 1e-9, "Showing an area did not fit it on the screen");
             camera.camera = null;
             press(editing, "areasButton");
-            int[] rect = (int[]) call(editing, "dialogRect");
+            int[] rect = dialogRect(editing);
             MouseButtonEvent plainClick = new MouseButtonEvent(rect[0] + 54, rect[1] + 74, new MouseButtonInfo(left, 0));
             editing.mouseClicked(plainClick, false);
             editing.mouseClicked(new MouseButtonEvent(rect[0] + 54, rect[1] + 74, new MouseButtonInfo(left, GLFW.GLFW_MOD_CONTROL)), false);

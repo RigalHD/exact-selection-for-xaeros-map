@@ -102,7 +102,7 @@ final class WindowChecks {
             press(controller, "pointsButton"); checkLayout(controller);
             require(((Set<?>) get(controller, "chosenPoints")).isEmpty(), "Opening all waypoints selected the entire set");
             require(!((Button) get(controller, "confirm")).active, "Entire set can be deleted without explicit selection");
-            int[] rect = (int[]) call(controller, "dialogRect");
+            int[] rect = dialogRect(controller);
             controller.mouseClicked(left(rect[0] + 20, rect[1] + 85, 0), false);
             enter(controller, map, 9, "Renamed");
             require(access.points.get(0).name().equals("Renamed") && access.points.get(1).name().equals("Second")
@@ -110,7 +110,7 @@ final class WindowChecks {
             key(controller, GLFW.GLFW_KEY_Z, GLFW.GLFW_MOD_CONTROL);
             require(access.points.get(0).name().equals("First"), "Waypoint rename undo failed");
             press(controller, "pointRecolor"); checkLayout(controller);
-            rect = (int[]) call(controller, "dialogRect");
+            rect = dialogRect(controller);
             controller.mouseClicked(left((Integer) call(controller, "swatchX", rect[0], rect[2], 2) + 2, rect[1] + 36, 0), false);
             require(access.points.get(0).color() == 2 && access.points.get(1).color() == 0
                     && window(controller).equals("WAYPOINTS"), "Waypoint palette did not edit only checked rows");
@@ -194,11 +194,11 @@ final class WindowChecks {
             }
             selection.enable(); selection.set(new SelectionBounds(0, 0, 9, 9));
             call(controller, "openAreaNameDialog");
-            int[] r = (int[]) call(controller, "dialogRect");
+            int[] r = dialogRect(controller);
             int preview = (Integer) call(controller, "swatchX", r[0], r[2], AreaPalette.COLUMNS - 1);
             controller.mouseClicked(left(preview + 2, r[1] + 175, 0), false);
             require(window(controller).equals("PICKER"), "The color preview did not open the picker");
-            r = (int[]) call(controller, "dialogRect");
+            r = dialogRect(controller);
             int[] square = pickerRect("pickerSquare", r), hue = pickerRect("pickerHueBar", r);
             // Hue: drag from the top (red) down a third (green); then the square's top-right is the full color.
             controller.mouseClicked(left(hue[0] + 4, hue[1], 0), false);
@@ -212,7 +212,7 @@ final class WindowChecks {
             require(window(controller).equals("AREA_NAME") && (Integer) get(controller, "newAreaColor") == previous,
                     "Esc in the picker changed the color or left the save window");
             controller.mouseClicked(left(preview + 2, r[1] + 175, 0), false);
-            square = pickerRect("pickerSquare", (int[]) call(controller, "dialogRect"));
+            square = pickerRect("pickerSquare", dialogRect(controller));
             controller.mouseClicked(left(square[0], square[1] + square[3] - 1, 0), false);
             controller.mouseReleased(left(square[0], square[1] + square[3] - 1, 0));
             press(controller, "modalApply");
@@ -228,10 +228,10 @@ final class WindowChecks {
             try {
                 selection.load(area.geometry(), area.id());
                 call(controller, "openQuickColor");
-                r = (int[]) call(controller, "dialogRect");
+                r = dialogRect(controller);
                 controller.mouseClicked(left(r[0] + r[2] - 146 + 2, r[1] + 115, 0), false);
                 require(window(controller).equals("PICKER"), "The zone color preview did not open the picker");
-                square = pickerRect("pickerSquare", (int[]) call(controller, "dialogRect"));
+                square = pickerRect("pickerSquare", dialogRect(controller));
                 controller.mouseClicked(left(square[0], square[1] + square[3] - 1, 0), false);
                 controller.mouseReleased(left(square[0], square[1] + square[3] - 1, 0));
                 press(controller, "modalApply");

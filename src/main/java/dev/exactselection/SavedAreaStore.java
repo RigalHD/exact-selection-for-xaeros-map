@@ -111,7 +111,7 @@ public final class SavedAreaStore {
         // Called for every minimap frame: the file name is worked out only when the context changes.
         if (!Objects.equals(contextKey, key)) {
             contextKey = key;
-            file = root.resolve("xaero-exact-selection").resolve("areas-" + digest(key) + ".json");
+            file = ModFiles.directory(root).resolve("areas-" + digest(key) + ".json");
             loadedGeneration = -1;
         }
         long generation = GENERATIONS.getOrDefault(file, 0L);
@@ -320,8 +320,8 @@ public final class SavedAreaStore {
                     throw new IllegalArgumentException("Polygon has too many vertices");
                 geometry.triangulate();
                 GeometryBounds bounds = geometry.bounds();
-                if (bounds.minX() < -30_000_000L || bounds.minZ() < -30_000_000L
-                        || bounds.maxX() > 30_000_000L || bounds.maxZ() > 30_000_000L)
+                if (bounds.minX() < -WorldLimits.MAX || bounds.minZ() < -WorldLimits.MAX
+                        || bounds.maxX() > WorldLimits.MAX || bounds.maxZ() > WorldLimits.MAX)
                     throw new IllegalArgumentException("Geometry outside Minecraft world bounds");
             } catch (RuntimeException e) { throw new IOException("Invalid saved area geometry", e); }
         }

@@ -30,7 +30,7 @@ public final class AutosaveSettings {
 
     /** Reads {@code <root>/xaero-exact-selection/settings.json}; a missing or unreadable file gives the defaults. */
     public static AutosaveSettings load(Path root) {
-        AutosaveSettings settings = new AutosaveSettings(root.resolve("xaero-exact-selection").resolve("settings.json"));
+        AutosaveSettings settings = new AutosaveSettings(ModFiles.directory(root).resolve("settings.json"));
         if (!Files.exists(settings.file)) return settings;
         try {
             JsonObject stored = JsonParser.parseString(Files.readString(settings.file, StandardCharsets.UTF_8)).getAsJsonObject();

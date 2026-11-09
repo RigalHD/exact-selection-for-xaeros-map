@@ -58,7 +58,7 @@ final class WaypointsWindow extends UiPart {
         int rows = waypointRows(h);
         modalScroll = Math.min(modalScroll, Math.max(0, points.size() - rows));
         int chosen = filteredChosenPoints().size();
-        g.drawString(ui.mc.font, ui.tr("waypoint_filter_count", chosen, points.size()), x + 12, y + 29, 0xFF9BAAB7);
+        g.drawString(ui.mc.font, ui.tr("waypoint_filter_count", chosen, points.size()), x + 12, y + 29, Theme.TEXT_MUTED);
         boolean scrollable = points.size() > rows;
         int rowRight = x + w - (scrollable ? 18 : 9);
         for (int i = 0; i < rows && i + modalScroll < points.size(); i++) {
@@ -66,15 +66,15 @@ final class WaypointsWindow extends UiPart {
             boolean checked = chosenPoints.contains(p.identity());
             if (checked) g.fill(x + 9, rowY - 2, rowRight, rowY + 12, 0x3342636D);
             String text = (checked ? "[x] " : "[ ] ") + p.name() + "  " + p.x() + ", " + p.y() + ", " + p.z();
-            g.drawString(ui.mc.font, ui.mc.font.plainSubstrByWidth(text, rowRight - x - 17), x + 13, rowY, p.disabled() ? 0xFF9BAAB7 : -1);
+            g.drawString(ui.mc.font, ui.mc.font.plainSubstrByWidth(text, rowRight - x - 17), x + 13, rowY, p.disabled() ? Theme.TEXT_MUTED : -1);
         }
         if (scrollable) {
             int[] thumb = waypointThumb(y, rows, points.size());
-            g.fill(x + w - 14, y + 81, x + w - 10, y + 81 + rows * 14, 0xFF0C141D);
-            g.fill(x + w - 14, thumb[0], x + w - 10, thumb[0] + thumb[1], scrollbarDragging ? -1 : 0xFF9BAAB7);
+            g.fill(x + w - 14, y + 81, x + w - 10, y + 81 + rows * 14, Theme.LIST_BACKGROUND);
+            g.fill(x + w - 14, thumb[0], x + w - 10, thumb[0] + thumb[1], scrollbarDragging ? -1 : Theme.TEXT_MUTED);
         }
         String hint = ui.message.isEmpty() ? ui.tr("waypoint_modal_hint").getString() : ui.message;
-        g.drawString(ui.mc.font, ui.mc.font.plainSubstrByWidth(hint, w - 24), x + 12, y + h - 70, ui.message.isEmpty() ? 0xFF9BAAB7 : 0xFFFFCF62);
+        g.drawString(ui.mc.font, ui.mc.font.plainSubstrByWidth(hint, w - 24), x + 12, y + h - 70, ui.message.isEmpty() ? Theme.TEXT_MUTED : Theme.WARNING);
         ui.confirm.setMessage(ui.tr("delete_count", chosen));
         ui.confirm.active = chosen > 0;
     }
@@ -90,10 +90,11 @@ final class WaypointsWindow extends UiPart {
 
     /** Scrolls so the thumb centre follows the pointer along the track. */
     void dragWaypointScrollbar(double mouseY) {
-        int[] r = ui.windows.dialogRect(); int rows = waypointRows(r[3]), total = filteredPoints().size();
+        Rect r = ui.windows.dialogRect();
+        int rows = waypointRows(r.height()), total = filteredPoints().size();
         if (total <= rows) return;
-        int size = waypointThumb(r[1], rows, total)[1], track = rows * 14;
-        double ratio = (mouseY - (r[1] + 81) - size / 2.0) / Math.max(1, track - size);
+        int size = waypointThumb(r.y(), rows, total)[1], track = rows * 14;
+        double ratio = (mouseY - (r.y() + 81) - size / 2.0) / Math.max(1, track - size);
         modalScroll = (int) Math.round(Math.max(0, Math.min(1, ratio)) * (total - rows));
     }
 

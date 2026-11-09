@@ -269,8 +269,8 @@ final class GestureChecks {
                     "Quick fill did not apply at once or closed the menu");
             press(controller, "quickMenuColor");
             require(window(controller).equals("COLOR"), "Quick color did not open the palette");
-            controller.mouseClicked(left((Integer) call(controller, "swatchX", ((int[]) call(controller, "dialogRect"))[0],
-                    ((int[]) call(controller, "dialogRect"))[2], 2) + 2, ((int[]) call(controller, "dialogRect"))[1] + 36, 0), false);
+            controller.mouseClicked(left((Integer) call(controller, "swatchX", (dialogRect(controller))[0],
+                    (dialogRect(controller))[2], 2) + 2, (dialogRect(controller))[1] + 36, 0), false);
             require(window(controller).equals("NONE") && store.state().areas().get(0).color() == AreaPalette.COLORS[2],
                     "A quick color pick was not applied to the territory");
             controller.mouseClicked(right(450, 300), false);

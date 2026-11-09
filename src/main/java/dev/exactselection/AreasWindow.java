@@ -25,7 +25,7 @@ import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.network.chat.Component;
 import net.minecraft.util.Util;
 import org.lwjgl.glfw.GLFW;
-import static dev.exactselection.ExactSelectionController.ACCENT;
+import static dev.exactselection.Theme.ACCENT;
 import static dev.exactselection.ExactSelectionController.AREA_NAME_FIELD;
 import static dev.exactselection.ExactSelectionController.place;
 import static dev.exactselection.SelectionPanel.formatLength;
@@ -336,7 +336,7 @@ final class AreasWindow extends UiPart {
     void renderAreasDialog(GuiGraphics g, int x, int y, int w, int h) {
         if (areaDeleteConfirmation) {
             g.drawCenteredString(ui.mc.font, ui.tr("area_delete_confirm", selectedAreas().size()), x + w / 2, y + h / 2 - 12, -1);
-            g.drawCenteredString(ui.mc.font, ui.tr("area_delete_undoable"), x + w / 2, y + h / 2 + 6, 0xFF9BAAB7);
+            g.drawCenteredString(ui.mc.font, ui.tr("area_delete_undoable"), x + w / 2, y + h / 2 + 6, Theme.TEXT_MUTED);
             return;
         }
         int col = (w - 36) / 2, right = x + w - col - 12;
@@ -346,20 +346,20 @@ final class AreasWindow extends UiPart {
         int[] search = areaSearchSpan(x, col);
         if (search[0] > x + 12 || search[1] < 40)
             g.drawString(ui.mc.font, ui.mc.font.plainSubstrByWidth(ui.tr("area_list_count", selectedAreaIds.size()).getString(), 76),
-                    x + 12, y + 34, 0xFF9BAAB7);
-        g.fill(x + 10, y + 46, x + 14 + col, y + h - 98, 0xFF0C141D);
+                    x + 12, y + 34, Theme.TEXT_MUTED);
+        g.fill(x + 10, y + 46, x + 14 + col, y + h - 98, Theme.LIST_BACKGROUND);
         if (areas.isEmpty()) g.drawString(ui.mc.font, ui.tr(ui.areas().isEmpty() ? "areas_empty" : "area_search_empty"),
-                x + 16, y + 54, 0xFF9BAAB7);
+                x + 16, y + 54, Theme.TEXT_MUTED);
         for (int i = 0; i < rows && i + areaScroll < areas.size(); i++) {
             Area area = areas.get(i + areaScroll);
             int rowY = y + 48 + i * 20;
             boolean checked = selectedAreaIds.contains(area.id());
-            if (checked) g.fill(x + 10, rowY, x + 14 + col, rowY + 20, 0x8842636D);
-            g.renderOutline(x + 14, rowY + 4, 9, 9, checked ? ACCENT : 0xFF64717A);
+            if (checked) g.fill(x + 10, rowY, x + 14 + col, rowY + 20, Theme.ROW_CHECKED);
+            g.renderOutline(x + 14, rowY + 4, 9, 9, checked ? ACCENT : Theme.INACTIVE);
             if (checked) g.drawString(ui.mc.font, "x", x + 16, rowY + 4, ACCENT);
             g.fill(x + 28, rowY + 4, x + 34, rowY + 10, 0xFF000000 | area.color());
             g.drawString(ui.mc.font, ui.mc.font.plainSubstrByWidth(area.name(), col - 30), x + 39, rowY + 1, -1);
-            g.drawString(ui.mc.font, ui.mc.font.plainSubstrByWidth(areaVisibilityDescription(area), col - 30), x + 39, rowY + 11, 0xFF9BAAB7);
+            g.drawString(ui.mc.font, ui.mc.font.plainSubstrByWidth(areaVisibilityDescription(area), col - 30), x + 39, rowY + 11, Theme.TEXT_MUTED);
         }
         if (ui.autosave.enabled()) {
             String indicator = "● " + ui.tr("autosave_indicator").getString();
@@ -368,11 +368,11 @@ final class AreasWindow extends UiPart {
         if (autosaveOpen) {
             g.drawString(ui.mc.font, ui.tr("autosave_title"), right, y + 34, ACCENT);
             g.drawString(ui.mc.font, ui.mc.font.plainSubstrByWidth(ui.tr("autosave_hint").getString(), col),
-                    right, y + 68 + 20 * autosaveFields.size() + 4, 0xFF9BAAB7);
+                    right, y + 68 + 20 * autosaveFields.size() + 4, Theme.TEXT_MUTED);
             renderManagementStatus(g, x, y, w, h, "areas_selection_hint");
             return;
         }
-        g.drawString(ui.mc.font, ui.tr("area_name_label"), right, y + 34, 0xFF9BAAB7);
+        g.drawString(ui.mc.font, ui.tr("area_name_label"), right, y + 34, Theme.TEXT_MUTED);
         int selectedTop = selectedSectionTop(y, h);
         dialogSection(g, ui.tr("selected_header"), right, selectedTop, col);
         placeAreaInfo(y, h, right, g, col);
@@ -451,16 +451,16 @@ final class AreasWindow extends UiPart {
             if (g == null) {
                 for (Button copy : line.copies()) copy.visible = true;
                 ui.selectionPanel.placeMetricLine(line, right, lineY, col);
-            } else ui.selectionPanel.drawMetricLine(g, line, right, lineY, col, 0xFF9BAAB7);
+            } else ui.selectionPanel.drawMetricLine(g, line, right, lineY, col, Theme.TEXT_MUTED);
             lineY += 12;
         }
     }
 
     /** A titled divider inside a window column. */
     private void dialogSection(GuiGraphics g, Component text, int x, int y, int width) {
-        g.drawString(ui.mc.font, text, x, y, 0xFF9BAAB7);
+        g.drawString(ui.mc.font, text, x, y, Theme.TEXT_MUTED);
         int start = x + 4 + ui.mc.font.width(text);
-        g.fill(start, y + 4, x + width, y + 5, 0xFF42636D);
+        g.fill(start, y + 4, x + width, y + 5, Theme.BORDER);
     }
 
     private String areaVisibilityDescription(Area area) {
@@ -475,7 +475,7 @@ final class AreasWindow extends UiPart {
         // In Areas the right half of the bottom row holds the autosave button.
         int textWidth = ui.dialog == Dialog.AREAS ? (w - 36) / 2 : w - 24;
         g.drawString(ui.mc.font, ui.mc.font.plainSubstrByWidth(text, textWidth), x + 12, y + h - 12,
-                ui.message.isEmpty() && !ui.loadFailed ? 0xFF9BAAB7 : 0xFFFFCF62);
+                ui.message.isEmpty() && !ui.loadFailed ? Theme.TEXT_MUTED : Theme.WARNING);
     }
 
     void clickAreaRow(MouseButtonEvent event, int x, int y, int w, int h) {
@@ -579,8 +579,8 @@ final class AreasWindow extends UiPart {
                     ui.transferWindow.areaExportFile, ui.transferWindow.areaImport,
                     ui.transferWindow.transferFolderButton, areaSortButton, areaSearch,
                     areaSelectAll, areaClearSelection, areaMapVisibility, areaMinimapVisibility, areaNames, autosaveButton);
-            int[] r = ui.windows.dialogRect();
-            areaSearch.visible = areaSearchSpan(r[0], (r[2] - 36) / 2)[1] >= 40;
+            Rect r = ui.windows.dialogRect();
+            areaSearch.visible = areaSearchSpan(r.x(), (r.width() - 36) / 2)[1] >= 40;
             if (autosaveOpen) {
                 ui.show(true, autosaveToggle, autosaveClose, roundingButton);
                 roundingButton.setMessage(SettingsScreen.roundingLabel(ui.autosave.rounding()));

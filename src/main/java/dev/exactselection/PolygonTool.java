@@ -5,10 +5,12 @@ import java.util.ArrayList;
 import java.util.Deque;
 import java.util.List;
 import net.minecraft.client.gui.GuiGraphics;
-import static dev.exactselection.ExactSelectionController.ACCENT;
+import static dev.exactselection.Theme.ACCENT;
 
 /** The Polygon tool: the contour being drawn and vertex edits of contours and finished polygons. */
 final class PolygonTool extends UiPart {
+    /** How near, in GUI pixels, the pointer must be to a vertex or a side to act on it. */
+    static final double HIT_RADIUS = 8;
     boolean mode;
     final List<GridPoint> draft = new ArrayList<>();
     GridPoint cursor;
@@ -87,7 +89,7 @@ final class PolygonTool extends UiPart {
     int hitPolygonEdge(MapBridge.Frame frame, List<GridPoint> vertices, double x, double y, boolean closed) {
         if (hitVertex(frame, vertices, x, y) >= 0) return -1;
         int nearest = -1;
-        double distance = 64;
+        double distance = HIT_RADIUS * HIT_RADIUS;
         for (int i = 0; i < (closed ? vertices.size() : vertices.size() - 1); i++) {
             GridPoint a = vertices.get(i), b = vertices.get((i + 1) % vertices.size());
             double ax = frame.screenX(a.x()), ay = frame.screenY(a.z());
@@ -151,7 +153,7 @@ final class PolygonTool extends UiPart {
         if (draft.size() >= 3) {
             GridPoint first = draft.get(0);
             double dx = frame.screenX(first.x()) - mouseX, dy = frame.screenY(first.z()) - mouseY;
-            if (dx * dx + dy * dy <= 64.0) { finishPolygon(); return; }
+            if (dx * dx + dy * dy <= HIT_RADIUS * HIT_RADIUS) { finishPolygon(); return; }
         }
         GridPoint point;
         try { point = polygonPoint(frame, mouseX, mouseY, draft.isEmpty() ? null : draft.getLast()); }
@@ -221,7 +223,7 @@ final class PolygonTool extends UiPart {
 
     int hitVertex(MapBridge.Frame frame, List<GridPoint> vertices, double x, double y) {
         int nearest = -1;
-        double distance = 64;
+        double distance = HIT_RADIUS * HIT_RADIUS;
         for (int i = 0; i < vertices.size(); i++) {
             GridPoint point = vertices.get(i);
             double dx = frame.screenX(point.x()) - x, dy = frame.screenY(point.z()) - y;
@@ -279,7 +281,7 @@ final class PolygonTool extends UiPart {
             double px = frame.screenX(point.x()), py = frame.screenY(point.z());
             if (px < -5 || px > ui.screen.width + 5 || py < -5 || py > ui.screen.height + 5) continue;
             boolean closing = i == 0 && draft.size() >= 3 && !(ui.gesture instanceof MapGesture.VertexDrag)
-                    && Math.hypot(px - mouseX, py - mouseY) <= 8;
+                    && Math.hypot(px - mouseX, py - mouseY) <= HIT_RADIUS;
             int color = ui.mapOverlays.vertexColor(i, i == 0 ? 0xFF80FF95 : ACCENT);
             MapOverlays.marker(g, (int) px, (int) py, 3, color);
             if (closing) {

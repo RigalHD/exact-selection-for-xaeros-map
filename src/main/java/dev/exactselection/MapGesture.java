@@ -139,7 +139,7 @@ abstract sealed class MapGesture {
                         : handle.z > 0 ? dragEdge(pointerZ, b.minZ(), false, chunks) : null;
                 if (xs != null) { minX = xs[0]; maxX = xs[1] - 1; }
                 if (zs != null) { minZ = zs[0]; maxZ = zs[1] - 1; }
-                if (minX < -30_000_000L || minZ < -30_000_000L || maxX >= 30_000_000L || maxZ >= 30_000_000L) return;
+                if (minX < -WorldLimits.MAX || minZ < -WorldLimits.MAX || maxX >= WorldLimits.MAX || maxZ >= WorldLimits.MAX) return;
                 host.state().set(new SelectionBounds((int) minX, (int) minZ, (int) maxX, (int) maxZ));
                 host.selectionMoved();
             } catch (IllegalArgumentException ignored) { }

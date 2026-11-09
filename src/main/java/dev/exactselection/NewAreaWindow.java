@@ -81,7 +81,7 @@ final class NewAreaWindow extends UiPart {
             int index = shown.indexOf(area);
             // Scroll so the new row is visible; a row the search hides leaves the list where it was.
             if (index >= 0)
-                ui.areasWindow.areaScroll = Math.max(0, Math.min(index, shown.size() - ui.areasWindow.visibleAreaDialogRows(ui.windows.dialogRect()[3])));
+                ui.areasWindow.areaScroll = Math.max(0, Math.min(index, shown.size() - ui.areasWindow.visibleAreaDialogRows(ui.windows.dialogRect().height())));
         }
         // The saved shape now lives in the list; clearing it (its own undo step) frees the map for the next area.
         if (route) ui.rulerTool.clearRuler(); else ui.reset();
@@ -134,11 +134,11 @@ final class NewAreaWindow extends UiPart {
 
     void renderNewArea(GuiGraphics g, int x, int y, int w) {
         ui.colorWindows.renderSwatches(g, x, y, w, AreaPalette.COLORS, newAreaColor);
-        g.drawString(ui.mc.font, ui.tr("area_custom_color"), x + 16, y + 175, 0xFF9BAAB7);
+        g.drawString(ui.mc.font, ui.tr("area_custom_color"), x + 16, y + 175, Theme.TEXT_MUTED);
         int px = ui.colorWindows.swatchX(x, w, AreaPalette.COLUMNS - 1), sw = ui.colorWindows.colorSampleWidth(w);
         String hex = ui.dialogFields[HEX_FIELD].getValue().trim();
         g.fill(px, y + 170, px + sw, y + 188, 0xFF000000 | newAreaColor);
         // A red frame marks text that is not a color yet; the preview keeps the last valid one.
-        g.renderOutline(px, y + 170, sw, 18, !hex.isEmpty() && AreaPalette.parse(hex) < 0 ? 0xFFFF5555 : -1);
+        g.renderOutline(px, y + 170, sw, 18, !hex.isEmpty() && AreaPalette.parse(hex) < 0 ? Theme.INVALID : -1);
     }
 }

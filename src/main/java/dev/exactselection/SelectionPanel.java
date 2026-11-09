@@ -15,7 +15,7 @@ import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.network.chat.Component;
 import net.minecraft.util.FormattedCharSequence;
 import net.minecraft.util.Util;
-import static dev.exactselection.ExactSelectionController.ACCENT;
+import static dev.exactselection.Theme.ACCENT;
 import static dev.exactselection.ExactSelectionController.place;
 
 /** The panel beside the map: its buttons and layout, the metric lines with their copy buttons, status lines and the toast. */
@@ -229,16 +229,16 @@ final class SelectionPanel extends UiPart {
         for (var line : lines) w = Math.max(w, ui.mc.font.width(line));
         int boxW = w + 16, boxH = lines.size() * 10 + 10, x = (ui.screen.width - boxW) / 2, y = ui.screen.height - 52 - boxH;
         g.nextStratum();
-        g.fill(x, y, x + boxW, y + boxH, 0xEE101922);
-        g.renderOutline(x, y, boxW, boxH, 0xFF42636D);
+        g.fill(x, y, x + boxW, y + boxH, Theme.PANEL_BACKGROUND);
+        g.renderOutline(x, y, boxW, boxH, Theme.BORDER);
         for (int i = 0; i < lines.size(); i++)
-            g.drawCenteredString(ui.mc.font, lines.get(i), ui.screen.width / 2, y + 6 + i * 10, 0xFFFFCF62);
+            g.drawCenteredString(ui.mc.font, lines.get(i), ui.screen.width / 2, y + 6 + i * 10, Theme.WARNING);
     }
 
     void renderPanel(GuiGraphics g) {
         g.nextStratum();
-        g.fill(PANEL_X, PANEL_Y, PANEL_X + panelWidth, PANEL_Y + panelHeight, 0xEE101922);
-        g.renderOutline(PANEL_X, PANEL_Y, panelWidth, panelHeight, 0xFF42636D);
+        g.fill(PANEL_X, PANEL_Y, PANEL_X + panelWidth, PANEL_Y + panelHeight, Theme.PANEL_BACKGROUND);
+        g.renderOutline(PANEL_X, PANEL_Y, panelWidth, panelHeight, Theme.BORDER);
         int titleEnd = (compact && quickSave.visible ? quickSave : rulerButton).getX() - 4;
         g.drawString(ui.mc.font, fitHint(ui.tr("title").getString(), titleEnd - PANEL_X - 8),
                 PANEL_X + 8, PANEL_Y + 7, ACCENT);
@@ -268,13 +268,13 @@ final class SelectionPanel extends UiPart {
             first = false;
         }
         int lineY = PANEL_Y + sh + (compact ? 70 : 120 - panelScroll);
-        g.fill(PANEL_X + 8, lineY, PANEL_X + panelWidth - 8, lineY + 1, 0xFF42636D);
+        g.fill(PANEL_X + 8, lineY, PANEL_X + panelWidth - 8, lineY + 1, Theme.BORDER);
         if (!compact) {
             int n = ui.selected == null ? 0 : ui.selected.points().size();
             Component count = ui.waypoints == null ? ui.tr("minimap_missing") : ui.selected == null
                     ? ui.tr("waypoints_unavailable") : ui.tr("count", n, setNameDisplay(ui.selected.setName()));
-            line(g, count, 194 + sh, 0xFFFFCF62);
-            line(g, ui.tr(ui.loadFailed ? ui.loadFailedKey() : "scope"), 206 + sh, 0xFF9BAAB7);
+            line(g, count, 194 + sh, Theme.WARNING);
+            line(g, ui.tr(ui.loadFailed ? ui.loadFailedKey() : "scope"), 206 + sh, Theme.TEXT_MUTED);
         }
         Area editing = ui.areasWindow.editedArea();
         // Messages go to the bottom of the screen (renderToast); the panel keeps the controls or the edited area.
@@ -283,10 +283,10 @@ final class SelectionPanel extends UiPart {
         Component status = loadWarning ? ui.tr(ui.loadFailedKey())
                 : compact && ui.dirty ? ui.tr("coordinates_pending")
                 : editing == null ? ui.tr("controls") : ui.tr("editing_area", editing.name());
-        if (!ui.mapExport.hasExportNotice()) line(g, status, (compact ? 96 : 221) + sh, loadWarning ? 0xFFFFCF62 : 0xFF9BAAB7);
+        if (!ui.mapExport.hasExportNotice()) line(g, status, (compact ? 96 : 221) + sh, loadWarning ? Theme.WARNING : Theme.TEXT_MUTED);
         g.disableScissor();
         if (maxPanelScroll() > 0)
-            g.drawString(ui.mc.font, ui.tr("panel_scroll"), PANEL_X + 8, PANEL_Y + panelHeight - 12, 0xFF9BAAB7);
+            g.drawString(ui.mc.font, ui.tr("panel_scroll"), PANEL_X + 8, PANEL_Y + panelHeight - 12, Theme.TEXT_MUTED);
     }
 
     /**

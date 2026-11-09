@@ -123,7 +123,7 @@ final class AreaChecks {
             press(controller, "areaOpacity");
             press(controller, "groupAssign"); row(controller, 1, false);
             press(controller, "areaColor");
-            int[] rect = (int[]) call(controller, "dialogRect");
+            int[] rect = dialogRect(controller);
             controller.mouseClicked(left(rect[0] + 14, rect[1] + 36, 0), false);
             require(window(controller).equals("AREAS") && store.state().areas().get(0).equals(a),
                     "Changes were written before Save while autosave is off");
@@ -379,7 +379,7 @@ final class AreaChecks {
             press(controller, "areaImport");
             require(window(controller).equals("IMPORT"), "Import window did not open");
             checkLayout(controller);
-            int[] rect = (int[]) call(controller, "dialogRect");
+            int[] rect = dialogRect(controller);
             controller.mouseClicked(left(rect[0] + 40, rect[1] + 54, 0), false);
             require(window(controller).equals("AREAS") && store.state().areas().size() == 4,
                     "Re-importing the same areas created duplicates");

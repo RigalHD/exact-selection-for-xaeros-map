@@ -58,7 +58,7 @@ final class MapExport extends UiPart {
     /** Xaero's export folder, or the mod's exchange folder before the map has one. */
     Path defaultExportFolder() {
         Path folder = AreaExportService.defaultFolder(ui.bridge.exactselection$processor());
-        return folder != null ? folder : ui.areaStore.root().resolve("xaero-exact-selection").resolve("map-exports").toAbsolutePath();
+        return folder != null ? folder : ModFiles.directory(ui.areaStore.root()).resolve("map-exports").toAbsolutePath();
     }
 
     private void runExport() {

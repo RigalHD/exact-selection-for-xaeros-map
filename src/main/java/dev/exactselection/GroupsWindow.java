@@ -15,7 +15,7 @@ import java.util.UUID;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.input.MouseButtonEvent;
-import static dev.exactselection.ExactSelectionController.ACCENT;
+import static dev.exactselection.Theme.ACCENT;
 import static dev.exactselection.ExactSelectionController.GROUP_NAME_FIELD;
 import static dev.exactselection.ExactSelectionController.place;
 import static dev.exactselection.SelectionPanel.formatLength;
@@ -118,7 +118,7 @@ final class GroupsWindow extends UiPart {
         if (!ui.areaEdits.changeAreas(ui.areaEdits.areaState(ui.areas(), groups), "group_create")) return;
         groupId = group.id();
         ui.dialog = Dialog.GROUPS;
-        groupScroll = Math.max(0, groups.size() - visibleGroupDialogRows(ui.windows.dialogRect()[3]));
+        groupScroll = Math.max(0, groups.size() - visibleGroupDialogRows(ui.windows.dialogRect().height()));
         ui.say("group_created", group.name());
         ui.focus(null);
     }
@@ -187,39 +187,39 @@ final class GroupsWindow extends UiPart {
                     .filter(area -> Objects.equals(area.groupId(), group.id())).count();
             String name = group == null ? "" : ui.mc.font.plainSubstrByWidth(group.name(), w / 3);
             g.drawCenteredString(ui.mc.font, ui.tr("group_delete_confirm", name, count), x + w / 2, y + h / 2 - 12, -1);
-            g.drawCenteredString(ui.mc.font, ui.tr("group_delete_ungroup_note"), x + w / 2, y + h / 2 + 6, 0xFF9BAAB7);
+            g.drawCenteredString(ui.mc.font, ui.tr("group_delete_ungroup_note"), x + w / 2, y + h / 2 + 6, Theme.TEXT_MUTED);
             return;
         }
         int col = (w - 36) / 2, right = x + w - col - 12;
         List<Group> groups = ui.groups();
         int rows = visibleGroupDialogRows(h);
         groupScroll = Math.min(groupScroll, Math.max(0, groups.size() - rows));
-        g.drawString(ui.mc.font, ui.tr("groups_list_title"), x + 12, y + 34, 0xFF9BAAB7);
-        g.fill(x + 10, y + 46, x + 14 + col, y + h - 52, 0xFF0C141D);
-        if (groups.isEmpty()) g.drawString(ui.mc.font, ui.tr("groups_empty"), x + 16, y + 54, 0xFF9BAAB7);
+        g.drawString(ui.mc.font, ui.tr("groups_list_title"), x + 12, y + 34, Theme.TEXT_MUTED);
+        g.fill(x + 10, y + 46, x + 14 + col, y + h - 52, Theme.LIST_BACKGROUND);
+        if (groups.isEmpty()) g.drawString(ui.mc.font, ui.tr("groups_empty"), x + 16, y + 54, Theme.TEXT_MUTED);
         for (int i = 0; i < rows && i + groupScroll < groups.size(); i++) {
             Group group = groups.get(i + groupScroll);
             int rowY = y + 48 + i * 20;
-            if (Objects.equals(group.id(), groupId)) g.fill(x + 10, rowY, x + 14 + col, rowY + 20, 0x8842636D);
-            g.fill(x + 14, rowY + 5, x + 22, rowY + 13, group.visible() ? ACCENT : 0xFF64717A);
+            if (Objects.equals(group.id(), groupId)) g.fill(x + 10, rowY, x + 14 + col, rowY + 20, Theme.ROW_CHECKED);
+            g.fill(x + 14, rowY + 5, x + 22, rowY + 13, group.visible() ? ACCENT : Theme.INACTIVE);
             g.drawString(ui.mc.font, ui.mc.font.plainSubstrByWidth(group.name(), col - 22), x + 28, rowY + 1, -1);
             double[] members = totals(group.id());
             String details = ui.tr(group.visible() ? "group_state_shown" : "group_state_hidden").getString()
                     + " · " + ui.tr("group_member_count", (int) members[0]).getString()
                     + " · " + ui.tr("group_area_total", formatLength(members[1])).getString();
-            g.drawString(ui.mc.font, ui.mc.font.plainSubstrByWidth(details, col - 22), x + 28, rowY + 11, 0xFF9BAAB7);
+            g.drawString(ui.mc.font, ui.mc.font.plainSubstrByWidth(details, col - 22), x + 28, rowY + 11, Theme.TEXT_MUTED);
         }
         Group group = selectedGroup();
-        g.drawString(ui.mc.font, ui.tr("group_selected"), right, y + 34, 0xFF9BAAB7);
+        g.drawString(ui.mc.font, ui.tr("group_selected"), right, y + 34, Theme.TEXT_MUTED);
         g.drawString(ui.mc.font, ui.mc.font.plainSubstrByWidth(group == null ? ui.tr("group_not_selected").getString() : group.name(), col), right, y + 48, -1);
         // Below the group buttons, while the window is tall enough to leave them clear of the export notice.
         if (h >= 264) {
             double[] ungrouped = totals(null);
             double all = totals.computeIfAbsent("\u0000all", key -> new double[]{0, totalArea(ui.areas())})[1];
             g.drawString(ui.mc.font, ui.mc.font.plainSubstrByWidth(ui.tr("groups_total", ui.areas().size(),
-                    formatLength(all)).getString(), col), right, y + 194, 0xFF9BAAB7);
+                    formatLength(all)).getString(), col), right, y + 194, Theme.TEXT_MUTED);
             g.drawString(ui.mc.font, ui.mc.font.plainSubstrByWidth(ui.tr("groups_ungrouped", (int) ungrouped[0],
-                    formatLength(ungrouped[1])).getString(), col), right, y + 206, 0xFF9BAAB7);
+                    formatLength(ungrouped[1])).getString(), col), right, y + 206, Theme.TEXT_MUTED);
         }
         ui.areasWindow.renderManagementStatus(g, x, y, w, h, "groups_window_hint");
     }
@@ -235,7 +235,7 @@ final class GroupsWindow extends UiPart {
     }
 
     void renderGroupChooser(GuiGraphics g, int x, int y, int w, int h) {
-        g.drawString(ui.mc.font, ui.tr("group_picker_count", assignmentTargets.size()), x + 12, y + 32, 0xFF9BAAB7);
+        g.drawString(ui.mc.font, ui.tr("group_picker_count", assignmentTargets.size()), x + 12, y + 32, Theme.TEXT_MUTED);
         int rows = visibleAssignmentRows(h), count = ui.groups().size() + 1;
         assignmentScroll = Math.min(assignmentScroll, Math.max(0, count - rows));
         List<Area> targets = ui.areas().stream().filter(a -> assignmentTargets.contains(a.id())).toList();
@@ -246,7 +246,7 @@ final class GroupsWindow extends UiPart {
             int rowY = y + 48 + i * 20;
             if (ui.areaEdits.areaDraft.groupSet ? Objects.equals(ui.areaEdits.areaDraft.groupId, id)
                     : !targets.isEmpty() && targets.stream().allMatch(a -> Objects.equals(a.groupId(), id)))
-                g.fill(x + 10, rowY, x + w - 10, rowY + 20, 0x8842636D);
+                g.fill(x + 10, rowY, x + w - 10, rowY + 20, Theme.ROW_CHECKED);
             String name = group == null ? ui.tr("group_none").getString() : group.name();
             if (group != null && !group.visible()) name += " · " + ui.tr("group_state_hidden").getString();
             g.drawString(ui.mc.font, ui.mc.font.plainSubstrByWidth(name, w - 32), x + 16, rowY + 5, -1);

@@ -24,7 +24,7 @@ final class ExportPreferences {
     private ExportPreferences(Path file) { this.file = file; }
 
     static ExportPreferences load(Path root) {
-        ExportPreferences preferences = new ExportPreferences(root.resolve("xaero-exact-selection").resolve("export.json"));
+        ExportPreferences preferences = new ExportPreferences(ModFiles.directory(root).resolve("export.json"));
         if (!Files.exists(preferences.file)) return preferences;
         try {
             JsonObject json = JsonParser.parseString(Files.readString(preferences.file, StandardCharsets.UTF_8)).getAsJsonObject();

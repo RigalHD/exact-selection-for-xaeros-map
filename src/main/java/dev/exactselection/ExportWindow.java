@@ -193,18 +193,18 @@ final class ExportWindow {
         GeometryBounds b = target == null ? null : target.bounds();
         if (b != null) g.drawString(mc.font, mc.font.plainSubstrByWidth(Component.literal(title.getString() + " · ")
                 .append(tr("export_blocks", b.width(), b.length())).getString(), w - 24), x + 12, y + 30, -1);
-        g.drawString(mc.font, tr("export_folder"), x + 12, y + 46, 0xFF9BAAB7);
+        g.drawString(mc.font, tr("export_folder"), x + 12, y + 46, Theme.TEXT_MUTED);
         Path target = folder();
         String file = target == null ? tr("export_folder_invalid").getString() : target.resolve(fileName).toString();
         // Keep the end of a long path, where the file name is.
         String shown = tail(file, w - 24 - mc.font.width(tr("export_file", "").getString()));
-        g.drawString(mc.font, tr("export_file", shown), x + 12, y + 104, target == null ? 0xFFFFCF62 : 0xFF9BAAB7);
+        g.drawString(mc.font, tr("export_file", shown), x + 12, y + 104, target == null ? Theme.WARNING : Theme.TEXT_MUTED);
         if (b != null) {
             boolean fits = AreaExportService.fits(b, windowScale);
             g.drawString(mc.font, fits ? tr("export_size", b.width() * windowScale, b.length() * windowScale)
-                    : tr("export_size_too_large", AreaExportService.MAX_OUTPUT_PIXELS), x + 12, y + (hasTargetArea() ? 190 : 168), fits ? 0xFF9BAAB7 : 0xFFFFCF62);
+                    : tr("export_size_too_large", AreaExportService.MAX_OUTPUT_PIXELS), x + 12, y + (hasTargetArea() ? 190 : 168), fits ? Theme.TEXT_MUTED : Theme.WARNING);
         }
-        if (!message.isEmpty()) g.drawString(mc.font, mc.font.plainSubstrByWidth(message, w - 24), x + 12, y + (hasTargetArea() ? 204 : 182), 0xFFFFCF62);
+        if (!message.isEmpty()) g.drawString(mc.font, mc.font.plainSubstrByWidth(message, w - 24), x + 12, y + (hasTargetArea() ? 204 : 182), Theme.WARNING);
     }
 
     /** The end of a text that fits {@code width}, with an ellipsis in place of what was cut from its start. */

@@ -13,12 +13,14 @@ import static dev.exactselection.ExactSelectionController.place;
 final class ColorWindows extends UiPart {
     Button colorHexApply;
     Dialog colorReturn = Dialog.AREAS;
-    /** The full color picker: the window it returns to, its hue, saturation and brightness, and what is dragged (0 none, 1 square, 2 hue). */
+    /** What the pointer drags in the full color picker while the left button is held. */
+    enum PickerDrag { NONE, SQUARE, HUE }
+    /** The full color picker: the window it returns to, then its hue, saturation and brightness. */
     Dialog pickerReturn = Dialog.AREA_NAME;
     private double pickerHue;
     private double pickerSat;
     private double pickerValue;
-    int pickerDrag;
+    PickerDrag pickerDrag = PickerDrag.NONE;
 
     ColorWindows(ExactSelectionController ui) { super(ui); }
 
@@ -109,7 +111,7 @@ final class ColorWindows extends UiPart {
         for (int i = 0; i < colors.length; i++) {
             int sx = swatchX(x, w, i % AreaPalette.COLUMNS), sy = swatchTop(y) + (i / AreaPalette.COLUMNS) * 22;
             g.fill(sx, sy, sx + sw, sy + 18, 0xFF000000 | colors[i]);
-            g.renderOutline(sx, sy, sw, 18, current == colors[i] ? -1 : 0xFF42636D);
+            g.renderOutline(sx, sy, sw, 18, current == colors[i] ? -1 : Theme.BORDER);
         }
     }
 
@@ -125,17 +127,17 @@ final class ColorWindows extends UiPart {
         if (colorReturn != Dialog.WAYPOINTS) {
             int px = colorPreviewX(x, w);
             g.fill(px, y + 110, px + 40, y + 128, current < 0 ? 0xFF000000 : 0xFF000000 | current);
-            g.renderOutline(px, y + 110, 40, 18, current < 0 ? 0xFFFF5555 : -1);
+            g.renderOutline(px, y + 110, 40, 18, current < 0 ? Theme.INVALID : -1);
         }
         if (!ui.message.isEmpty()) g.drawString(ui.mc.font, ui.mc.font.plainSubstrByWidth(ui.message, w - 24),
-                x + 12, y + (colorReturn == Dialog.WAYPOINTS ? 86 : 98), 0xFFFFCF62);
+                x + 12, y + (colorReturn == Dialog.WAYPOINTS ? 86 : 98), Theme.WARNING);
     }
 
     /** Opens the full color picker on {@code color}; Apply hands the color back to {@code returnTo}. */
     void openPicker(Dialog returnTo, int color) {
         double[] hsv = AreaPalette.toHsv(color);
         pickerHue = hsv[0]; pickerSat = hsv[1]; pickerValue = hsv[2];
-        pickerReturn = returnTo; pickerDrag = 0;
+        pickerReturn = returnTo; pickerDrag = PickerDrag.NONE;
         ui.dialog = Dialog.PICKER;
         ui.message = ""; ui.focus(null);
     }
@@ -144,7 +146,7 @@ final class ColorWindows extends UiPart {
 
     void applyPicker() {
         int color = pickerColor();
-        ui.dialog = pickerReturn; pickerDrag = 0;
+        ui.dialog = pickerReturn; pickerDrag = PickerDrag.NONE;
         ui.setDialogValue(HEX_FIELD, AreaPalette.format(color));
         // The color window applies a choice at once, like a swatch.
         if (pickerReturn == Dialog.COLOR) { applyColor(color); return; }
@@ -153,40 +155,36 @@ final class ColorWindows extends UiPart {
     }
 
     /** Saturation and brightness: {x, y, width, height}; the hue bar stands to its right. */
-    private static int[] pickerSquare(int x, int y, int w, int h) { return new int[]{x + 16, y + 30, w - 58, h - 92}; }
+    private static Rect pickerSquare(int x, int y, int w, int h) { return new Rect(x + 16, y + 30, w - 58, h - 92); }
 
-    private static int[] pickerHueBar(int x, int y, int w, int h) { return new int[]{x + w - 34, y + 30, 18, h - 92}; }
-
-    private static boolean inside(int[] r, double x, double y) {
-        return x >= r[0] && x < r[0] + r[2] && y >= r[1] && y < r[1] + r[3];
-    }
+    private static Rect pickerHueBar(int x, int y, int w, int h) { return new Rect(x + w - 34, y + 30, 18, h - 92); }
 
     void dragPicker(double mouseX, double mouseY) {
-        int[] r = ui.windows.dialogRect();
-        int[] square = pickerSquare(r[0], r[1], r[2], r[3]), hue = pickerHueBar(r[0], r[1], r[2], r[3]);
-        if (pickerDrag == 1) {
-            pickerSat = Math.max(0, Math.min(1, (mouseX - square[0]) / Math.max(1, square[2] - 1)));
-            pickerValue = 1 - Math.max(0, Math.min(1, (mouseY - square[1]) / Math.max(1, square[3] - 1)));
-        } else if (pickerDrag == 2) {
-            pickerHue = Math.max(0, Math.min(1, (mouseY - hue[1]) / Math.max(1, hue[3] - 1)));
+        Rect r = ui.windows.dialogRect();
+        Rect square = pickerSquare(r.x(), r.y(), r.width(), r.height()), hue = pickerHueBar(r.x(), r.y(), r.width(), r.height());
+        if (pickerDrag == PickerDrag.SQUARE) {
+            pickerSat = Math.max(0, Math.min(1, (mouseX - square.x()) / Math.max(1, square.width() - 1)));
+            pickerValue = 1 - Math.max(0, Math.min(1, (mouseY - square.y()) / Math.max(1, square.height() - 1)));
+        } else if (pickerDrag == PickerDrag.HUE) {
+            pickerHue = Math.max(0, Math.min(1, (mouseY - hue.y()) / Math.max(1, hue.height() - 1)));
         }
     }
 
     void renderPicker(GuiGraphics g, int x, int y, int w, int h) {
-        int[] square = pickerSquare(x, y, w, h), hue = pickerHueBar(x, y, w, h);
+        Rect square = pickerSquare(x, y, w, h), hue = pickerHueBar(x, y, w, h);
         // Each column runs from its saturation at full brightness down to black.
-        for (int i = 0; i < square[2]; i++)
-            g.fillGradient(square[0] + i, square[1], square[0] + i + 1, square[1] + square[3],
-                    0xFF000000 | AreaPalette.hsv(pickerHue, i / (double) Math.max(1, square[2] - 1), 1), 0xFF000000);
-        for (int j = 0; j < hue[3]; j++)
-            g.fill(hue[0], hue[1] + j, hue[0] + hue[2], hue[1] + j + 1, 0xFF000000 | AreaPalette.hsv(j / (double) hue[3], 1, 1));
-        g.renderOutline(square[0] - 1, square[1] - 1, square[2] + 2, square[3] + 2, 0xFF42636D);
-        g.renderOutline(hue[0] - 1, hue[1] - 1, hue[2] + 2, hue[3] + 2, 0xFF42636D);
-        int mx = square[0] + (int) Math.round(pickerSat * (square[2] - 1));
-        int my = square[1] + (int) Math.round((1 - pickerValue) * (square[3] - 1));
+        for (int i = 0; i < square.width(); i++)
+            g.fillGradient(square.x() + i, square.y(), square.x() + i + 1, square.y() + square.height(),
+                    0xFF000000 | AreaPalette.hsv(pickerHue, i / (double) Math.max(1, square.width() - 1), 1), 0xFF000000);
+        for (int j = 0; j < hue.height(); j++)
+            g.fill(hue.x(), hue.y() + j, hue.x() + hue.width(), hue.y() + j + 1, 0xFF000000 | AreaPalette.hsv(j / (double) hue.height(), 1, 1));
+        g.renderOutline(square.x() - 1, square.y() - 1, square.width() + 2, square.height() + 2, Theme.BORDER);
+        g.renderOutline(hue.x() - 1, hue.y() - 1, hue.width() + 2, hue.height() + 2, Theme.BORDER);
+        int mx = square.x() + (int) Math.round(pickerSat * (square.width() - 1));
+        int my = square.y() + (int) Math.round((1 - pickerValue) * (square.height() - 1));
         g.renderOutline(mx - 3, my - 3, 7, 7, pickerValue > 0.5 ? 0xFF000000 : -1);
-        int hy = hue[1] + (int) Math.round(pickerHue * (hue[3] - 1));
-        g.renderOutline(hue[0] - 2, hy - 2, hue[2] + 4, 5, -1);
+        int hy = hue.y() + (int) Math.round(pickerHue * (hue.height() - 1));
+        g.renderOutline(hue.x() - 2, hy - 2, hue.width() + 4, 5, -1);
         int color = pickerColor(), py = y + h - 54;
         g.fill(x + 16, py, x + 56, py + 18, 0xFF000000 | color);
         g.renderOutline(x + 16, py, 40, 18, -1);
@@ -207,8 +205,9 @@ final class ColorWindows extends UiPart {
     }
 
     void clickPicker(MouseButtonEvent event, int x, int y, int w, int h) {
-        int[] square = pickerSquare(x, y, w, h), hue = pickerHueBar(x, y, w, h);
-        pickerDrag = inside(square, event.x(), event.y()) ? 1 : inside(hue, event.x(), event.y()) ? 2 : 0;
+        Rect square = pickerSquare(x, y, w, h), hue = pickerHueBar(x, y, w, h);
+        pickerDrag = square.contains(event.x(), event.y()) ? PickerDrag.SQUARE
+                : hue.contains(event.x(), event.y()) ? PickerDrag.HUE : PickerDrag.NONE;
         dragPicker(event.x(), event.y());
     }
 

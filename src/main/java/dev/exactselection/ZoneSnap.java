@@ -5,9 +5,6 @@ import java.util.List;
 
 /** Sticking to saved areas, so neighbours share a border instead of leaving a gap or an overlap. Alt turns it off. */
 final class ZoneSnap extends UiPart {
-    /** How far, in GUI pixels, a vertex or a side attracts the pointer. */
-    private static final int REACH = 8;
-
     ZoneSnap(ExactSelectionController ui) { super(ui); }
 
     /** A vertex, or else a point on a side, of a shown area within reach of the pointer; null when there is none. */
@@ -19,8 +16,8 @@ final class ZoneSnap extends UiPart {
             if (area.id().equals(ui.state.source()) || !ui.areasWindow.shownOnMap(area)) continue;
             // Most areas are nowhere near the pointer: their bounds rule them out before any vertex is measured.
             GeometryBounds b = area.geometry().bounds();
-            if (x < frame.screenX(b.minX()) - REACH || x > frame.screenX(b.maxX()) + REACH
-                    || y < frame.screenY(b.minZ()) - REACH || y > frame.screenY(b.maxZ()) + REACH) continue;
+            if (x < frame.screenX(b.minX()) - PolygonTool.HIT_RADIUS || x > frame.screenX(b.maxX()) + PolygonTool.HIT_RADIUS
+                    || y < frame.screenY(b.minZ()) - PolygonTool.HIT_RADIUS || y > frame.screenY(b.maxZ()) + PolygonTool.HIT_RADIUS) continue;
             List<GridPoint> vertices = area.geometry().vertices();
             int vertex = ui.polygonTool.hitVertex(frame, vertices, x, y);
             if (vertex >= 0) return vertices.get(vertex);

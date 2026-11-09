@@ -11,7 +11,7 @@ import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.network.chat.Component;
 import xaero.map.WorldMap;
 import xaero.map.common.config.option.WorldMapProfiledConfigOptions;
-import static dev.exactselection.ExactSelectionController.ACCENT;
+import static dev.exactselection.Theme.ACCENT;
 
 /** What the tool draws over the map: saved areas with their names, and the current selection with its handles. */
 final class MapOverlays extends UiPart {
@@ -166,7 +166,7 @@ final class MapOverlays extends UiPart {
         Area editing = ui.areasWindow.editedArea();
         // Above the frame; with no room there, below the width label instead of over it.
         if (editing != null && x1 < x2 && y1 < y2)
-            label(g, ui.tr("editing_area", editing.name()), (x1 + x2) / 2, y1 >= 16 ? y1 - 14 : y1 + 16, 0xFFFFCF62);
+            label(g, ui.tr("editing_area", editing.name()), (x1 + x2) / 2, y1 >= 16 ? y1 - 14 : y1 + 16, Theme.WARNING);
         if (ui.selected != null) {
             g.enableScissor(0, 0, ui.screen.width, ui.screen.height);
             // Xaero draws the icon above its point, 30 (43 for longer symbols) by 43 units, in window pixels scaled
@@ -181,7 +181,7 @@ final class MapOverlays extends UiPart {
                 int iconLeft = (int) Math.floor(px - half) - 1, iconRight = (int) Math.ceil(px + half) + 1;
                 int iconTop = (int) Math.floor(py - 42 * unit) - 1, iconBottom = (int) Math.ceil(py + unit) + 1;
                 if (iconRight < 0 || iconLeft > ui.screen.width || iconBottom < 0 || iconTop > ui.screen.height) continue;
-                g.renderOutline(iconLeft, iconTop, iconRight - iconLeft, iconBottom - iconTop, 0xFFFFCF62);
+                g.renderOutline(iconLeft, iconTop, iconRight - iconLeft, iconBottom - iconTop, Theme.WARNING);
             }
             g.disableScissor();
         }

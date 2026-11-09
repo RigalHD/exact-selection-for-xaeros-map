@@ -4,7 +4,7 @@ import dev.exactselection.ExactSelectionController.Dialog;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.network.chat.Component;
-import static dev.exactselection.ExactSelectionController.ACCENT;
+import static dev.exactselection.Theme.ACCENT;
 import static dev.exactselection.ModLog.LOG;
 import static dev.exactselection.ExactSelectionController.AREA_NAME_FIELD;
 import static dev.exactselection.ExactSelectionController.CENTER_NAME_FIELD;
@@ -79,7 +79,8 @@ final class Windows extends UiPart {
         ui.focus(null);
     }
 
-    int[] dialogRect() {
+    /** Where the open window sits: centred, and never larger than the screen allows. */
+    Rect dialogRect() {
         int width = Math.min(switch (ui.dialog) {
             case AREAS, GROUPS -> 760;
             case ASSIGN_GROUP, AREA_NAME, GROUP_NAME, COLOR, PICKER -> 420;
@@ -97,12 +98,13 @@ final class Windows extends UiPart {
             case EXPORT -> Math.min(ui.exportWindow.hasTargetArea() ? 242 : 220, ui.screen.height - 16);
             default -> 0;
         };
-        return new int[]{(ui.screen.width - width) / 2, (ui.screen.height - height) / 2, width, height};
+        return new Rect((ui.screen.width - width) / 2, (ui.screen.height - height) / 2, width, height);
     }
 
     void layoutDialog() {
         if (ui.dialog == Dialog.NONE) return;
-        int[] r = dialogRect(); int x = r[0], y = r[1], w = r[2], h = r[3];
+        Rect r = dialogRect();
+        int x = r.x(), y = r.y(), w = r.width(), h = r.height();
         int buttonY = y + h - 28;
         switch (ui.dialog) {
             case SIZE -> {
@@ -246,9 +248,10 @@ final class Windows extends UiPart {
     }
 
     void renderDialog(GuiGraphics g) {
-        int[] r = dialogRect(); int x = r[0], y = r[1], w = r[2], h = r[3];
+        Rect r = dialogRect();
+        int x = r.x(), y = r.y(), w = r.width(), h = r.height();
         g.nextStratum(); g.fill(0, 0, ui.screen.width, ui.screen.height, 0xC0080D12);
-        g.fill(x, y, x + w, y + h, 0xFF141E29); g.renderOutline(x, y, w, h, 0xFF42636D);
+        g.fill(x, y, x + w, y + h, 0xFF141E29); g.renderOutline(x, y, w, h, Theme.BORDER);
         String title = switch (ui.dialog) {
             case SIZE -> "dialog_size"; case MOVE -> "dialog_move"; case CENTER -> "dialog_center";
             case AREAS -> "areas_window"; case GROUPS -> "groups_window";
@@ -266,19 +269,19 @@ final class Windows extends UiPart {
                 g.drawString(ui.mc.font, ui.tr("length_field"), x + 36 + (w - 54) / 2, y + 38, -1);
                 SelectionBounds b = ui.state.bounds();
                 if (b != null) g.drawString(ui.mc.font, ui.tr("current_anchor", SelectionDialogs.formatNumber(ui.selectionDialogs.sizeFromCenter ? b.centerX() : b.minX()),
-                        SelectionDialogs.formatNumber(ui.selectionDialogs.sizeFromCenter ? b.centerZ() : b.maxZ())), x + 18, y + 108, 0xFF9BAAB7);
-                g.drawString(ui.mc.font, ui.tr("lower_left_axes"), x + 18, y + 124, 0xFF9BAAB7);
+                        SelectionDialogs.formatNumber(ui.selectionDialogs.sizeFromCenter ? b.centerZ() : b.maxZ())), x + 18, y + 108, Theme.TEXT_MUTED);
+                g.drawString(ui.mc.font, ui.tr("lower_left_axes"), x + 18, y + 124, Theme.TEXT_MUTED);
             }
             case MOVE -> {
                 g.drawString(ui.mc.font, ui.tr("offset_x"), x + 18, y + 38, -1);
                 g.drawString(ui.mc.font, ui.tr("offset_z"), x + 36 + (w - 54) / 2, y + 38, -1);
-                g.drawString(ui.mc.font, ui.tr("move_note"), x + 18, y + 108, 0xFF9BAAB7);
+                g.drawString(ui.mc.font, ui.tr("move_note"), x + 18, y + 108, Theme.TEXT_MUTED);
             }
             case CENTER -> {
                 SelectionBounds b = ui.state.bounds();
                 g.drawString(ui.mc.font, b == null ? ui.tr("no_selection")
                         : ui.tr("center_value", SelectionDialogs.formatNumber(b.centerX()), SelectionDialogs.formatNumber(b.centerZ())), x + 18, y + 34, -1);
-                g.drawString(ui.mc.font, ui.tr("center_waypoint_y"), x + 18, y + 82, 0xFF9BAAB7);
+                g.drawString(ui.mc.font, ui.tr("center_waypoint_y"), x + 18, y + 82, Theme.TEXT_MUTED);
             }
             case AREAS -> ui.areasWindow.renderAreasDialog(g, x, y, w, h);
             case GROUPS -> ui.groupsWindow.renderGroupsDialog(g, x, y, w, h);
@@ -290,7 +293,7 @@ final class Windows extends UiPart {
                 g.drawString(ui.mc.font, ui.tr(label), x + 16, y + 32, -1);
                 if (ui.dialog == Dialog.AREA_NAME) ui.newAreaWindow.renderNewArea(g, x, y, w);
                 if (!ui.message.isEmpty())
-                    g.drawString(ui.mc.font, ui.mc.font.plainSubstrByWidth(ui.message, w - 32), x + 16, y + (ui.dialog == Dialog.AREA_NAME ? 194 : 80), 0xFFFFCF62);
+                    g.drawString(ui.mc.font, ui.mc.font.plainSubstrByWidth(ui.message, w - 32), x + 16, y + (ui.dialog == Dialog.AREA_NAME ? 194 : 80), Theme.WARNING);
             }
             case WAYPOINTS -> ui.waypointsWindow.renderWaypointsDialog(g, x, y, w, h);
             case COLOR -> ui.colorWindows.renderColorDialog(g, x, y, w, h);

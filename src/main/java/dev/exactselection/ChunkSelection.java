@@ -20,7 +20,7 @@ public final class ChunkSelection {
     }
 
     private static int checked(int coordinate) {
-        if (coordinate < -30_000_000 || coordinate >= 30_000_000)
+        if (coordinate < -WorldLimits.MAX || coordinate >= WorldLimits.MAX)
             throw new IllegalArgumentException("Chunk outside world bounds");
         return coordinate;
     }

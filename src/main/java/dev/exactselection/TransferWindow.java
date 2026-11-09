@@ -104,19 +104,19 @@ final class TransferWindow extends UiPart {
     }
 
     void renderImportDialog(GuiGraphics g, int x, int y, int w, int h) {
-        g.drawString(ui.mc.font, ui.mc.font.plainSubstrByWidth(ui.tr("import_hint").getString(), w - 24), x + 12, y + 32, 0xFF9BAAB7);
+        g.drawString(ui.mc.font, ui.mc.font.plainSubstrByWidth(ui.tr("import_hint").getString(), w - 24), x + 12, y + 32, Theme.TEXT_MUTED);
         int rows = importRows(h);
         importScroll = Math.min(importScroll, Math.max(0, importFiles.size() - rows));
-        g.fill(x + 10, y + 46, x + w - 10, y + 48 + rows * 20, 0xFF0C141D);
-        if (importFiles.isEmpty()) g.drawString(ui.mc.font, ui.tr("import_empty"), x + 16, y + 54, 0xFF9BAAB7);
+        g.fill(x + 10, y + 46, x + w - 10, y + 48 + rows * 20, Theme.LIST_BACKGROUND);
+        if (importFiles.isEmpty()) g.drawString(ui.mc.font, ui.tr("import_empty"), x + 16, y + 54, Theme.TEXT_MUTED);
         for (int i = 0; i < rows && i + importScroll < importFiles.size(); i++) {
             Path file = importFiles.get(i + importScroll);
             int rowY = y + 48 + i * 20;
             String when = importDates.getOrDefault(file, "");
             g.drawString(ui.mc.font, ui.mc.font.plainSubstrByWidth(file.getFileName().toString(), w - 150), x + 16, rowY + 6, -1);
-            g.drawString(ui.mc.font, when, x + w - 16 - ui.mc.font.width(when), rowY + 6, 0xFF9BAAB7);
+            g.drawString(ui.mc.font, when, x + w - 16 - ui.mc.font.width(when), rowY + 6, Theme.TEXT_MUTED);
         }
-        if (!ui.message.isEmpty()) g.drawString(ui.mc.font, ui.mc.font.plainSubstrByWidth(ui.message, w - 190), x + 172, y + h - 23, 0xFFFFCF62);
+        if (!ui.message.isEmpty()) g.drawString(ui.mc.font, ui.mc.font.plainSubstrByWidth(ui.message, w - 190), x + 172, y + h - 23, Theme.WARNING);
     }
 
     void clickImportRow(MouseButtonEvent event, int x, int y, int w, int h) {

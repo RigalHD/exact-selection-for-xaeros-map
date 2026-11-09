@@ -32,7 +32,7 @@ final class AreaTransfer {
     private AreaTransfer() {}
 
     /** {@code <root>/xaero-exact-selection/exports}: the folder exports go to and imports are listed from. */
-    static Path folder(Path root) { return root.resolve("xaero-exact-selection").resolve("exports"); }
+    static Path folder(Path root) { return ModFiles.directory(root).resolve("exports"); }
 
     /** Writes {@code areas} and the groups they use; returns the new file. */
     static Path export(Path folder, String label, List<Area> areas, List<Group> groups)

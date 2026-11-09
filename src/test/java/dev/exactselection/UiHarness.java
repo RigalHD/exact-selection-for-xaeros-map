@@ -199,7 +199,7 @@ final class UiHarness {
     }
 
     static void row(ExactSelectionController controller, int index, boolean checkbox) throws Exception {
-        int[] rect = (int[]) call(controller, "dialogRect");
+        int[] rect = dialogRect(controller);
         controller.mouseClicked(new MouseButtonEvent(rect[0] + (checkbox ? 17 : 54), rect[1] + 54 + index * 20,
                 new MouseButtonInfo(GLFW.GLFW_MOUSE_BUTTON_LEFT, 0)), false);
         // Separate clicks, whatever time passes here between them: never the two of a double click.
@@ -222,7 +222,7 @@ final class UiHarness {
 
     static void checkLayout(ExactSelectionController controller) throws Exception {
         call(controller, "layoutDialog");
-        int[] rect = (int[]) call(controller, "dialogRect");
+        int[] rect = dialogRect(controller);
         List<AbstractWidget> visible = ((List<?>) get(controller, "widgets")).stream()
                 .map(AbstractWidget.class::cast).filter(w -> w.visible).toList();
         for (AbstractWidget widget : visible) {
@@ -336,13 +336,17 @@ final class UiHarness {
         return Enum.valueOf((Class) field(controller.getClass(), "dialog").getType(), name);
     }
 
-    @SuppressWarnings("unchecked")
-    /** Right click inside the selection: quick actions for the territory under edit, or save and clear for a new one. */
+    /** A rectangle of the color picker for the window at {@code r}, as {x, y, width, height}. */
     static int[] pickerRect(String name, int[] r) throws Exception {
         Method method = declared(name, int.class, int.class, int.class, int.class);
         method.setAccessible(true);
-        return (int[]) method.invoke(null, r[0], r[1], r[2], r[3]);
+        return array((Rect) method.invoke(null, r[0], r[1], r[2], r[3]));
     }
+
+    /** The open window's rectangle as {x, y, width, height}. */
+    static int[] dialogRect(Object controller) throws Exception { return array((Rect) call(controller, "dialogRect")); }
+
+    private static int[] array(Rect r) { return new int[]{r.x(), r.y(), r.width(), r.height()}; }
 
     static void mapClick(ExactSelectionController controller, double x, double y, int button) throws Exception {
         controller.mouseClicked(new MouseButtonEvent(x, y, new MouseButtonInfo(button, 0)), false);
@@ -420,7 +424,7 @@ final class UiHarness {
     }
 
     static void clickRow(ExactSelectionController controller, int index, int modifiers) throws Exception {
-        int[] rect = (int[]) call(controller, "dialogRect");
+        int[] rect = dialogRect(controller);
         controller.mouseClicked(new MouseButtonEvent(rect[0] + 54, rect[1] + 54 + index * 20,
                 new MouseButtonInfo(GLFW.GLFW_MOUSE_BUTTON_LEFT, modifiers)), false);
     }

@@ -32,16 +32,16 @@ final class InputRouter extends UiPart {
                 }
             }
             if (event.button() == GLFW.GLFW_MOUSE_BUTTON_LEFT) {
-                int[] r = ui.windows.dialogRect();
+                Rect r = ui.windows.dialogRect();
                 switch (ui.dialog) {
-                    case COLOR -> ui.colorWindows.clickColorDialog(event, r[0], r[1], r[2], r[3]);
-                    case PICKER -> ui.colorWindows.clickPicker(event, r[0], r[1], r[2], r[3]);
-                    case IMPORT -> ui.transferWindow.clickImportRow(event, r[0], r[1], r[2], r[3]);
-                    case AREA_NAME -> ui.newAreaWindow.clickAreaNameDialog(event, r[0], r[1], r[2], r[3]);
-                    case AREAS -> ui.areasWindow.clickAreaRow(event, r[0], r[1], r[2], r[3]);
-                    case GROUPS -> ui.groupsWindow.clickGroupRow(event, r[0], r[1], r[2], r[3]);
-                    case ASSIGN_GROUP -> ui.groupsWindow.clickGroupChooser(event, r[0], r[1], r[2], r[3]);
-                    case WAYPOINTS -> ui.waypointsWindow.clickWaypointRow(event, r[0], r[1], r[2], r[3]);
+                    case COLOR -> ui.colorWindows.clickColorDialog(event, r.x(), r.y(), r.width(), r.height());
+                    case PICKER -> ui.colorWindows.clickPicker(event, r.x(), r.y(), r.width(), r.height());
+                    case IMPORT -> ui.transferWindow.clickImportRow(event, r.x(), r.y(), r.width(), r.height());
+                    case AREA_NAME -> ui.newAreaWindow.clickAreaNameDialog(event, r.x(), r.y(), r.width(), r.height());
+                    case AREAS -> ui.areasWindow.clickAreaRow(event, r.x(), r.y(), r.width(), r.height());
+                    case GROUPS -> ui.groupsWindow.clickGroupRow(event, r.x(), r.y(), r.width(), r.height());
+                    case ASSIGN_GROUP -> ui.groupsWindow.clickGroupChooser(event, r.x(), r.y(), r.width(), r.height());
+                    case WAYPOINTS -> ui.waypointsWindow.clickWaypointRow(event, r.x(), r.y(), r.width(), r.height());
                     default -> {}
                 }
             }
@@ -77,9 +77,9 @@ final class InputRouter extends UiPart {
             if (Math.hypot(event.x() - ui.mapPointer.rightPressX, event.y() - ui.mapPointer.rightPressY) < 4 && ui.enabled()
                     && ui.rightClickMenu.openQuickMenu(ui.checkedFrame(), event.x(), event.y())) return true;
         }
-        if (event.button() == GLFW.GLFW_MOUSE_BUTTON_LEFT && ui.colorWindows.pickerDrag != 0) {
+        if (event.button() == GLFW.GLFW_MOUSE_BUTTON_LEFT && ui.colorWindows.pickerDrag != ColorWindows.PickerDrag.NONE) {
             ui.colorWindows.dragPicker(event.x(), event.y());
-            ui.colorWindows.pickerDrag = 0;
+            ui.colorWindows.pickerDrag = ColorWindows.PickerDrag.NONE;
             return true;
         }
         if (event.button() == GLFW.GLFW_MOUSE_BUTTON_LEFT && ui.waypointsWindow.scrollbarDragging) {
@@ -111,7 +111,7 @@ final class InputRouter extends UiPart {
     }
 
     private void scrollWindow(int step) {
-        int height = ui.windows.dialogRect()[3];
+        int height = ui.windows.dialogRect().height();
         WaypointsWindow points = ui.waypointsWindow;
         TransferWindow transfer = ui.transferWindow;
         AreasWindow areas = ui.areasWindow;

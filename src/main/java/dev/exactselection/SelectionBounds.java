@@ -54,11 +54,11 @@ public record SelectionBounds(int x1, int z1, int x2, int z2) {
         return new SelectionBounds((int) left, (int) top, (int) right, (int) bottom);
     }
     private static void checkBlock(long coordinate) {
-        if (coordinate < -30_000_000L || coordinate >= 30_000_000L)
+        if (coordinate < -WorldLimits.MAX || coordinate >= WorldLimits.MAX)
             throw new IllegalArgumentException("Coordinate outside Minecraft world bounds");
     }
     public static int block(double coordinate) {
-        if (!Double.isFinite(coordinate) || coordinate < -30_000_000 || coordinate >= 30_000_000)
+        if (!Double.isFinite(coordinate) || coordinate < -WorldLimits.MAX || coordinate >= WorldLimits.MAX)
             throw new IllegalArgumentException("Coordinate outside Minecraft world bounds");
         return (int) Math.floor(coordinate);
     }

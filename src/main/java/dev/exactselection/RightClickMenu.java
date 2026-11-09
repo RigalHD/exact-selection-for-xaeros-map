@@ -216,15 +216,7 @@ final class RightClickMenu extends UiPart {
             Area area = menuArea();
             quickMenu = false;
             if (area == null) return;
-            // The Areas window's confirmation; either answer returns to the map.
-            ui.areasWindow.selectedAreaIds.clear();
-            ui.areasWindow.selectedAreaIds.add(area.id());
-            ui.areasWindow.areaId = area.id();
-            ui.areaEdits.areaDraft.clear();
-            ui.dialog = Dialog.AREAS;
-            ui.areasWindow.areaDeleteConfirmation = ui.areasWindow.areaDeleteFromMenu = true;
-            ui.message = "";
-            ui.focus(ui.confirm);
+            ui.areasWindow.askDeleteFromMenu(area);
         });
         quickMenuClear = ui.button("quick_menu_clear", () -> {
             quickMenu = false;

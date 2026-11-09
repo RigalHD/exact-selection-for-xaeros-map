@@ -199,6 +199,18 @@ final class AreasWindow extends UiPart {
         ui.message = "";
     }
 
+    /** Asks to delete one area from the map's right-click menu; either answer returns to the map. */
+    void askDeleteFromMenu(Area area) {
+        selectedAreaIds.clear();
+        selectedAreaIds.add(area.id());
+        areaId = area.id();
+        ui.areaEdits.areaDraft.clear();
+        ui.dialog = Dialog.AREAS;
+        areaDeleteConfirmation = areaDeleteFromMenu = true;
+        ui.message = "";
+        ui.focus(ui.confirm);
+    }
+
     int visibleAreaDialogRows(int height) {
         // The list ends above the export/import, select, save and overlay rows at the bottom of the window.
         return Math.max(1, (height - 148) / 20);

@@ -160,8 +160,6 @@ final class WaypointsWindow extends UiPart {
                 x + 12,
                 y + h - 70,
                 ui.message.isEmpty() ? Theme.TEXT_MUTED : Theme.WARNING);
-        ui.confirm.setMessage(ui.tr("delete_count", chosen));
-        ui.confirm.active = chosen > 0;
     }
 
     static int waypointRows(int height) {

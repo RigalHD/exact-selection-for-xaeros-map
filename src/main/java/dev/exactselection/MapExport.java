@@ -178,6 +178,14 @@ final class MapExport extends UiPart {
         ui.selectionPanel.layoutMainPanel();
     }
 
+    /** Announces a written file and keeps the Show file button for it. */
+    void announceFile(Path file, String notice, Component tooltip) {
+        lastExport = file.toAbsolutePath().normalize();
+        exportNotice = notice;
+        ui.message = notice;
+        setExportTooltip(tooltip);
+    }
+
     void setExportTooltip(Component text) {
         exportTooltip = Tooltip.create(text);
         openExportButton.setTooltip(exportTooltip);

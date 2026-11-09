@@ -126,12 +126,11 @@ final class TransferWindow extends UiPart {
         if (areas.isEmpty()) return;
         try {
             Path file = AreaTransfer.export(transferFolder(), label, areas, ui.groups());
-            ui.mapExport.lastExport = file.toAbsolutePath().normalize();
-            ui.mapExport.exportNotice = ui.tr(
-                            "areas_exported", areas.size(), file.getFileName().toString())
-                    .getString();
-            ui.message = ui.mapExport.exportNotice;
-            ui.mapExport.setExportTooltip(Component.literal(ui.mapExport.lastExport.toString()));
+            ui.mapExport.announceFile(
+                    file,
+                    ui.tr("areas_exported", areas.size(), file.getFileName().toString())
+                            .getString(),
+                    Component.literal(file.toAbsolutePath().normalize().toString()));
         } catch (Exception e) {
             ui.say("areas_export_failed");
             LOG.error("Could not export areas", e);

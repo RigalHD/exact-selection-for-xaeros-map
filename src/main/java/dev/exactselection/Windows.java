@@ -60,6 +60,7 @@ final class Windows extends UiPart {
             case SIZE -> ui.selectionDialogs.sizeWindow;
             case AREAS -> ui.areasWindow.window;
             case MOVE -> ui.selectionDialogs.moveWindow;
+            case CENTER -> ui.selectionDialogs.centerWindow;
             default -> null;
         };
     }

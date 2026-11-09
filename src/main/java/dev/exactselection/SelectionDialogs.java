@@ -118,6 +118,52 @@ final class SelectionDialogs extends UiPart {
         }
     };
 
+    final Window centerWindow = new Window() {
+        @Override
+        int width() {
+            return 560;
+        }
+
+        @Override
+        int height() {
+            return 172;
+        }
+
+        @Override
+        String title() {
+            return "dialog_center";
+        }
+
+        @Override
+        void show() {
+            ui.show(true, ui.field(DialogField.CENTER_NAME), centerCopy, centerCreate, ui.modalCancel);
+        }
+
+        @Override
+        void layout(Rect r, int buttonY) {
+            int x = r.x(), y = r.y(), w = r.width();
+            place(ui.field(DialogField.CENTER_NAME), x + 18, y + 58, w - 36, 18);
+            place(centerCopy, x + 18, buttonY - 22, Math.max(70, (w - 48) / 2), 18);
+            place(centerCreate, x + 30 + (w - 48) / 2, buttonY - 22, Math.max(70, (w - 48) / 2), 18);
+            place(ui.modalCancel, x + w / 2 - 55, buttonY, 110, 18);
+        }
+
+        @Override
+        void render(GuiGraphics g, Rect r) {
+            int x = r.x(), y = r.y();
+            SelectionBounds b = ui.state.bounds();
+            g.drawString(
+                    ui.mc.font,
+                    b == null
+                            ? ui.tr("no_selection")
+                            : ui.tr("center_value", formatNumber(b.centerX()), formatNumber(b.centerZ())),
+                    x + 18,
+                    y + 34,
+                    -1);
+            g.drawString(ui.mc.font, ui.tr("center_waypoint_y"), x + 18, y + 82, Theme.TEXT_MUTED);
+        }
+    };
+
     SelectionDialogs(ExactSelectionController ui) {
         super(ui);
     }

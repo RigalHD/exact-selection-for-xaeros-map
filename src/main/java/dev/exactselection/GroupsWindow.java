@@ -83,6 +83,62 @@ final class GroupsWindow extends UiPart {
         }
     };
 
+    final Window chooserWindow = new Window() {
+        @Override
+        int width() {
+            return 420;
+        }
+
+        @Override
+        int height() {
+            return 330;
+        }
+
+        @Override
+        String title() {
+            return "group_picker_title";
+        }
+
+        @Override
+        boolean titleOnLeft() {
+            return true;
+        }
+
+        @Override
+        Dialog returnTo() {
+            return Dialog.AREAS;
+        }
+
+        @Override
+        void show() {
+            ui.show(true, manageGroups, ui.managementClose);
+        }
+
+        @Override
+        void layout(Rect r, int buttonY) {
+            int x = r.x(), y = r.y(), w = r.width(), h = r.height();
+            place(ui.managementClose, x + w - 82, y + 7, 70, 18);
+            place(manageGroups, x + 12, y + h - 36, w - 24, 18);
+        }
+
+        @Override
+        void render(GuiGraphics g, Rect r) {
+            renderGroupChooser(g, r.x(), r.y(), r.width(), r.height());
+        }
+
+        @Override
+        void click(MouseButtonEvent event, Rect r) {
+            clickGroupChooser(event, r.x(), r.y(), r.width(), r.height());
+        }
+
+        @Override
+        void scroll(int step, int height) {
+            if (ui.areasWindow.areaDeleteConfirmation || groupDeleteConfirmation) return;
+            assignmentScroll =
+                    InputRouter.scrolled(assignmentScroll, step, ui.groups().size() + 1, visibleAssignmentRows(height));
+        }
+    };
+
     GroupsWindow(ExactSelectionController ui) {
         super(ui);
     }

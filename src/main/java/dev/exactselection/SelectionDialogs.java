@@ -72,6 +72,52 @@ final class SelectionDialogs extends UiPart {
     };
     boolean moveInChunks;
 
+    final Window moveWindow = new Window() {
+        @Override
+        int width() {
+            return 560;
+        }
+
+        @Override
+        int height() {
+            return 180;
+        }
+
+        @Override
+        String title() {
+            return "dialog_move";
+        }
+
+        @Override
+        void show() {
+            ui.show(
+                    true,
+                    ui.field(DialogField.OFFSET_X),
+                    ui.field(DialogField.OFFSET_Z),
+                    moveUnitsButton,
+                    ui.modalApply,
+                    ui.modalCancel);
+        }
+
+        @Override
+        void layout(Rect r, int buttonY) {
+            int x = r.x(), y = r.y(), w = r.width();
+            place(ui.field(DialogField.OFFSET_X), x + 18, y + 52, (w - 54) / 2, 18);
+            place(ui.field(DialogField.OFFSET_Z), x + 36 + (w - 54) / 2, y + 52, (w - 54) / 2, 18);
+            place(moveUnitsButton, x + 18, y + 82, w - 36, 18);
+            place(ui.modalApply, x + w / 2 - 116, buttonY, 110, 18);
+            place(ui.modalCancel, x + w / 2 + 6, buttonY, 110, 18);
+        }
+
+        @Override
+        void render(GuiGraphics g, Rect r) {
+            int x = r.x(), y = r.y(), w = r.width();
+            g.drawString(ui.mc.font, ui.tr("offset_x"), x + 18, y + 38, -1);
+            g.drawString(ui.mc.font, ui.tr("offset_z"), x + 36 + (w - 54) / 2, y + 38, -1);
+            g.drawString(ui.mc.font, ui.tr("move_note"), x + 18, y + 108, Theme.TEXT_MUTED);
+        }
+    };
+
     SelectionDialogs(ExactSelectionController ui) {
         super(ui);
     }

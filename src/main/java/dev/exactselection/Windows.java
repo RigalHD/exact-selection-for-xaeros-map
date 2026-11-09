@@ -59,6 +59,7 @@ final class Windows extends UiPart {
         return switch (ui.dialog) {
             case SIZE -> ui.selectionDialogs.sizeWindow;
             case AREAS -> ui.areasWindow.window;
+            case MOVE -> ui.selectionDialogs.moveWindow;
             default -> null;
         };
     }

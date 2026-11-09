@@ -130,6 +130,12 @@ The default build resolves Xaero dependencies from its Maven repository. The exa
 ./gradlew -PxaeroDeps=build/xaero-deps build
 ```
 
+The code is formatted with Spotless (palantir-java-format, 120 columns), and the build fails on unformatted code or on a compiler warning. To format:
+
+```sh
+./gradlew spotlessApply
+```
+
 To check the language files:
 
 ```sh

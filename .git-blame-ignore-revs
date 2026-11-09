@@ -1,0 +1,2 @@
+# Mechanical formatting; `git config blame.ignoreRevsFile .git-blame-ignore-revs` keeps blame on the real authors.
+81e0baf8adf7ede095599d73f4b9b1c2476374cb

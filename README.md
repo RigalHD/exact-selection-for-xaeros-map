@@ -146,6 +146,8 @@ python3 tools/check_localization.py
 
 `tools/XaeroApiCheck.java` lists every Xaero class, method and field the built JAR uses, including Mixin targets, shadows and accessors, that a given set of Xaero JARs lacks: `java -cp <asm, asm-tree>:<classes> XaeroApiCheck <addon.jar> <xaero jars…>`. It prints `OK` when nothing is missing.
 
+The checks run under JUnit as part of `./gradlew build`; the report is in `build/reports/tests/test/index.html`.
+
 Tests cover geometry, saved-area persistence, waypoint write rollback, editing/undo, localization, and UI widget layouts at 320×240, 480×270 and 960×540. They do not establish visual correctness in a running Minecraft client.
 
 ## License

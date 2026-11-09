@@ -50,7 +50,7 @@
 - The Russian interface says «область» everywhere instead of mixing it with «зона».
 - The panel's view, the units, the color and fill of the next area and the choices of the Size and Move windows are remembered between game sessions.
 - Leaving a world releases the map world the tool was holding.
-- Internal: the code is formatted with Spotless and compiles without warnings, and the build checks both. Repeated colors, the world limit and the config folder have names; enums and records replace number codes and small arrays.
+- Internal: the code is formatted with Spotless and compiles without warnings, and the build checks both. Repeated colors, the world limit and the config folder have names; enums and records replace number codes and small arrays. The checks run under JUnit, one test per scenario.
 - Internal: a saved area is a record over one geometry; the in-game test scenarios are kept in `gametest/`.
 - Internal: the 4100-line controller is split by job into the panel, map overlays, map input, right-click menu, Polygon tool, ruler, and the Areas, Groups, waypoint, color, transfer and Size/Move/Center windows. `tools/build_cached.py`, which no longer built the mod, is removed.
 

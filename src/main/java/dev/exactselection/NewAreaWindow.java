@@ -26,6 +26,66 @@ final class NewAreaWindow extends UiPart {
 
     int newAreaOpacity = 25;
 
+    final Window window = new Window() {
+        @Override
+        int width() {
+            return 420;
+        }
+
+        @Override
+        int height() {
+            return 236;
+        }
+
+        @Override
+        String title() {
+            return routeToSave != null ? "route_new_title" : "area_new_title";
+        }
+
+        @Override
+        Dialog returnTo() {
+            return areaNameReturn;
+        }
+
+        @Override
+        void show() {
+            ui.show(
+                    true,
+                    ui.field(DialogField.NEW_AREA),
+                    ui.field(DialogField.HEX),
+                    newAreaGroup,
+                    newAreaOpacityButton,
+                    ui.modalApply,
+                    ui.modalCancel);
+            // A route has nothing to fill.
+            newAreaOpacityButton.visible = routeToSave == null;
+        }
+
+        @Override
+        void layout(Rect r, int buttonY) {
+            int x = r.x(), y = r.y(), w = r.width();
+            place(ui.field(DialogField.NEW_AREA), x + 16, y + 48, w - 32, 18);
+            layoutNewArea(x, y, w);
+            place(ui.modalApply, x + w / 2 - 116, buttonY, 110, 18);
+            place(ui.modalCancel, x + w / 2 + 6, buttonY, 110, 18);
+        }
+
+        @Override
+        void render(GuiGraphics g, Rect r) {
+            int x = r.x(), y = r.y(), w = r.width();
+            g.drawString(ui.mc.font, ui.tr(routeToSave != null ? "route_name" : "area_name"), x + 16, y + 32, -1);
+            renderNewArea(g, x, y, w);
+            if (!ui.message.isEmpty())
+                g.drawString(
+                        ui.mc.font, ui.mc.font.plainSubstrByWidth(ui.message, w - 32), x + 16, y + 194, Theme.WARNING);
+        }
+
+        @Override
+        void click(MouseButtonEvent event, Rect r) {
+            clickAreaNameDialog(event, r.x(), r.y(), r.width(), r.height());
+        }
+    };
+
     NewAreaWindow(ExactSelectionController ui) {
         super(ui);
     }

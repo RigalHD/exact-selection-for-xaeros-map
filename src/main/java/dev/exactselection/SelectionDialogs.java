@@ -1,16 +1,75 @@
 package dev.exactselection;
 
+import static dev.exactselection.ExactSelectionController.place;
 import static dev.exactselection.ModLog.LOG;
 
 import dev.exactselection.ExactSelectionController.Dialog;
 import dev.exactselection.ExactSelectionController.DialogField;
 import java.math.BigDecimal;
+import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
 
 /** The Size, Move and Center windows of the current selection. */
 final class SelectionDialogs extends UiPart {
     Button anchorButton, moveUnitsButton, centerCopy, centerCreate;
     boolean sizeFromCenter;
+
+    final Window sizeWindow = new Window() {
+        @Override
+        int width() {
+            return 560;
+        }
+
+        @Override
+        int height() {
+            return 180;
+        }
+
+        @Override
+        String title() {
+            return "dialog_size";
+        }
+
+        @Override
+        void show() {
+            ui.show(
+                    true,
+                    ui.field(DialogField.WIDTH),
+                    ui.field(DialogField.LENGTH),
+                    anchorButton,
+                    ui.modalApply,
+                    ui.modalCancel);
+        }
+
+        @Override
+        void layout(Rect r, int buttonY) {
+            int x = r.x(), y = r.y(), w = r.width();
+            place(ui.field(DialogField.WIDTH), x + 18, y + 52, (w - 54) / 2, 18);
+            place(ui.field(DialogField.LENGTH), x + 36 + (w - 54) / 2, y + 52, (w - 54) / 2, 18);
+            place(anchorButton, x + 18, y + 82, w - 36, 18);
+            place(ui.modalApply, x + w / 2 - 116, buttonY, 110, 18);
+            place(ui.modalCancel, x + w / 2 + 6, buttonY, 110, 18);
+        }
+
+        @Override
+        void render(GuiGraphics g, Rect r) {
+            int x = r.x(), y = r.y(), w = r.width();
+            g.drawString(ui.mc.font, ui.tr("width_field"), x + 18, y + 38, -1);
+            g.drawString(ui.mc.font, ui.tr("length_field"), x + 36 + (w - 54) / 2, y + 38, -1);
+            SelectionBounds b = ui.state.bounds();
+            if (b != null)
+                g.drawString(
+                        ui.mc.font,
+                        ui.tr(
+                                "current_anchor",
+                                formatNumber(sizeFromCenter ? b.centerX() : b.minX()),
+                                formatNumber(sizeFromCenter ? b.centerZ() : b.maxZ())),
+                        x + 18,
+                        y + 108,
+                        Theme.TEXT_MUTED);
+            g.drawString(ui.mc.font, ui.tr("lower_left_axes"), x + 18, y + 124, Theme.TEXT_MUTED);
+        }
+    };
     boolean moveInChunks;
 
     SelectionDialogs(ExactSelectionController ui) {

@@ -116,6 +116,54 @@ final class AreasWindow extends UiPart {
     private Button groupAssign, areaVisibility, areaColor, areaOpacity, areaExportButton, areaMapVisibility;
     private Button areaMinimapVisibility, areaNames;
     boolean areaDeleteConfirmation;
+
+    final Window window = new Window() {
+        @Override
+        int width() {
+            return 760;
+        }
+
+        @Override
+        int height() {
+            return 460;
+        }
+
+        @Override
+        String title() {
+            return "areas_window";
+        }
+
+        @Override
+        boolean titleOnLeft() {
+            return true;
+        }
+
+        @Override
+        void show() {
+            showAreaWidgets();
+        }
+
+        @Override
+        void layout(Rect r, int buttonY) {
+            layoutAreas(r.x(), r.y(), r.width(), r.height(), buttonY);
+        }
+
+        @Override
+        void render(GuiGraphics g, Rect r) {
+            renderAreasDialog(g, r.x(), r.y(), r.width(), r.height());
+        }
+
+        @Override
+        void click(MouseButtonEvent event, Rect r) {
+            clickAreaRow(event, r.x(), r.y(), r.width(), r.height());
+        }
+
+        @Override
+        void scroll(int step, int height) {
+            if (areaDeleteConfirmation) return;
+            areaScroll = InputRouter.scrolled(areaScroll, step, displayedAreas().size(), visibleAreaDialogRows(height));
+        }
+    };
     /** The confirmation was opened from the right-click menu, so it returns to the map. */
     boolean areaDeleteFromMenu;
 

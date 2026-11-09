@@ -33,17 +33,23 @@ final class InputRouter extends UiPart {
             }
             if (event.button() == GLFW.GLFW_MOUSE_BUTTON_LEFT) {
                 Rect r = ui.windows.dialogRect();
-                switch (ui.dialog) {
-                    case COLOR -> ui.colorWindows.clickColorDialog(event, r.x(), r.y(), r.width(), r.height());
-                    case PICKER -> ui.colorWindows.clickPicker(event, r.x(), r.y(), r.width(), r.height());
-                    case IMPORT -> ui.transferWindow.clickImportRow(event, r.x(), r.y(), r.width(), r.height());
-                    case AREA_NAME -> ui.newAreaWindow.clickAreaNameDialog(event, r.x(), r.y(), r.width(), r.height());
-                    case AREAS -> ui.areasWindow.clickAreaRow(event, r.x(), r.y(), r.width(), r.height());
-                    case GROUPS -> ui.groupsWindow.clickGroupRow(event, r.x(), r.y(), r.width(), r.height());
-                    case ASSIGN_GROUP -> ui.groupsWindow.clickGroupChooser(event, r.x(), r.y(), r.width(), r.height());
-                    case WAYPOINTS -> ui.waypointsWindow.clickWaypointRow(event, r.x(), r.y(), r.width(), r.height());
-                    default -> {}
-                }
+                Window window = ui.windows.window();
+                if (window != null) window.click(event, r);
+                else
+                    switch (ui.dialog) {
+                        case COLOR -> ui.colorWindows.clickColorDialog(event, r.x(), r.y(), r.width(), r.height());
+                        case PICKER -> ui.colorWindows.clickPicker(event, r.x(), r.y(), r.width(), r.height());
+                        case IMPORT -> ui.transferWindow.clickImportRow(event, r.x(), r.y(), r.width(), r.height());
+                        case AREA_NAME ->
+                            ui.newAreaWindow.clickAreaNameDialog(event, r.x(), r.y(), r.width(), r.height());
+                        case AREAS -> ui.areasWindow.clickAreaRow(event, r.x(), r.y(), r.width(), r.height());
+                        case GROUPS -> ui.groupsWindow.clickGroupRow(event, r.x(), r.y(), r.width(), r.height());
+                        case ASSIGN_GROUP ->
+                            ui.groupsWindow.clickGroupChooser(event, r.x(), r.y(), r.width(), r.height());
+                        case WAYPOINTS ->
+                            ui.waypointsWindow.clickWaypointRow(event, r.x(), r.y(), r.width(), r.height());
+                        default -> {}
+                    }
             }
             return true;
         }
@@ -127,6 +133,11 @@ final class InputRouter extends UiPart {
         AreasWindow areas = ui.areasWindow;
         GroupsWindow groups = ui.groupsWindow;
         boolean confirming = areas.areaDeleteConfirmation || groups.groupDeleteConfirmation;
+        Window window = ui.windows.window();
+        if (window != null) {
+            window.scroll(step, height);
+            return;
+        }
         switch (ui.dialog) {
             case WAYPOINTS -> {
                 if (points.pending != null)
@@ -162,7 +173,7 @@ final class InputRouter extends UiPart {
     }
 
     /** A list's position after one wheel step, kept within its rows beyond the ones that fit. */
-    private static int scrolled(int scroll, int step, int rows, int fitting) {
+    static int scrolled(int scroll, int step, int rows, int fitting) {
         return Math.max(0, Math.min(rows - fitting, scroll - step));
     }
 

@@ -54,6 +54,15 @@ final class Windows extends UiPart {
         ui.focus(null);
     }
 
+    /** The open window when it has been moved to {@link Window}; null while the switches below still describe it. */
+    Window window() {
+        return switch (ui.dialog) {
+            case SIZE -> ui.selectionDialogs.sizeWindow;
+            case AREAS -> ui.areasWindow.window;
+            default -> null;
+        };
+    }
+
     void cancelDialog() {
         if (ui.dialog == Dialog.AREAS && ui.areasWindow.areaDeleteConfirmation) {
             ui.areasWindow.areaDeleteConfirmation = false;
@@ -72,21 +81,30 @@ final class Windows extends UiPart {
         }
         if (ui.dialog == Dialog.WAYPOINTS) ui.waypointsWindow.pending = null;
         if (ui.dialog == Dialog.AREAS) ui.areaEdits.flushDraft();
-        ui.dialog = switch (ui.dialog) {
-            case AREA_NAME -> ui.newAreaWindow.areaNameReturn;
-            case COLOR -> ui.colorWindows.colorReturn;
-            case PICKER -> ui.colorWindows.pickerReturn;
-            case ASSIGN_GROUP, IMPORT -> Dialog.AREAS;
-            case EXPORT -> ui.mapExport.exportReturn;
-            case GROUP_NAME -> Dialog.GROUPS;
-            case GROUPS -> ui.groupsWindow.groupsReturnDialog;
-            default -> Dialog.NONE;
-        };
+        Window open = window();
+        ui.dialog = open != null
+                ? open.returnTo()
+                : switch (ui.dialog) {
+                    case AREA_NAME -> ui.newAreaWindow.areaNameReturn;
+                    case COLOR -> ui.colorWindows.colorReturn;
+                    case PICKER -> ui.colorWindows.pickerReturn;
+                    case ASSIGN_GROUP, IMPORT -> Dialog.AREAS;
+                    case EXPORT -> ui.mapExport.exportReturn;
+                    case GROUP_NAME -> Dialog.GROUPS;
+                    case GROUPS -> ui.groupsWindow.groupsReturnDialog;
+                    default -> Dialog.NONE;
+                };
         ui.focus(null);
     }
 
     /** Where the open window sits: centred, and never larger than the screen allows. */
     Rect dialogRect() {
+        Window open = window();
+        if (open != null) {
+            int width = Math.min(open.width(), ui.screen.width - 20);
+            int height = Math.min(open.height(), ui.screen.height - 16);
+            return new Rect((ui.screen.width - width) / 2, (ui.screen.height - height) / 2, width, height);
+        }
         int width = Math.min(
                 switch (ui.dialog) {
                     case AREAS, GROUPS -> 760;
@@ -114,6 +132,11 @@ final class Windows extends UiPart {
         Rect r = dialogRect();
         int x = r.x(), y = r.y(), w = r.width(), h = r.height();
         int buttonY = y + h - 28;
+        Window open = window();
+        if (open != null) {
+            open.layout(r, buttonY);
+            return;
+        }
         switch (ui.dialog) {
             case SIZE -> {
                 place(ui.field(DialogField.WIDTH), x + 18, y + 52, (w - 54) / 2, 18);
@@ -195,6 +218,11 @@ final class Windows extends UiPart {
 
     /** Which widgets the open window shows; the Areas and Groups windows decide for themselves. */
     void showWindowWidgets() {
+        Window open = window();
+        if (open != null) {
+            open.show();
+            return;
+        }
         if (ui.dialog == Dialog.SIZE)
             ui.show(
                     true,
@@ -322,6 +350,13 @@ final class Windows extends UiPart {
         g.fill(0, 0, ui.screen.width, ui.screen.height, 0xC0080D12);
         g.fill(x, y, x + w, y + h, 0xFF141E29);
         g.renderOutline(x, y, w, h, Theme.BORDER);
+        Window open = window();
+        if (open != null) {
+            if (open.titleOnLeft()) g.drawString(ui.mc.font, ui.tr(open.title()), x + 12, y + 12, ACCENT);
+            else g.drawCenteredString(ui.mc.font, ui.tr(open.title()), x + w / 2, y + 10, ACCENT);
+            open.render(g, r);
+            return;
+        }
         String title = switch (ui.dialog) {
             case SIZE -> "dialog_size";
             case MOVE -> "dialog_move";

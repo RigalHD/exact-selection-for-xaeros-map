@@ -2,57 +2,71 @@
 
 ## Unreleased
 
+### Added
+
 - Layers: Move up and Move down in the right-click menu put a zone over or under the next one it overlaps, on the map, minimap and PNG. The first list order of the Areas window shows the layers.
 - Overlap: with two areas checked, the Areas window shows the area they share, with a copy button.
-- Fix: areas and center coordinates from 10 million with a half showed as `1.00045005E7`. The units key no longer reports the units when its button is unavailable, and a failed undo or redo is written to the game log.
-- Fix: Shift did nothing while dragging an existing vertex; it now lines the vertex up with a neighbouring one, both in a contour and on a finished polygon.
 - The right-click menu of a saved area shows its name, group and area or length; a click on one of them copies it.
-- Undo and redo with the waypoint window open update its list. The loaded-area hints name the Save button, and the name fields of existing areas and of routes are labelled as such.
-- Exporting a part of the map nobody explored says so instead of pointing to the game log. A widget that goes away no longer keeps the focus, which could leave the tool keys and undo dead after an export.
 - Ruler: a button in the panel header measures a line through points snapped to block corners (click A and B, or drag; Ctrl/Cmd + click adds a point, Backspace takes it back). The panel stays compact while it is on. The map shows the line and its length; the panel shows the length with a copy button, ΔX, ΔZ, the distance along the axes, and the same length in the Nether or Overworld.
 - Routes: Save keeps the ruler's line as an entry of the Areas window, drawn as an open line on the map, minimap and PNG.
 - A right click on a saved area opens a menu for it: Edit territory, Color…, Fill, Hide and Delete zone. Of overlapping areas it takes the smallest.
 - Show on the map: a button beside the area's name in the Areas window, or a double click on a row, moves the map to the area and zooms to fit.
 - Sticking: corners, vertices, dragged edges and moved shapes stick to saved areas nearby, so neighbours share a border. Alt turns it off.
 - Tool keys in Options → Controls: Polygon (O), ruler (R), Areas (J), blocks or chunks (N).
-- Closing the map keeps the tool on with its selection, contour and undo history until the world changes, and the map key closes the map with the tool on.
 - The area file names its world and keeps its previous version as `.bak`; the Areas window restores it when the file cannot be read.
 - The Groups window shows each group's total area beside its area count, and the totals for all areas and for areas without a group.
-- Fix: a first area saved in a new world vanished from the map while the Map switch was off. Saved areas are now always drawn with the tool on, and the first area switches the map overlay on.
-- Fix: Esc, the Polygon button, Clear or turning the tool off lost a contour for good; undo now brings it back.
-- Fix: Edit on an area off screen seemed to do nothing; the map now moves to it.
-- Fix: Ctrl/Cmd+Z behind the new-area, color, size and similar windows changed what they work on, and Create then did nothing.
-- Fix: at the limit of 1000 areas or 200 groups the message spoke of a failed write; it now names the limit.
-- Fix: the Show file button lost its tooltip on a window resize; default names repeated after a deletion; a click on the map held back by typed coordinates in the expanded panel said nothing; a stopped export left its temporary folder behind.
-- Fix: Edit in the Areas window during a two-click selection left it open, which blocked the right-click menu, export and redo until the next click on the map; undo from a window could do the same.
-- Fix: Edit in the Areas window turns the ruler off; its clicks did not reach the loaded area.
-- Fix: after collapsing the panel with typed coordinates, the map and buttons were blocked with no explanation. The typed values are still kept; the compact panel and a click on the map now say to expand the panel or press Esc.
-- Fix: redo after turning the tool off and on again turned it off; it now clears the selection.
-- Fix: the waypoint filter buttons showed "all" after a window resize while the filter stayed on.
-- Fix: importing a rectangle drawn right to left in the same session added a copy instead of skipping it.
+- The panel's view, the units, the color and fill of the next area and the choices of the Size and Move windows are remembered between game sessions.
+
+### Changed
+
+- Undo and redo with the waypoint window open update its list. The loaded-area hints name the Save button, and the name fields of existing areas and of routes are labelled as such.
+- Exporting a part of the map nobody explored says so instead of pointing to the game log. A widget that goes away no longer keeps the focus, which could leave the tool keys and undo dead after an export.
+- Closing the map keeps the tool on with its selection, contour and undo history until the world changes, and the map key closes the map with the tool on.
 - Delete zone in the right-click menu asks for confirmation first, like the Areas window.
 - The Center and Color windows have a Cancel button; they closed only with Esc.
 - Switching units to chunks no longer resizes a saved area being edited; it keeps its shape until you change it.
 - Saved-area and settings files are flushed to disk before replacing the old file, so a power cut cannot leave an empty one.
-- Fix: with both the area file and its previous version unreadable, a second Restore replaced the kept damaged file, losing the latest areas. Restore now checks the previous version first and changes nothing when it cannot be read, and an earlier `.broken` file is never overwritten.
-- Fix: an area file saved by a newer version of the mod was treated as damaged and offered a restore; it now says to update the mod.
-- Fix: deleting the area being edited from the Areas window left the selection editing an area that no longer existed.
-- Fix: Areas in selection missed a route that crosses the selection with none of its points inside.
-- Fix: Export was offered for an area just under the limit whose whole chunks exceed it, and then refused.
-- Fix: importing a route was skipped as a duplicate of a polygon with the same points, name and style.
-- Fix: the export tooltip still promised 1 pixel per block; the scale is chosen in the export window.
-- Fix: the export window's day or night, scale, areas, labels and fill choices were kept only when an export ran; the file name it shows no longer changes every second and is the one it writes.
 - The waypoint color filter shows the color instead of its number.
 - Two groups cannot share a name, since import matches groups by name.
 - Names from an imported file lose control characters and the game's formatting sign.
 - An error while drawing the tool skips the frame and is written to the game log instead of closing the game.
 - Faster with many areas: an unchanged area file is not read again when the map opens, the minimap reuses what the map read, polygons keep their triangles and bounds, sticking skips areas away from the pointer, and tooltips are rebuilt only when their text changes.
 - The Russian interface says «область» everywhere instead of mixing it with «зона».
-- The panel's view, the units, the color and fill of the next area and the choices of the Size and Move windows are remembered between game sessions.
 - Leaving a world releases the map world the tool was holding.
-- Internal: the code is formatted with Spotless and compiles without warnings, and the build checks both. Repeated colors, the world limit and the config folder have names; enums and records replace number codes and small arrays. The checks run under JUnit, one test per scenario.
-- Internal: a saved area is a record over one geometry; the in-game test scenarios are kept in `gametest/`.
-- Internal: the 4100-line controller is split by job into the panel, map overlays, map input, right-click menu, Polygon tool, ruler, and the Areas, Groups, waypoint, color, transfer and Size/Move/Center windows. `tools/build_cached.py`, which no longer built the mod, is removed.
+
+### Fixed
+
+- Areas and center coordinates from 10 million with a half showed as `1.00045005E7`. The units key no longer reports the units when its button is unavailable, and a failed undo or redo is written to the game log.
+- Shift did nothing while dragging an existing vertex; it now lines the vertex up with a neighbouring one, both in a contour and on a finished polygon.
+- A first area saved in a new world vanished from the map while the Map switch was off. Saved areas are now always drawn with the tool on, and the first area switches the map overlay on.
+- Esc, the Polygon button, Clear or turning the tool off lost a contour for good; undo now brings it back.
+- Edit on an area off screen seemed to do nothing; the map now moves to it.
+- Ctrl/Cmd+Z behind the new-area, color, size and similar windows changed what they work on, and Create then did nothing.
+- At the limit of 1000 areas or 200 groups the message spoke of a failed write; it now names the limit.
+- The Show file button lost its tooltip on a window resize.
+- Default names repeated after a deletion.
+- A click on the map held back by typed coordinates in the expanded panel said nothing.
+- A stopped export left its temporary folder behind.
+- Edit in the Areas window during a two-click selection left it open, which blocked the right-click menu, export and redo until the next click on the map; undo from a window could do the same.
+- Edit in the Areas window turns the ruler off; its clicks did not reach the loaded area.
+- After collapsing the panel with typed coordinates, the map and buttons were blocked with no explanation. The typed values are still kept; the compact panel and a click on the map now say to expand the panel or press Esc.
+- Redo after turning the tool off and on again turned it off; it now clears the selection.
+- The waypoint filter buttons showed "all" after a window resize while the filter stayed on.
+- Importing a rectangle drawn right to left in the same session added a copy instead of skipping it.
+- With both the area file and its previous version unreadable, a second Restore replaced the kept damaged file, losing the latest areas. Restore now checks the previous version first and changes nothing when it cannot be read, and an earlier `.broken` file is never overwritten.
+- An area file saved by a newer version of the mod was treated as damaged and offered a restore; it now says to update the mod.
+- Deleting the area being edited from the Areas window left the selection editing an area that no longer existed.
+- Areas in selection missed a route that crosses the selection with none of its points inside.
+- Export was offered for an area just under the limit whose whole chunks exceed it, and then refused.
+- Importing a route was skipped as a duplicate of a polygon with the same points, name and style.
+- The export tooltip still promised 1 pixel per block; the scale is chosen in the export window.
+- The export window's day or night, scale, areas, labels and fill choices were kept only when an export ran; the file name it shows no longer changes every second and is the one it writes.
+
+### Internal
+
+- The code is formatted with Spotless and compiles without warnings, and the build checks both. Repeated colors, the world limit and the config folder have names; enums and records replace number codes and small arrays. The checks run under JUnit, one test per scenario.
+- A saved area is a record over one geometry; the in-game test scenarios are kept in `gametest/`.
+- The 4100-line controller is split by job into the panel, map overlays, map input, right-click menu, Polygon tool, ruler, and the Areas, Groups, waypoint, color, transfer and Size/Move/Center windows. `tools/build_cached.py`, which no longer built the mod, is removed.
 
 ## 1.3.3+1.21.11
 

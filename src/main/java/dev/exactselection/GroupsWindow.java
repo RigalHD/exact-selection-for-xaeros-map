@@ -139,6 +139,59 @@ final class GroupsWindow extends UiPart {
         }
     };
 
+    final Window window = new Window() {
+        @Override
+        int width() {
+            return 760;
+        }
+
+        @Override
+        int height() {
+            return 460;
+        }
+
+        @Override
+        String title() {
+            return "groups_window";
+        }
+
+        @Override
+        boolean titleOnLeft() {
+            return true;
+        }
+
+        @Override
+        Dialog returnTo() {
+            return groupsReturnDialog;
+        }
+
+        @Override
+        void show() {
+            showGroupWidgets();
+        }
+
+        @Override
+        void layout(Rect r, int buttonY) {
+            layoutGroups(r.x(), r.y(), r.width(), r.height(), buttonY);
+        }
+
+        @Override
+        void render(GuiGraphics g, Rect r) {
+            renderGroupsDialog(g, r.x(), r.y(), r.width(), r.height());
+        }
+
+        @Override
+        void click(MouseButtonEvent event, Rect r) {
+            clickGroupRow(event, r.x(), r.y(), r.width(), r.height());
+        }
+
+        @Override
+        void scroll(int step, int height) {
+            if (ui.areasWindow.areaDeleteConfirmation || groupDeleteConfirmation) return;
+            groupScroll = InputRouter.scrolled(groupScroll, step, ui.groups().size(), visibleGroupDialogRows(height));
+        }
+    };
+
     GroupsWindow(ExactSelectionController ui) {
         super(ui);
     }

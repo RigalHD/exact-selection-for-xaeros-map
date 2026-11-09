@@ -72,6 +72,50 @@ final class ColorWindows extends UiPart {
         }
     };
 
+    final Window colorWindow = new Window() {
+        @Override
+        int width() {
+            return 420;
+        }
+
+        @Override
+        int height() {
+            return 164;
+        }
+
+        @Override
+        String title() {
+            return "color_title";
+        }
+
+        @Override
+        Dialog returnTo() {
+            return colorReturn;
+        }
+
+        @Override
+        void show() {
+            // A swatch or Apply chooses the color; Cancel or Esc leaves without one.
+            ui.show(true, ui.modalCancel);
+            if (colorReturn != Dialog.WAYPOINTS) ui.show(true, ui.field(DialogField.HEX), colorHexApply);
+        }
+
+        @Override
+        void layout(Rect r, int buttonY) {
+            layoutColorDialog(r.x(), r.y(), r.width(), r.height(), buttonY);
+        }
+
+        @Override
+        void render(GuiGraphics g, Rect r) {
+            renderColorDialog(g, r.x(), r.y(), r.width(), r.height());
+        }
+
+        @Override
+        void click(MouseButtonEvent event, Rect r) {
+            clickColorDialog(event, r.x(), r.y(), r.width(), r.height());
+        }
+    };
+
     ColorWindows(ExactSelectionController ui) {
         super(ui);
     }

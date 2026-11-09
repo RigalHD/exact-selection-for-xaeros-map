@@ -1,5 +1,6 @@
 package dev.exactselection;
 
+import static dev.exactselection.ExactSelectionController.place;
 import static dev.exactselection.ModLog.LOG;
 
 import dev.exactselection.ExactSelectionController.Dialog;
@@ -8,6 +9,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.network.chat.Component;
@@ -26,6 +28,45 @@ final class MapExport extends UiPart {
     Path lastExport;
     boolean exportRunning;
     String exportNotice = "";
+
+    final Window window = new Window() {
+        @Override
+        int width() {
+            return 560;
+        }
+
+        @Override
+        int height() {
+            return ui.exportWindow.hasTargetArea() ? 242 : 220;
+        }
+
+        @Override
+        String title() {
+            return "export_title";
+        }
+
+        @Override
+        Dialog returnTo() {
+            return exportReturn;
+        }
+
+        @Override
+        void show() {
+            ui.exportWindow.show(exportRunning);
+            ui.show(true, ui.modalCancel);
+        }
+
+        @Override
+        void layout(Rect r, int buttonY) {
+            ui.exportWindow.layout(r.x(), r.y(), r.width(), buttonY);
+            place(ui.modalCancel, r.x() + r.width() / 2 + 6, buttonY, 110, 18);
+        }
+
+        @Override
+        void render(GuiGraphics g, Rect r) {
+            ui.exportWindow.render(g, r.x(), r.y(), r.width(), ui.message);
+        }
+    };
 
     MapExport(ExactSelectionController ui) {
         super(ui);

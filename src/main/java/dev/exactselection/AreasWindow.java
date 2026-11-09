@@ -1,9 +1,11 @@
 package dev.exactselection;
 
 import dev.exactselection.ExactSelectionController.Dialog;
+import dev.exactselection.ExactSelectionController.DialogField;
 import dev.exactselection.SavedAreaStore.Area;
 import dev.exactselection.SavedAreaStore.Group;
 import dev.exactselection.SavedAreaStore.State;
+import dev.exactselection.SelectionPanel.Metric;
 import dev.exactselection.SelectionPanel.MetricLine;
 import java.text.Collator;
 import java.util.ArrayList;
@@ -26,7 +28,6 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.util.Util;
 import org.lwjgl.glfw.GLFW;
 import static dev.exactselection.Theme.ACCENT;
-import static dev.exactselection.ExactSelectionController.AREA_NAME_FIELD;
 import static dev.exactselection.ExactSelectionController.place;
 import static dev.exactselection.SelectionPanel.formatLength;
 
@@ -37,8 +38,53 @@ final class AreasWindow extends UiPart {
     private Button areaRestore, areaDelete, areaSelectAll, areaClearSelection, areaSaveChanges;
     Button autosaveButton;
     private Button autosaveToggle, autosaveClose, roundingButton;
-    /** Name, NW corner (or all polygon vertices), area, perimeter, length, width, SE, NE and SW corners. */
-    final Button[] areaCopies = new Button[9];
+    /** A rectangle corner by compass direction; north is -Z and west is -X, as in Minecraft. */
+    enum Corner {
+        NORTH_WEST("corner_nw", false, false), NORTH_EAST("corner_ne", true, false),
+        SOUTH_WEST("corner_sw", false, true), SOUTH_EAST("corner_se", true, true);
+
+        /** The label of the corner in the area's details. */
+        final String key;
+        private final boolean east, south;
+
+        Corner(String key, boolean east, boolean south) {
+            this.key = key;
+            this.east = east;
+            this.south = south;
+        }
+
+        /** The corner block as "X Z". */
+        String coordinates(SelectionBounds b) {
+            return (east ? b.maxX() : b.minX()) + " " + (south ? b.maxZ() : b.minZ());
+        }
+    }
+
+    /** The copy buttons after the values of the one checked area. */
+    enum AreaCopy {
+        NAME("copy_name_tooltip", null, null),
+        /** A rectangle's north-west corner, or every vertex of a polygon or a route. */
+        NORTH_WEST("copy_corner_nw_tooltip", Metric.CORNER_A, Corner.NORTH_WEST),
+        AREA("copy_area_tooltip", Metric.AREA, null),
+        PERIMETER("copy_perimeter_tooltip", Metric.PERIMETER, null),
+        LENGTH("copy_length_tooltip", Metric.LENGTH, null),
+        WIDTH("copy_width_tooltip", Metric.WIDTH, null),
+        SOUTH_EAST("copy_corner_se_tooltip", null, Corner.SOUTH_EAST),
+        NORTH_EAST("copy_corner_ne_tooltip", null, Corner.NORTH_EAST),
+        SOUTH_WEST("copy_corner_sw_tooltip", null, Corner.SOUTH_WEST);
+
+        final String tooltip;
+        /** What the button copies of a shape that is not a rectangle, or of any shape when it has no corner. */
+        final Metric metric;
+        final Corner corner;
+
+        AreaCopy(String tooltip, Metric metric, Corner corner) {
+            this.tooltip = tooltip;
+            this.metric = metric;
+            this.corner = corner;
+        }
+    }
+
+    final Map<AreaCopy, Button> areaCopies = new EnumMap<>(AreaCopy.class);
     /** The copy button of the overlap of two checked areas. */
     private Button overlapCopy;
     /** List order of the Areas window; LAYER is the drawing order, the bottom area first. */
@@ -104,7 +150,7 @@ final class AreasWindow extends UiPart {
 
     /** The name field holds the name of the one checked area, and nothing otherwise. */
     private void syncNameField() {
-        ui.setDialogValue(AREA_NAME_FIELD, selectedAreaIds.size() == 1 && selectedArea() != null ? selectedArea().name() : "");
+        ui.setDialogValue(DialogField.AREA_NAME, selectedAreaIds.size() == 1 && selectedArea() != null ? selectedArea().name() : "");
     }
 
     /** The shown area under the pointer; the smallest of overlapping ones, so a plot inside a district can be picked, and the upper of equal ones. */
@@ -190,7 +236,7 @@ final class AreasWindow extends UiPart {
         areaId = null;
         selectedAreaIds.clear();
         ui.areaEdits.areaDraft.clear();
-        ui.setDialogValue(AREA_NAME_FIELD, "");
+        ui.setDialogValue(DialogField.AREA_NAME, "");
         ui.say("area_deleted", count);
         areaDeleteConfirmation = false;
         if (areaDeleteFromMenu) {
@@ -219,7 +265,7 @@ final class AreasWindow extends UiPart {
         ui.areaEdits.flushDraft();
         selectedAreaIds.clear();
         areaId = null;
-        ui.setDialogValue(AREA_NAME_FIELD, "");
+        ui.setDialogValue(DialogField.AREA_NAME, "");
     }
 
     private void toggleArea() {
@@ -275,14 +321,20 @@ final class AreasWindow extends UiPart {
         return values[(index + 1) % values.length];
     }
 
+    /** Where the search field goes along the row above the list. */
+    private record Span(int x, int width) {
+        /** A narrower field could not show what is typed, so it is hidden. */
+        boolean fits() { return width >= 40; }
+    }
+
     /**
-     * The search field's x and width: between the checked count and the order button, over the count when the list
-     * column is narrow; a width under 40 hides it.
+     * The search field's place: between the checked count and the order button, over the count when the list column
+     * is narrow.
      */
-    private static int[] areaSearchSpan(int x, int col) {
+    private static Span areaSearchSpan(int x, int col) {
         int end = x + 14 + col - 134;
         int start = end - (x + 92) >= 60 ? x + 92 : x + 12;
-        return new int[]{start, end - start};
+        return new Span(start, end - start);
     }
 
     /**
@@ -343,8 +395,8 @@ final class AreasWindow extends UiPart {
         List<Area> areas = displayedAreas();
         int rows = visibleAreaDialogRows(h);
         areaScroll = Math.min(areaScroll, Math.max(0, areas.size() - rows));
-        int[] search = areaSearchSpan(x, col);
-        if (search[0] > x + 12 || search[1] < 40)
+        Span search = areaSearchSpan(x, col);
+        if (search.x() > x + 12 || !search.fits())
             g.drawString(ui.mc.font, ui.mc.font.plainSubstrByWidth(ui.tr("area_list_count", selectedAreaIds.size()).getString(), 76),
                     x + 12, y + 34, Theme.TEXT_MUTED);
         g.fill(x + 10, y + 46, x + 14 + col, y + h - 98, Theme.LIST_BACKGROUND);
@@ -402,7 +454,7 @@ final class AreasWindow extends UiPart {
     private static double sharedArea(List<Area> two) { return two.get(0).geometry().sharedArea(two.get(1).geometry()); }
 
     List<Button> copyIcons() {
-        List<Button> icons = new ArrayList<>(List.of(areaCopies));
+        List<Button> icons = new ArrayList<>(areaCopies.values());
         icons.add(overlapCopy);
         return icons;
     }
@@ -413,38 +465,35 @@ final class AreasWindow extends UiPart {
         info.add(new MetricLine(List.of(areaVisibilityDescription(area)), List.of()));
         SelectionBounds b = area.bounds();
         if (!(area.geometry() instanceof RectangleGeometry))
-            info.add(new MetricLine(List.of(ui.tr("vertices_count", area.vertices().size()).getString()), List.of(areaCopies[1])));
+            info.add(new MetricLine(List.of(ui.tr("vertices_count", area.vertices().size()).getString()), List.of(copy(AreaCopy.NORTH_WEST))));
         else {
-            // North is -Z and west is -X, as in Minecraft.
-            info.add(new MetricLine(List.of(cornerText(b, 0), cornerText(b, 1)), List.of(areaCopies[1], areaCopies[7])));
-            info.add(new MetricLine(List.of(cornerText(b, 2), cornerText(b, 3)), List.of(areaCopies[8], areaCopies[6])));
+            info.add(new MetricLine(List.of(cornerText(b, Corner.NORTH_WEST), cornerText(b, Corner.NORTH_EAST)),
+                    List.of(copy(AreaCopy.NORTH_WEST), copy(AreaCopy.NORTH_EAST))));
+            info.add(new MetricLine(List.of(cornerText(b, Corner.SOUTH_WEST), cornerText(b, Corner.SOUTH_EAST)),
+                    List.of(copy(AreaCopy.SOUTH_WEST), copy(AreaCopy.SOUTH_EAST))));
         }
         if (area.geometry() instanceof RectangleGeometry)
-            info.add(new MetricLine(ui.selectionPanel.dimensionParts(b, false), List.of(areaCopies[5], areaCopies[4])));
+            info.add(new MetricLine(ui.selectionPanel.dimensionParts(b, false), List.of(copy(AreaCopy.WIDTH), copy(AreaCopy.LENGTH))));
         if (!area.geometry().closed()) {
-            info.add(new MetricLine(List.of(ui.tr("route_length", formatLength(area.geometry().perimeter())).getString()), List.of(areaCopies[3])));
+            info.add(new MetricLine(List.of(ui.tr("route_length", formatLength(area.geometry().perimeter())).getString()), List.of(copy(AreaCopy.PERIMETER))));
             return info;
         }
-        info.add(new MetricLine(List.of(ui.tr("area", SelectionDialogs.formatNumber(area.geometry().area())).getString()), List.of(areaCopies[2])));
-        info.add(new MetricLine(List.of(ui.tr("perimeter", formatLength(area.geometry().perimeter())).getString()), List.of(areaCopies[3])));
+        info.add(new MetricLine(List.of(ui.tr("area", SelectionDialogs.formatNumber(area.geometry().area())).getString()), List.of(copy(AreaCopy.AREA))));
+        info.add(new MetricLine(List.of(ui.tr("perimeter", formatLength(area.geometry().perimeter())).getString()), List.of(copy(AreaCopy.PERIMETER))));
         return info;
     }
 
-    /** The label key and "X Z" of a rectangle corner: 0 north-west, 1 north-east, 2 south-west, 3 south-east. */
-    private static String[] compassCorner(SelectionBounds b, int corner) {
-        int x = corner % 2 == 0 ? b.minX() : b.maxX(), z = corner < 2 ? b.minZ() : b.maxZ();
-        return new String[]{new String[]{"corner_nw", "corner_ne", "corner_sw", "corner_se"}[corner], x + " " + z};
-    }
+    private Button copy(AreaCopy copy) { return areaCopies.get(copy); }
 
-    private String cornerText(SelectionBounds b, int corner) {
-        String[] c = compassCorner(b, corner);
-        return ui.tr(c[0], c[1]).getString();
+    private String cornerText(SelectionBounds b, Corner corner) {
+        return ui.tr(corner.key, corner.coordinates(b)).getString();
     }
 
     /** Lays out (g == null) or draws the area details. */
     private void placeAreaInfo(int y, int h, int right, GuiGraphics g, int col) {
         Area area = selectedAreaIds.size() == 1 ? selectedArea() : null;
-        if (area != null && g == null) for (int i = 1; i < areaCopies.length; i++) areaCopies[i].visible = false;
+        if (area != null && g == null)
+            areaCopies.forEach((copy, button) -> { if (copy != AreaCopy.NAME) button.visible = false; });
         int lineY = areaInfoTop(y), limit = selectedSectionTop(y, h) - 6;
         for (MetricLine line : area != null ? areaInfo(area) : overlapInfo()) {
             if (lineY + 9 > limit) break;
@@ -537,8 +586,8 @@ final class AreasWindow extends UiPart {
             place(roundingButton, right, y + 84 + 20 * row, col, 18);
             place(autosaveClose, right, y + 104 + 20 * row, col, 18);
         } else {
-            place(ui.dialogFields[AREA_NAME_FIELD], right, y + 46, col - 42, 18);
-            place(areaCopies[0], right + col - 39, y + 46, 18, 18);
+            place(ui.field(DialogField.AREA_NAME), right, y + 46, col - 42, 18);
+            place(copy(AreaCopy.NAME), right + col - 39, y + 46, 18, 18);
             place(areaShow, right + col - 18, y + 46, 18, 18);
             place(groupAssign, right, y + 66, col, 18);
             place(areaColor, right, y + 86, half, 18);
@@ -556,10 +605,10 @@ final class AreasWindow extends UiPart {
         // A damaged file allows no export, so its notice cannot be there at the same time.
         place(areaRestore, right, y + h - 44, col, 16);
         place(areaSortButton, x + 14 + col - 130, y + 27, 130, 16);
-        int[] search = areaSearchSpan(x, col);
-        place(areaSearch, search[0], y + 27, Math.max(1, search[1]), 16);
+        Span search = areaSearchSpan(x, col);
+        place(areaSearch, search.x(), y + 27, Math.max(1, search.width()), 16);
         // A text field does not clip its hint, which would run under the order button.
-        areaSearch.setHint(Component.literal(ui.mc.font.plainSubstrByWidth(ui.tr("area_search").getString(), Math.max(0, search[1] - 8))));
+        areaSearch.setHint(Component.literal(ui.mc.font.plainSubstrByWidth(ui.tr("area_search").getString(), Math.max(0, search.width() - 8))));
         place(ui.transferWindow.areaExportFile, x + 12, y + h - 92, half, 18);
         place(ui.transferWindow.areaImport, x + 15 + half, y + h - 92, col - half - 24, 18);
         place(ui.transferWindow.transferFolderButton, x + 12 + col - 18, y + h - 92, 18, 18);
@@ -580,19 +629,19 @@ final class AreasWindow extends UiPart {
                     ui.transferWindow.transferFolderButton, areaSortButton, areaSearch,
                     areaSelectAll, areaClearSelection, areaMapVisibility, areaMinimapVisibility, areaNames, autosaveButton);
             Rect r = ui.windows.dialogRect();
-            areaSearch.visible = areaSearchSpan(r.x(), (r.width() - 36) / 2)[1] >= 40;
+            areaSearch.visible = areaSearchSpan(r.x(), (r.width() - 36) / 2).fits();
             if (autosaveOpen) {
                 ui.show(true, autosaveToggle, autosaveClose, roundingButton);
                 roundingButton.setMessage(SettingsScreen.roundingLabel(ui.autosave.rounding()));
                 ui.show(true, autosaveFields.values().toArray(AbstractWidget[]::new));
             } else {
-                ui.show(true, ui.dialogFields[AREA_NAME_FIELD], groupAssign, areaLoad, areaExportButton, areaDelete,
+                ui.show(true, ui.field(DialogField.AREA_NAME), groupAssign, areaLoad, areaExportButton, areaDelete,
                         areaVisibility, areaColor, areaOpacity);
                 // Save disappears under autosave unless a change outside its fields still waits.
                 ui.show(areaSaveShown(), areaSaveChanges);
-                ui.show(selectedAreaIds.size() == 1 && selectedArea() != null, areaCopies);
+                ui.show(selectedAreaIds.size() == 1 && selectedArea() != null, areaCopies.values().toArray(AbstractWidget[]::new));
                 overlapCopy.visible = false;
-                areaShow.visible = areaCopies[0].visible;
+                areaShow.visible = copy(AreaCopy.NAME).visible;
             }
         }
         if (!areaDeleteConfirmation && ui.mapExport.hasExportNotice()) ui.show(true, ui.mapExport.openExportButton);
@@ -609,8 +658,8 @@ final class AreasWindow extends UiPart {
         areaLoad.active = singleArea && !editingThis && !route;
         areaLoad.setMessage(ui.tr(editingThis ? "area_editing_now" : "area_edit"));
         areaSaveChanges.active = !ui.areaEdits.areaDraft.isEmpty() && selectedCount > 0 && !ui.loadFailed;
-        for (Button copy : areaCopies) copy.active = singleArea;
-        ui.tip(areaCopies[1], ui.tr(area != null && !(area.geometry() instanceof RectangleGeometry)
+        for (Button copy : areaCopies.values()) copy.active = singleArea;
+        ui.tip(copy(AreaCopy.NORTH_WEST), ui.tr(area != null && !(area.geometry() instanceof RectangleGeometry)
                 ? "copy_coordinates_tooltip" : "copy_corner_nw_tooltip"));
         autosaveToggle.setMessage(ui.tr(ui.autosave.enabled() ? "autosave_on" : "autosave_off"));
         autosaveFields.forEach((field, button) -> {
@@ -625,7 +674,7 @@ final class AreasWindow extends UiPart {
         areaVisibility.active = selectedCount > 0 && !ui.loadFailed;
         groupAssign.active = selectedCount > 0 && !ui.loadFailed;
         areaSave.active = ui.state.phase() == SelectionState.Phase.SELECTED && !ui.dirty && !ui.loadFailed;
-        ui.dialogFields[AREA_NAME_FIELD].active = singleArea && !ui.loadFailed;
+        ui.field(DialogField.AREA_NAME).active = singleArea && !ui.loadFailed;
         ui.transferWindow.areaExportFile.active = !ui.loadFailed && !ui.areas().isEmpty();
         ui.transferWindow.areaExportFile.setMessage(selectedCount > 0 ? ui.tr("areas_export_count", selectedCount) : ui.tr("areas_export"));
         ui.transferWindow.areaImport.active = !ui.loadFailed;
@@ -652,7 +701,7 @@ final class AreasWindow extends UiPart {
     }
 
     void createAreaWidgets() {
-        ui.dialogFields[AREA_NAME_FIELD].setResponder(value -> {
+        ui.field(DialogField.AREA_NAME).setResponder(value -> {
             if (ui.syncing) return;
             Area area = selectedAreas().size() == 1 ? selectedArea() : null;
             String name = value.trim();
@@ -686,21 +735,15 @@ final class AreasWindow extends UiPart {
         ui.widgets.add(areaSearch);
         autosaveClose = ui.button("autosave_close", () -> { autosaveOpen = false; ui.focus(null); });
         roundingButton = ui.button("rounding", "rounding_tooltip", () -> ui.autosave.cycleRounding());
-        String[] copies = {"copy_name_tooltip", "copy_corner_nw_tooltip", "copy_area_tooltip", "copy_perimeter_tooltip",
-                "copy_length_tooltip", "copy_width_tooltip", "copy_corner_se_tooltip", "copy_corner_ne_tooltip",
-                "copy_corner_sw_tooltip"};
-        for (int i = 0; i < areaCopies.length; i++) {
-            int kind = i - 1;
-            // Rectangle corners by direction: 0 NW, 1 NE, 2 SW, 3 SE.
-            int corner = switch (i) { case 1 -> 0; case 7 -> 1; case 8 -> 2; case 6 -> 3; default -> -1; };
-            areaCopies[i] = ui.iconButton(copies[i], () -> {
+        for (AreaCopy copy : AreaCopy.values()) {
+            areaCopies.put(copy, ui.iconButton(copy.tooltip, () -> {
                 Area area = selectedAreas().size() == 1 ? selectedArea() : null;
                 if (area == null) return;
-                if (kind < 0) ui.selectionPanel.copyToClipboard(area.name());
-                else if (corner >= 0 && area.geometry() instanceof RectangleGeometry)
-                    ui.selectionPanel.copyToClipboard(compassCorner(area.bounds(), corner)[1]);
-                else ui.selectionPanel.copyMetric(kind, area.geometry(), area.bounds());
-            });
+                if (copy == AreaCopy.NAME) ui.selectionPanel.copyToClipboard(area.name());
+                else if (copy.corner != null && area.geometry() instanceof RectangleGeometry)
+                    ui.selectionPanel.copyToClipboard(copy.corner.coordinates(area.bounds()));
+                else if (copy.metric != null) ui.selectionPanel.copyMetric(copy.metric, area.geometry(), area.bounds());
+            }));
         }
         overlapCopy = ui.iconButton("copy_overlap_tooltip", () -> {
             List<Area> two = selectedAreas();

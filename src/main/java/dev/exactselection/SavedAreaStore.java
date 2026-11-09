@@ -33,6 +33,8 @@ public final class SavedAreaStore {
 
     /** The file was written by a newer version of the mod: it is intact, so it is neither overwritten nor "restored". */
     static final class NewerSchemaException extends IllegalArgumentException {
+        private static final long serialVersionUID = 1L;
+
         NewerSchemaException() { super("Area file was written by a newer version of the mod"); }
     }
 

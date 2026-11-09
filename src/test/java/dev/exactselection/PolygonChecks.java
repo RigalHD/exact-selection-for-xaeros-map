@@ -34,6 +34,7 @@ final class PolygonChecks {
                 "Entering polygon mode kept a stale rectangle gesture");
         clickMap(controller, 400, 60, 0); clickMap(controller, 560, 60, 0);
         clickMap(controller, 560, 260, 0); clickMap(controller, 400, 260, 0);
+        @SuppressWarnings("unchecked")
         List<GridPoint> draft = (List<GridPoint>) get(polygon(controller), "draft");
         require(draft.size() == 4 && selection.geometry() == null, "Draft became a complete area too early");
         require(!((Button) get(controller, "areasButton")).active
@@ -303,6 +304,7 @@ final class PolygonChecks {
         controller.beforeRender(570, 245);
         require(get(polygon(controller), "cursor").equals(new GridPoint(230, 65)), "Shift preview is not vertical");
         clickMap(controller, 570, 245, GLFW.GLFW_MOD_SHIFT);
+        @SuppressWarnings("unchecked")
         List<GridPoint> draft = (List<GridPoint>) get(polygon(controller), "draft");
         require(draft.equals(List.of(new GridPoint(80, -120), new GridPoint(230, -120), new GridPoint(230, 65))),
                 "Shift draft placement disagrees with preview");

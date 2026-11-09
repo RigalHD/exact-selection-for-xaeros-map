@@ -5,6 +5,8 @@ import java.util.List;
 import xaero.common.minimap.waypoints.Waypoint;
 import xaero.hud.minimap.waypoint.set.WaypointSet;
 
+// Xaero's older waypoint accessors, as the bridge under test uses them.
+@SuppressWarnings("deprecation")
 public final class WaypointEditCheck {
     private static WaypointAccess.Point point(Waypoint w) {
         return new WaypointAccess.Point(w, w.getX(), w.getY(), w.getZ(), w.getName(), w.isDisabled(), true)

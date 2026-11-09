@@ -1,6 +1,7 @@
 package dev.exactselection;
 
 import dev.exactselection.ExactSelectionController.Dialog;
+import dev.exactselection.ExactSelectionController.DialogField;
 import dev.exactselection.SavedAreaStore.Area;
 import dev.exactselection.SavedAreaStore.Group;
 import dev.exactselection.SavedAreaStore.State;
@@ -16,7 +17,6 @@ import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.input.MouseButtonEvent;
 import static dev.exactselection.Theme.ACCENT;
-import static dev.exactselection.ExactSelectionController.GROUP_NAME_FIELD;
 import static dev.exactselection.ExactSelectionController.place;
 import static dev.exactselection.SelectionPanel.formatLength;
 
@@ -33,7 +33,10 @@ final class GroupsWindow extends UiPart {
     int groupScroll;
     private State indexedState;
     private Map<String, Group> groupsById = Map.of();
-    private Map<String, double[]> totals = new HashMap<>();
+    /** How many areas a set holds and the sum of their areas. */
+    private record Totals(int count, double area) {}
+
+    private Map<String, Totals> totals = new HashMap<>();
 
     GroupsWindow(ExactSelectionController ui) { super(ui); }
 
@@ -54,9 +57,9 @@ final class GroupsWindow extends UiPart {
         if (ui.loadFailed || rename && selectedGroup() == null) return;
         renamingGroup = rename;
         ui.dialog = Dialog.GROUP_NAME;
-        ui.setDialogValue(GROUP_NAME_FIELD, rename ? selectedGroup().name() : "");
+        ui.setDialogValue(DialogField.GROUP_NAME, rename ? selectedGroup().name() : "");
         ui.message = "";
-        ui.focus(ui.dialogFields[GROUP_NAME_FIELD]);
+        ui.focus(ui.field(DialogField.GROUP_NAME));
     }
 
     void openGroupChooser() {
@@ -94,11 +97,11 @@ final class GroupsWindow extends UiPart {
     }
 
     /** Member count and total area of a group ({@code null}: the areas in no group), counted once per state. */
-    private double[] totals(String groupId) {
+    private Totals totals(String groupId) {
         findGroup(null);
         return totals.computeIfAbsent(groupId == null ? "" : groupId, key -> {
             List<Area> members = groupAreas(groupId);
-            return new double[]{members.size(), totalArea(members)};
+            return new Totals(members.size(), totalArea(members));
         });
     }
 
@@ -110,7 +113,7 @@ final class GroupsWindow extends UiPart {
     }
 
     void createGroup() {
-        String name = ui.dialogFields[GROUP_NAME_FIELD].getValue().trim();
+        String name = ui.field(DialogField.GROUP_NAME).getValue().trim();
         if (name.isEmpty() || ui.loadFailed || nameTaken(name, null)) return;
         List<Group> groups = new ArrayList<>(ui.groups());
         Group group = new Group(UUID.randomUUID().toString(), name, true);
@@ -125,7 +128,7 @@ final class GroupsWindow extends UiPart {
 
     void renameGroup() {
         Group current = selectedGroup();
-        String name = ui.dialogFields[GROUP_NAME_FIELD].getValue().trim();
+        String name = ui.field(DialogField.GROUP_NAME).getValue().trim();
         if (current == null || name.isEmpty() || ui.loadFailed || nameTaken(name, current.id())) return;
         List<Group> groups = new ArrayList<>(ui.groups());
         groups.replaceAll(group -> group.id().equals(current.id())
@@ -203,10 +206,10 @@ final class GroupsWindow extends UiPart {
             if (Objects.equals(group.id(), groupId)) g.fill(x + 10, rowY, x + 14 + col, rowY + 20, Theme.ROW_CHECKED);
             g.fill(x + 14, rowY + 5, x + 22, rowY + 13, group.visible() ? ACCENT : Theme.INACTIVE);
             g.drawString(ui.mc.font, ui.mc.font.plainSubstrByWidth(group.name(), col - 22), x + 28, rowY + 1, -1);
-            double[] members = totals(group.id());
+            Totals members = totals(group.id());
             String details = ui.tr(group.visible() ? "group_state_shown" : "group_state_hidden").getString()
-                    + " · " + ui.tr("group_member_count", (int) members[0]).getString()
-                    + " · " + ui.tr("group_area_total", formatLength(members[1])).getString();
+                    + " · " + ui.tr("group_member_count", members.count()).getString()
+                    + " · " + ui.tr("group_area_total", formatLength(members.area())).getString();
             g.drawString(ui.mc.font, ui.mc.font.plainSubstrByWidth(details, col - 22), x + 28, rowY + 11, Theme.TEXT_MUTED);
         }
         Group group = selectedGroup();
@@ -214,12 +217,12 @@ final class GroupsWindow extends UiPart {
         g.drawString(ui.mc.font, ui.mc.font.plainSubstrByWidth(group == null ? ui.tr("group_not_selected").getString() : group.name(), col), right, y + 48, -1);
         // Below the group buttons, while the window is tall enough to leave them clear of the export notice.
         if (h >= 264) {
-            double[] ungrouped = totals(null);
-            double all = totals.computeIfAbsent("\u0000all", key -> new double[]{0, totalArea(ui.areas())})[1];
+            Totals ungrouped = totals(null);
+            double all = totals.computeIfAbsent("\u0000all", key -> new Totals(ui.areas().size(), totalArea(ui.areas()))).area();
             g.drawString(ui.mc.font, ui.mc.font.plainSubstrByWidth(ui.tr("groups_total", ui.areas().size(),
                     formatLength(all)).getString(), col), right, y + 194, Theme.TEXT_MUTED);
-            g.drawString(ui.mc.font, ui.mc.font.plainSubstrByWidth(ui.tr("groups_ungrouped", (int) ungrouped[0],
-                    formatLength(ungrouped[1])).getString(), col), right, y + 206, Theme.TEXT_MUTED);
+            g.drawString(ui.mc.font, ui.mc.font.plainSubstrByWidth(ui.tr("groups_ungrouped", ungrouped.count(),
+                    formatLength(ungrouped.area())).getString(), col), right, y + 206, Theme.TEXT_MUTED);
         }
         ui.areasWindow.renderManagementStatus(g, x, y, w, h, "groups_window_hint");
     }

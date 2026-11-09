@@ -1,6 +1,7 @@
 package dev.exactselection;
 
 import dev.exactselection.ExactSelectionController.Dialog;
+import dev.exactselection.ExactSelectionController.DialogField;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -9,8 +10,6 @@ import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.network.chat.Component;
-import static dev.exactselection.ExactSelectionController.POINT_SEARCH_FIELD;
-import static dev.exactselection.ExactSelectionController.RENAME_FIELD;
 import static dev.exactselection.ExactSelectionController.place;
 import static dev.exactselection.ModLog.LOG;
 
@@ -23,7 +22,20 @@ final class WaypointsWindow extends UiPart {
     WaypointAccess.Snapshot pending;
     int modalScroll;
     final Set<Object> chosenPoints = new HashSet<>();
-    int visibilityFilter;
+    /** Which waypoints the list shows by their own switch in Xaero's list. */
+    enum VisibilityFilter {
+        ALL("filter_all"), VISIBLE("filter_visible"), HIDDEN("filter_hidden");
+
+        final String label;
+
+        VisibilityFilter(String label) { this.label = label; }
+
+        boolean shows(WaypointAccess.Point point) {
+            return this == ALL || (this == HIDDEN) == point.disabled();
+        }
+    }
+
+    VisibilityFilter visibilityFilter = VisibilityFilter.ALL;
     int colorFilter = -1;
     /** The waypoint list scrollbar follows the pointer while the left button stays down. */
     boolean scrollbarDragging;
@@ -31,7 +43,7 @@ final class WaypointsWindow extends UiPart {
     WaypointsWindow(ExactSelectionController ui) { super(ui); }
 
     private void cycleVisibilityFilter() {
-        visibilityFilter = (visibilityFilter + 1) % 3;
+        visibilityFilter = VisibilityFilter.values()[(visibilityFilter.ordinal() + 1) % VisibilityFilter.values().length];
     }
 
     private void cycleColorFilter() {
@@ -40,10 +52,10 @@ final class WaypointsWindow extends UiPart {
 
     List<WaypointAccess.Point> filteredPoints() {
         if (pending == null) return List.of();
-        String query = ui.dialogFields[POINT_SEARCH_FIELD].getValue().trim().toLowerCase(Locale.ROOT);
+        String query = ui.field(DialogField.POINT_SEARCH).getValue().trim().toLowerCase(Locale.ROOT);
         return pending.points().stream().filter(WaypointAccess.Point::editable)
                 .filter(p -> query.isEmpty() || p.name().toLowerCase(Locale.ROOT).contains(query))
-                .filter(p -> visibilityFilter == 0 || (visibilityFilter == 1 && !p.disabled()) || (visibilityFilter == 2 && p.disabled()))
+                .filter(visibilityFilter::shows)
                 .filter(p -> colorFilter < 0 || p.color() == colorFilter)
                 .toList();
     }
@@ -110,8 +122,8 @@ final class WaypointsWindow extends UiPart {
         if (pending == null) { ui.say("waypoints_unavailable"); return; }
         modalScroll = 0; chosenPoints.clear();
         if (pointsInSelection) for (WaypointAccess.Point p : pending.points()) if (p.editable()) chosenPoints.add(p.identity());
-        ui.setDialogValue(POINT_SEARCH_FIELD, ""); ui.setDialogValue(RENAME_FIELD, "");
-        visibilityFilter = 0; colorFilter = -1;
+        ui.setDialogValue(DialogField.POINT_SEARCH, ""); ui.setDialogValue(DialogField.RENAME, "");
+        visibilityFilter = VisibilityFilter.ALL; colorFilter = -1;
         ui.dragging = false; ui.message = ""; ui.dialog = Dialog.WAYPOINTS;
         ui.focus(ui.cancel);
     }
@@ -146,7 +158,7 @@ final class WaypointsWindow extends UiPart {
     }
 
     void renamePoints() {
-        String name = ui.dialogFields[RENAME_FIELD].getValue().trim();
+        String name = ui.field(DialogField.RENAME).getValue().trim();
         if (!name.isEmpty()) editPoints(name, null);
     }
 
@@ -219,12 +231,12 @@ final class WaypointsWindow extends UiPart {
     }
 
     void layoutWaypoints(int x, int y, int w, int h, int buttonY) {
-        place(ui.dialogFields[POINT_SEARCH_FIELD], x + 12, y + 38, w - 24, 18);
+        place(ui.field(DialogField.POINT_SEARCH), x + 12, y + 38, w - 24, 18);
         int third = (w - 30) / 3;
         place(pointVisibility, x + 12, y + 60, third, 18);
         place(pointColor, x + 15 + third, y + 60, third, 18);
         place(pointScope, x + 18 + 2 * third, y + 60, w - 30 - 2 * third, 18);
-        place(ui.dialogFields[RENAME_FIELD], x + 12, y + h - 52, w - 140, 18);
+        place(ui.field(DialogField.RENAME), x + 12, y + h - 52, w - 140, 18);
         place(pointRename, x + w - 122, y + h - 52, 110, 18);
         int actionWidth = Math.min(110, (w - 30) / 3);
         int start = x + (w - actionWidth * 3 - 6) / 2;
@@ -234,16 +246,16 @@ final class WaypointsWindow extends UiPart {
     }
 
     void updateWaypointWidgets() {
-        if (ui.dialog == Dialog.WAYPOINTS) ui.show(true, ui.dialogFields[POINT_SEARCH_FIELD], ui.dialogFields[RENAME_FIELD],
+        if (ui.dialog == Dialog.WAYPOINTS) ui.show(true, ui.field(DialogField.POINT_SEARCH), ui.field(DialogField.RENAME),
                 pointVisibility, pointColor, pointScope, pointRename, pointRecolor, ui.confirm, ui.cancel);
-        pointVisibility.setMessage(ui.tr(new String[]{"filter_all", "filter_visible", "filter_hidden"}[visibilityFilter]));
+        pointVisibility.setMessage(ui.tr(visibilityFilter.label));
         // The color itself, not its number in Xaero's list.
         pointColor.setMessage(colorFilter < 0 ? ui.tr("filter_color_all") : ui.tr("filter_color", ui.waypoints == null ? colorFilter
                 : Component.literal("■").withColor(ui.waypoints.colorRgb(colorFilter))));
         pointScope.setMessage(ui.tr(pointsInSelection ? "point_scope_selection" : "point_scope_all"));
         pointScope.active = ui.state.phase() == SelectionState.Phase.SELECTED;
         int chosenShown = filteredChosenPoints().size();
-        pointRename.active = chosenShown > 0 && !ui.dialogFields[RENAME_FIELD].getValue().trim().isEmpty();
+        pointRename.active = chosenShown > 0 && !ui.field(DialogField.RENAME).getValue().trim().isEmpty();
         pointRecolor.active = chosenShown > 0;
         if (ui.dialog == Dialog.WAYPOINTS) {
             ui.confirm.setMessage(ui.tr("delete_count", chosenShown));

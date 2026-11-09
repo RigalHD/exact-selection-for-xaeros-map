@@ -46,9 +46,23 @@ public final class ExactSelectionController {
     final Windows windows = new Windows(this);
     final InputRouter input = new InputRouter(this);
 
-    /** Places in {@link #dialogFields}. */
-    static final int WIDTH_FIELD = 0, LENGTH_FIELD = 1, OFFSET_X_FIELD = 2, OFFSET_Z_FIELD = 3, AREA_NAME_FIELD = 4, GROUP_NAME_FIELD = 5,
-            CENTER_NAME_FIELD = 6, POINT_SEARCH_FIELD = 7, NEW_AREA_FIELD = 8, RENAME_FIELD = 9, HEX_FIELD = 10;
+    /** The text fields of the windows; a field keeps what was typed when Xaero rebuilds the screen. */
+    enum DialogField {
+        WIDTH(10), LENGTH(10), OFFSET_X(10), OFFSET_Z(10),
+        /** The name of the area checked in the Areas window. */
+        AREA_NAME(128),
+        GROUP_NAME(128), CENTER_NAME(128), POINT_SEARCH(128),
+        /** The name of the area or route being saved. */
+        NEW_AREA(128),
+        /** The new name of the checked waypoints. */
+        RENAME(128),
+        /** A color as #RRGGBB, in the color window and in the window of a new area. */
+        HEX(7);
+
+        final int maxLength;
+
+        DialogField(int maxLength) { this.maxLength = maxLength; }
+    }
     enum Dialog { NONE, SIZE, MOVE, CENTER, AREAS, GROUPS, ASSIGN_GROUP, AREA_NAME, GROUP_NAME, WAYPOINTS, COLOR, IMPORT, EXPORT, PICKER }
     /** Xaero builds a new screen for every map opening; the tool outlives them, so its selection and history survive. */
     private static ExactSelectionController current;
@@ -64,7 +78,8 @@ public final class ExactSelectionController {
     final WaypointAccess waypoints;
     final SavedAreaStore areaStore;
     final List<AbstractWidget> widgets = new ArrayList<>();
-    final EditBox[] dialogFields = new EditBox[11];
+    /** One field for each {@link DialogField}, in its order. */
+    final EditBox[] dialogFields = new EditBox[DialogField.values().length];
     Button confirm, cancel;
     Button modalApply, modalCancel;
     AutosaveSettings autosave;
@@ -164,7 +179,7 @@ public final class ExactSelectionController {
     public void init() {
         // Xaero rebuilds its widgets on resize and when changing dimensions/settings.
         String[] draft = selectionPanel.fields[0] == null ? null : Arrays.stream(selectionPanel.fields).map(EditBox::getValue).toArray(String[]::new);
-        String[] dialogDraft = dialogFields[WIDTH_FIELD] == null ? null : Arrays.stream(dialogFields).map(EditBox::getValue).toArray(String[]::new);
+        String[] dialogDraft = dialogFields[0] == null ? null : Arrays.stream(dialogFields).map(EditBox::getValue).toArray(String[]::new);
         widgets.clear();
         tooltips.clear();
         selectionPanel.createPanelWidgets();
@@ -186,7 +201,7 @@ public final class ExactSelectionController {
             syncing = false;
         } else syncFields();
         if (dialogDraft != null) {
-            for (int i = 0; i < dialogFields.length; i++) setDialogValue(i, dialogDraft[i]);
+            for (DialogField field : DialogField.values()) setDialogValue(field, dialogDraft[field.ordinal()]);
         }
         updateVisibility();
     }
@@ -217,8 +232,13 @@ public final class ExactSelectionController {
 
     Button arrowButton(String arrow, Runnable action) { return addButton(Component.literal(arrow), null, action); }
 
-    void setDialogValue(int index, String value) {
-        syncing = true; dialogFields[index].setValue(value); syncing = false;
+    EditBox field(DialogField field) { return dialogFields[field.ordinal()]; }
+
+    /** Fills a field from the program, which is not the user typing: its responder stays quiet. */
+    void setDialogValue(DialogField field, String value) {
+        syncing = true;
+        field(field).setValue(value);
+        syncing = false;
     }
 
     static void place(AbstractWidget widget, int x, int y, int width, int height) {
@@ -500,8 +520,8 @@ public final class ExactSelectionController {
             if (state.phase() == SelectionState.Phase.PREVIEW && dialog == Dialog.NONE && !dirty && !rulerTool.mode
                     && !selectionPanel.overPanel(mouseX, mouseY) && !overNativeWidget(mouseX, mouseY)) {
                 try {
-                    int[] corner = zoneSnap.block(frame, mouseX, mouseY);
-                    int wx = corner[0], wz = corner[1];
+                    ZoneSnap.Block corner = zoneSnap.block(frame, mouseX, mouseY);
+                    int wx = corner.x(), wz = corner.z();
                     if (chunks) {
                         int originX = chunkOriginX(), originZ = chunkOriginZ();
                         int ax = ChunkSelection.anchor(originX, wx), az = ChunkSelection.anchor(originZ, wz);

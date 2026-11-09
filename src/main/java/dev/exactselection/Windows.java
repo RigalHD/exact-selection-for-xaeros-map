@@ -1,20 +1,12 @@
 package dev.exactselection;
 
 import dev.exactselection.ExactSelectionController.Dialog;
+import dev.exactselection.ExactSelectionController.DialogField;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.network.chat.Component;
 import static dev.exactselection.Theme.ACCENT;
 import static dev.exactselection.ModLog.LOG;
-import static dev.exactselection.ExactSelectionController.AREA_NAME_FIELD;
-import static dev.exactselection.ExactSelectionController.CENTER_NAME_FIELD;
-import static dev.exactselection.ExactSelectionController.GROUP_NAME_FIELD;
-import static dev.exactselection.ExactSelectionController.HEX_FIELD;
-import static dev.exactselection.ExactSelectionController.LENGTH_FIELD;
-import static dev.exactselection.ExactSelectionController.NEW_AREA_FIELD;
-import static dev.exactselection.ExactSelectionController.OFFSET_X_FIELD;
-import static dev.exactselection.ExactSelectionController.OFFSET_Z_FIELD;
-import static dev.exactselection.ExactSelectionController.WIDTH_FIELD;
 import static dev.exactselection.ExactSelectionController.place;
 
 /** What all windows share: opening and closing them, their frame and title, and the shared buttons. */
@@ -29,12 +21,12 @@ final class Windows extends UiPart {
         if (next == Dialog.AREAS) ui.areasWindow.areaSearch.setValue("");
         if (next == Dialog.SIZE) {
             SelectionBounds b = ui.state.bounds();
-            ui.setDialogValue(WIDTH_FIELD, b == null ? "1" : Long.toString(b.width()));
-            ui.setDialogValue(LENGTH_FIELD, b == null ? "1" : Long.toString(b.length()));
+            ui.setDialogValue(DialogField.WIDTH, b == null ? "1" : Long.toString(b.width()));
+            ui.setDialogValue(DialogField.LENGTH, b == null ? "1" : Long.toString(b.length()));
         } else if (next == Dialog.MOVE) {
-            ui.setDialogValue(OFFSET_X_FIELD, "0"); ui.setDialogValue(OFFSET_Z_FIELD, "0");
+            ui.setDialogValue(DialogField.OFFSET_X, "0"); ui.setDialogValue(DialogField.OFFSET_Z, "0");
         } else if (next == Dialog.CENTER) {
-            ui.setDialogValue(CENTER_NAME_FIELD, ui.tr("center_waypoint_default").getString());
+            ui.setDialogValue(DialogField.CENTER_NAME, ui.tr("center_waypoint_default").getString());
         } else if (next == Dialog.AREAS) {
             // The window opens with nothing checked; properties apply only to areas the user picks.
             ui.areasWindow.selectedAreaIds.clear();
@@ -43,7 +35,7 @@ final class Windows extends UiPart {
             ui.areaEdits.areaDraft.clear();
             ui.areasWindow.autosaveOpen = false;
             ui.areasWindow.areaDeleteConfirmation = ui.groupsWindow.groupDeleteConfirmation = ui.areasWindow.areaDeleteFromMenu = false;
-            ui.setDialogValue(AREA_NAME_FIELD, "");
+            ui.setDialogValue(DialogField.AREA_NAME, "");
             ui.message = "";
         }
         if (next == Dialog.SIZE) ui.selectionDialogs.anchorButton.setMessage(ui.tr(ui.selectionDialogs.sizeFromCenter ? "anchor_center" : "anchor_lower_left"));
@@ -108,21 +100,21 @@ final class Windows extends UiPart {
         int buttonY = y + h - 28;
         switch (ui.dialog) {
             case SIZE -> {
-                place(ui.dialogFields[WIDTH_FIELD], x + 18, y + 52, (w - 54) / 2, 18);
-                place(ui.dialogFields[LENGTH_FIELD], x + 36 + (w - 54) / 2, y + 52, (w - 54) / 2, 18);
+                place(ui.field(DialogField.WIDTH), x + 18, y + 52, (w - 54) / 2, 18);
+                place(ui.field(DialogField.LENGTH), x + 36 + (w - 54) / 2, y + 52, (w - 54) / 2, 18);
                 place(ui.selectionDialogs.anchorButton, x + 18, y + 82, w - 36, 18);
                 place(ui.modalApply, x + w / 2 - 116, buttonY, 110, 18);
                 place(ui.modalCancel, x + w / 2 + 6, buttonY, 110, 18);
             }
             case MOVE -> {
-                place(ui.dialogFields[OFFSET_X_FIELD], x + 18, y + 52, (w - 54) / 2, 18);
-                place(ui.dialogFields[OFFSET_Z_FIELD], x + 36 + (w - 54) / 2, y + 52, (w - 54) / 2, 18);
+                place(ui.field(DialogField.OFFSET_X), x + 18, y + 52, (w - 54) / 2, 18);
+                place(ui.field(DialogField.OFFSET_Z), x + 36 + (w - 54) / 2, y + 52, (w - 54) / 2, 18);
                 place(ui.selectionDialogs.moveUnitsButton, x + 18, y + 82, w - 36, 18);
                 place(ui.modalApply, x + w / 2 - 116, buttonY, 110, 18);
                 place(ui.modalCancel, x + w / 2 + 6, buttonY, 110, 18);
             }
             case CENTER -> {
-                place(ui.dialogFields[CENTER_NAME_FIELD], x + 18, y + 58, w - 36, 18);
+                place(ui.field(DialogField.CENTER_NAME), x + 18, y + 58, w - 36, 18);
                 place(ui.selectionDialogs.centerCopy, x + 18, buttonY - 22, Math.max(70, (w - 48) / 2), 18);
                 place(ui.selectionDialogs.centerCreate, x + 30 + (w - 48) / 2, buttonY - 22, Math.max(70, (w - 48) / 2), 18);
                 place(ui.modalCancel, x + w / 2 - 55, buttonY, 110, 18);
@@ -142,7 +134,7 @@ final class Windows extends UiPart {
                 place(ui.groupsWindow.manageGroups, x + 12, y + h - 36, w - 24, 18);
             }
             case AREA_NAME, GROUP_NAME -> {
-                place(ui.dialogFields[ui.dialog == Dialog.AREA_NAME ? NEW_AREA_FIELD : GROUP_NAME_FIELD], x + 16, y + 48, w - 32, 18);
+                place(ui.field(ui.dialog == Dialog.AREA_NAME ? DialogField.NEW_AREA : DialogField.GROUP_NAME), x + 16, y + 48, w - 32, 18);
                 if (ui.dialog == Dialog.AREA_NAME) ui.newAreaWindow.layoutNewArea(x, y, w);
                 place(ui.modalApply, x + w / 2 - 116, buttonY, 110, 18);
                 place(ui.modalCancel, x + w / 2 + 6, buttonY, 110, 18);
@@ -161,11 +153,11 @@ final class Windows extends UiPart {
     void createWindowWidgets() {
         ui.confirm = ui.button("confirm", this::confirmDelete);
         ui.cancel = ui.button("cancel", this::cancelDialog);
-        for (int i = 0; i < ui.dialogFields.length; i++) {
+        for (DialogField kind : DialogField.values()) {
             EditBox field = new EditBox(ui.mc.font, 0, 0, 100, 18, Component.empty());
-            field.setMaxLength(i <= OFFSET_Z_FIELD ? 10 : i == HEX_FIELD ? 7 : 128);
-            if (i == HEX_FIELD) field.setHint(Component.literal("#RRGGBB"));
-            ui.dialogFields[i] = field;
+            field.setMaxLength(kind.maxLength);
+            if (kind == DialogField.HEX) field.setHint(Component.literal("#RRGGBB"));
+            ui.dialogFields[kind.ordinal()] = field;
             ui.widgets.add(field);
         }
         ui.modalApply = ui.button("apply_short", this::applyDialog);
@@ -178,13 +170,13 @@ final class Windows extends UiPart {
     /** Which widgets the open window shows; the Areas and Groups windows decide for themselves. */
     void showWindowWidgets() {
         if (ui.dialog == Dialog.SIZE)
-            ui.show(true, ui.dialogFields[WIDTH_FIELD], ui.dialogFields[LENGTH_FIELD], ui.selectionDialogs.anchorButton, ui.modalApply, ui.modalCancel);
+            ui.show(true, ui.field(DialogField.WIDTH), ui.field(DialogField.LENGTH), ui.selectionDialogs.anchorButton, ui.modalApply, ui.modalCancel);
         if (ui.dialog == Dialog.MOVE)
-            ui.show(true, ui.dialogFields[OFFSET_X_FIELD], ui.dialogFields[OFFSET_Z_FIELD], ui.selectionDialogs.moveUnitsButton, ui.modalApply, ui.modalCancel);
+            ui.show(true, ui.field(DialogField.OFFSET_X), ui.field(DialogField.OFFSET_Z), ui.selectionDialogs.moveUnitsButton, ui.modalApply, ui.modalCancel);
         if (ui.dialog == Dialog.CENTER)
-            ui.show(true, ui.dialogFields[CENTER_NAME_FIELD], ui.selectionDialogs.centerCopy, ui.selectionDialogs.centerCreate, ui.modalCancel);
+            ui.show(true, ui.field(DialogField.CENTER_NAME), ui.selectionDialogs.centerCopy, ui.selectionDialogs.centerCreate, ui.modalCancel);
         if (ui.dialog == Dialog.AREA_NAME) {
-            ui.show(true, ui.dialogFields[NEW_AREA_FIELD], ui.dialogFields[HEX_FIELD], ui.newAreaWindow.newAreaGroup, ui.newAreaWindow.newAreaOpacityButton,
+            ui.show(true, ui.field(DialogField.NEW_AREA), ui.field(DialogField.HEX), ui.newAreaWindow.newAreaGroup, ui.newAreaWindow.newAreaOpacityButton,
                     ui.modalApply, ui.modalCancel);
             // A route has nothing to fill.
             ui.newAreaWindow.newAreaOpacityButton.visible = ui.newAreaWindow.routeToSave == null;
@@ -192,9 +184,9 @@ final class Windows extends UiPart {
         if (ui.dialog == Dialog.COLOR) {
             // A swatch or Apply chooses the color; Cancel or Esc leaves without one.
             ui.show(true, ui.modalCancel);
-            if (ui.colorWindows.colorReturn != Dialog.WAYPOINTS) ui.show(true, ui.dialogFields[HEX_FIELD], ui.colorWindows.colorHexApply);
+            if (ui.colorWindows.colorReturn != Dialog.WAYPOINTS) ui.show(true, ui.field(DialogField.HEX), ui.colorWindows.colorHexApply);
         }
-        if (ui.dialog == Dialog.GROUP_NAME) ui.show(true, ui.dialogFields[GROUP_NAME_FIELD], ui.modalApply, ui.modalCancel);
+        if (ui.dialog == Dialog.GROUP_NAME) ui.show(true, ui.field(DialogField.GROUP_NAME), ui.modalApply, ui.modalCancel);
         if (ui.dialog == Dialog.PICKER) ui.show(true, ui.modalApply, ui.modalCancel);
         if (ui.dialog == Dialog.ASSIGN_GROUP) ui.show(true, ui.groupsWindow.manageGroups, ui.managementClose);
         if (ui.dialog == Dialog.AREAS) ui.areasWindow.showAreaWidgets();
@@ -223,8 +215,8 @@ final class Windows extends UiPart {
         ui.modalApply.setMessage(ui.tr(ui.dialog == Dialog.AREA_NAME ? ui.newAreaWindow.routeToSave != null ? "route_create_button" : "area_create_button"
                 : ui.dialog == Dialog.GROUP_NAME ? ui.groupsWindow.renamingGroup ? "save_name" : "group_create" : "apply_short"));
         ui.modalApply.active = switch (ui.dialog) {
-            case AREA_NAME -> !ui.dialogFields[NEW_AREA_FIELD].getValue().trim().isEmpty() && !ui.loadFailed;
-            case GROUP_NAME -> !ui.dialogFields[GROUP_NAME_FIELD].getValue().trim().isEmpty() && !ui.loadFailed;
+            case AREA_NAME -> !ui.field(DialogField.NEW_AREA).getValue().trim().isEmpty() && !ui.loadFailed;
+            case GROUP_NAME -> !ui.field(DialogField.GROUP_NAME).getValue().trim().isEmpty() && !ui.loadFailed;
             default -> true;
         };
     }

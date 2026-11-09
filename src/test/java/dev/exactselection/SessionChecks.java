@@ -32,6 +32,7 @@ final class SessionChecks {
         SelectionState selection = (SelectionState) get(controller, "state");
         SelectionState.Snapshot initial = selection.snapshot();
         SavedAreaStore.State saved = store.state();
+        @SuppressWarnings("unchecked")
         List<GridPoint> draft = (List<GridPoint>) get(polygon(controller), "draft");
         try {
             selection.setGeometry(new RectangleGeometry(new SelectionBounds(80, -120, 240, 80)));

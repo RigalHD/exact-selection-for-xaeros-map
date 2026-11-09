@@ -5,6 +5,8 @@ import java.util.List;
 import xaero.common.minimap.waypoints.Waypoint;
 import xaero.hud.minimap.waypoint.set.WaypointSet;
 
+// Xaero's older waypoint accessors, as the bridge under test uses them.
+@SuppressWarnings("deprecation")
 public final class WaypointDeletionCheck {
     public static void main(String[] args) throws Exception {
         // Identical names must not cause deletion of unselected objects.

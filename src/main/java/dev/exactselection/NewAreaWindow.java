@@ -1,6 +1,7 @@
 package dev.exactselection;
 
 import dev.exactselection.ExactSelectionController.Dialog;
+import dev.exactselection.ExactSelectionController.DialogField;
 import dev.exactselection.SavedAreaStore.Area;
 import dev.exactselection.SavedAreaStore.Group;
 import java.util.ArrayList;
@@ -9,9 +10,6 @@ import java.util.Objects;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.input.MouseButtonEvent;
-import static dev.exactselection.ExactSelectionController.AREA_NAME_FIELD;
-import static dev.exactselection.ExactSelectionController.HEX_FIELD;
-import static dev.exactselection.ExactSelectionController.NEW_AREA_FIELD;
 import static dev.exactselection.ExactSelectionController.place;
 
 /** The window that names a new area or route, with the style the next one gets. */
@@ -43,10 +41,10 @@ final class NewAreaWindow extends UiPart {
     private void showNameDialog(String defaultNameKey) {
         ui.dialog = Dialog.AREA_NAME;
         newAreaGroupId = null;
-        ui.setDialogValue(NEW_AREA_FIELD, defaultName(defaultNameKey));
-        ui.setDialogValue(HEX_FIELD, AreaPalette.format(newAreaColor));
+        ui.setDialogValue(DialogField.NEW_AREA, defaultName(defaultNameKey));
+        ui.setDialogValue(DialogField.HEX, AreaPalette.format(newAreaColor));
         ui.message = "";
-        ui.focus(ui.dialogFields[NEW_AREA_FIELD]);
+        ui.focus(ui.field(DialogField.NEW_AREA));
     }
 
     /** The first free numbered name; counting the areas alone repeats a name after a deletion. */
@@ -66,7 +64,7 @@ final class NewAreaWindow extends UiPart {
         SelectionBounds b = ui.state.bounds();
         if (!route && (b == null || ui.dirty || ui.state.phase() != SelectionState.Phase.SELECTED)) return;
         ui.areaEdits.flushDraft();
-        String name = ui.dialogFields[NEW_AREA_FIELD].getValue().trim();
+        String name = ui.field(DialogField.NEW_AREA).getValue().trim();
         if (name.isEmpty()) name = defaultName(route ? "route_default_name" : "area_default_name");
         AreaGeometry geometry = route ? routeToSave : ui.state.geometry() == null ? new RectangleGeometry(b) : ui.state.geometry();
         Area area = SavedAreaStore.create(name, geometry, newAreaColor, newAreaOpacity,
@@ -74,7 +72,7 @@ final class NewAreaWindow extends UiPart {
         List<Area> areas = new ArrayList<>(ui.areas()); areas.add(area);
         if (!ui.areaEdits.changeAreas(ui.areaEdits.areaState(areas, ui.groups()), "area_save")) return;
         ui.areasWindow.selectedAreaIds.clear(); ui.areasWindow.selectedAreaIds.add(area.id()); ui.areasWindow.areaId = area.id();
-        ui.setDialogValue(AREA_NAME_FIELD, area.name());
+        ui.setDialogValue(DialogField.AREA_NAME, area.name());
         ui.dialog = areaNameReturn;
         if (ui.dialog == Dialog.AREAS) {
             List<Area> shown = ui.areasWindow.displayedAreas();
@@ -107,7 +105,7 @@ final class NewAreaWindow extends UiPart {
         int i = ui.colorWindows.swatchAt(x, y, w, AreaPalette.COLORS.length, event.x(), event.y());
         if (i >= 0) {
             newAreaColor = AreaPalette.COLORS[i];
-            ui.setDialogValue(HEX_FIELD, AreaPalette.format(newAreaColor));
+            ui.setDialogValue(DialogField.HEX, AreaPalette.format(newAreaColor));
             ui.focus(null);
         }
     }
@@ -129,14 +127,14 @@ final class NewAreaWindow extends UiPart {
         place(newAreaOpacityButton, x + 19 + half, y + 72, w - 35 - half, 18);
         // Custom color: the field ends where the preview takes the last palette column.
         int fieldX = x + 16 + ui.mc.font.width(ui.tr("area_custom_color")) + 6;
-        place(ui.dialogFields[HEX_FIELD], fieldX, y + 170, ui.colorWindows.swatchX(x, w, AreaPalette.COLUMNS - 1) - 4 - fieldX, 18);
+        place(ui.field(DialogField.HEX), fieldX, y + 170, ui.colorWindows.swatchX(x, w, AreaPalette.COLUMNS - 1) - 4 - fieldX, 18);
     }
 
     void renderNewArea(GuiGraphics g, int x, int y, int w) {
         ui.colorWindows.renderSwatches(g, x, y, w, AreaPalette.COLORS, newAreaColor);
         g.drawString(ui.mc.font, ui.tr("area_custom_color"), x + 16, y + 175, Theme.TEXT_MUTED);
         int px = ui.colorWindows.swatchX(x, w, AreaPalette.COLUMNS - 1), sw = ui.colorWindows.colorSampleWidth(w);
-        String hex = ui.dialogFields[HEX_FIELD].getValue().trim();
+        String hex = ui.field(DialogField.HEX).getValue().trim();
         g.fill(px, y + 170, px + sw, y + 188, 0xFF000000 | newAreaColor);
         // A red frame marks text that is not a color yet; the preview keeps the last valid one.
         g.renderOutline(px, y + 170, sw, 18, !hex.isEmpty() && AreaPalette.parse(hex) < 0 ? Theme.INVALID : -1);

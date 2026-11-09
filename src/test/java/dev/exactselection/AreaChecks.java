@@ -64,7 +64,7 @@ final class AreaChecks {
             press(zones, "quickMenuOpacity");
             require(store.state().areas().get(0).opacity() == 50 && (boolean) get(zones, "quickMenu"), "Fill did not change the area");
             press(zones, "quickMenuColor");
-            text(zones, ExactSelectionController.HEX_FIELD).setValue("#FF0000");
+            text(zones, ExactSelectionController.DialogField.HEX.ordinal()).setValue("#FF0000");
             press(zones, "colorHexApply");
             require(store.state().areas().get(0).color() == 0xFF0000 && window(zones).equals("NONE"), "Color did not change the area");
 
@@ -104,6 +104,7 @@ final class AreaChecks {
         SelectionState.Snapshot initial = selection.snapshot();
         SavedAreaStore.State saved = store.state();
         AutosaveSettings autosave = (AutosaveSettings) get(controller, "autosave");
+        @SuppressWarnings("unchecked")
         Map<AutosaveSettings.Field, Button> fieldButtons = (Map<AutosaveSettings.Field, Button>) get(controller, "autosaveFields");
         var group = new SavedAreaStore.Group("draft-group", "Draft group", true);
         var a = SavedAreaStore.create("Alpha", new SelectionBounds(0, 0, 9, 9), 0x123456, 25, null);
@@ -131,7 +132,7 @@ final class AreaChecks {
             require(save.visible && save.active, "Save is unavailable for pending changes");
             Button load = (Button) get(controller, "areaLoad"), shown = (Button) get(controller, "areaVisibility");
             Button gear = (Button) get(controller, "autosaveButton");
-            Button[] copies = (Button[]) get(controller, "areaCopies");
+            Button[] copies = areaCopies(controller);
             call(controller, "layoutDialog");
             require(save.getX() == load.getX() && save.getY() >= load.getY() + load.getHeight()
                     && copies[1].getY() > save.getY() + save.getHeight()
@@ -176,8 +177,8 @@ final class AreaChecks {
             press(controller, "areaSaveChanges");
             require(store.state().areas().get(1).name().equals("Manual name"), "Save did not write the non-autosaved name");
             call(controller, "layoutDialog");
-            for (Button copy : (Button[]) get(controller, "areaCopies")) require(copy.visible && copy.active, "Area copy buttons are missing");
-            Button[] small = (Button[]) get(controller, "areaCopies");
+            for (Button copy : areaCopies(controller)) require(copy.visible && copy.active, "Area copy buttons are missing");
+            Button[] small = areaCopies(controller);
             require(small[2].getWidth() <= 12 && small[2].getMessage().getString().isEmpty()
                     && small[5].getY() == small[4].getY() && small[5].getX() < small[4].getX(),
                     "Area copy buttons are not small icons after their values");
@@ -363,7 +364,7 @@ final class AreaChecks {
             search.setValue("");
             require(((List<?>) call(controller, "displayedAreas")).size() == 4, "An empty search hid areas");
             checkLayout(controller);
-            require(((Button[]) get(controller, "areaCopies")).length == 9, "Area copy buttons lack a name or one of the four corners");
+            require(areaCopies(controller).length == 9, "Area copy buttons lack a name or one of the four corners");
 
             press(controller, "areaClearSelection");
             call(controller, "layoutDialog");

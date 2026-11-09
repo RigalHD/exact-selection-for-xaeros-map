@@ -144,6 +144,7 @@ final class WindowChecks {
             press(controller, "cancel");
             System.out.println("PASS: safe entire-set waypoint management, rename/color/delete, undo, stale snapshot guards, scope and responsive layouts");
         } finally {
+            @SuppressWarnings("unchecked")
             List<AbstractWidget> added = (List<AbstractWidget>) get(controller, "widgets");
             map.children().removeIf(added::contains);
             map.width = 640; map.height = 360;

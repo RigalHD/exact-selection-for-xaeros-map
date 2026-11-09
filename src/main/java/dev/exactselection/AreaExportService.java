@@ -43,10 +43,14 @@ public final class AreaExportService {
     public record Result(Path file, int width, int height) {}
     /** The area exceeds {@link #MAX_PIXELS}; the user can act on this, unlike other export failures. */
     public static final class TooLargeException extends IllegalArgumentException {
+        private static final long serialVersionUID = 1L;
+
         TooLargeException(String message) { super(message); }
     }
     /** Xaero has no map of the area because nobody explored it; the user can act on this too. */
     public static final class UnexploredException extends IllegalArgumentException {
+        private static final long serialVersionUID = 1L;
+
         UnexploredException() { super("The area has not been explored"); }
     }
     /**
@@ -112,6 +116,8 @@ public final class AreaExportService {
         }
     }
 
+    // The override scope is only opened and closed around Xaero's export; nothing in the block names it.
+    @SuppressWarnings("try")
     private static RawJob renderNative(MapProcessor processor, MapBridge.Context context, AreaGeometry territory,
                                        List<SavedAreaStore.Area> overlays, List<Group> groups,
                                        Options options) throws Exception {

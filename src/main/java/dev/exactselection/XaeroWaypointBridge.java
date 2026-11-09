@@ -14,6 +14,14 @@ import xaero.hud.minimap.world.MinimapWorld;
 import xaero.hud.minimap.BuiltInHudModules;
 import xaero.map.mods.SupportMods;
 
+/**
+ * Xaero's Minimap waypoints behind {@link WaypointAccess}: reads the set the World Map shows, and renames, recolors,
+ * deletes and restores its waypoints, saving after every change and taking the change back when the save fails.
+ * <p>
+ * It uses Minimap's older waypoint accessors on purpose: they exist in every supported release from 25.3.5 on, while
+ * their replacements do not.
+ */
+@SuppressWarnings("deprecation")
 public final class XaeroWaypointBridge implements WaypointAccess {
     @Override
     public Snapshot select(MapBridge.Context context, AreaGeometry geometry) {

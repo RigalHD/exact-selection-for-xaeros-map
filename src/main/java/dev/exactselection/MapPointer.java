@@ -136,8 +136,8 @@ final class MapPointer extends UiPart {
     private void pressSelection(MapBridge.Frame frame, MouseButtonEvent event) {
         try {
             MapGesture.Handle handle = ui.hitHandle(frame, event.x(), event.y());
-            int[] corner = ui.zoneSnap.block(frame, event.x(), event.y());
-            int worldX = corner[0], worldZ = corner[1];
+            ZoneSnap.Block corner = ui.zoneSnap.block(frame, event.x(), event.y());
+            int worldX = corner.x(), worldZ = corner.z();
             boolean moveWhole = ui.insideBounds(frame, event.x(), event.y());
             if (handle != null || moveWhole) {
                 // Handles resize; Shift still moves the whole shape even from a handle.

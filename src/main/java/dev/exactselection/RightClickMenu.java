@@ -3,6 +3,7 @@ package dev.exactselection;
 import dev.exactselection.ExactSelectionController.Dialog;
 import dev.exactselection.SavedAreaStore.Area;
 import dev.exactselection.SavedAreaStore.Group;
+import dev.exactselection.SelectionPanel.Metric;
 import java.util.ArrayList;
 import java.util.List;
 import net.minecraft.client.gui.GuiGraphics;
@@ -145,7 +146,7 @@ final class RightClickMenu extends UiPart {
         // Rounded like the Areas window's copy buttons, by the same setting.
         quickInfoSize = ui.button("area_fill", () -> {
             Area area = menuArea();
-            if (area != null) ui.selectionPanel.copyMetric(area.geometry().closed() ? 1 : 2, area.geometry(), area.bounds());
+            if (area != null) ui.selectionPanel.copyMetric(area.geometry().closed() ? Metric.AREA : Metric.PERIMETER, area.geometry(), area.bounds());
         });
         quickMenuSave = ui.button("quick_menu_save", () -> { quickMenu = false; ui.selectionPanel.quickSave(); });
         quickMenuColor = ui.button("area_color", ui.colorWindows::openQuickColor);

@@ -1,13 +1,9 @@
 package dev.exactselection;
 
 import dev.exactselection.ExactSelectionController.Dialog;
+import dev.exactselection.ExactSelectionController.DialogField;
 import java.math.BigDecimal;
 import net.minecraft.client.gui.components.Button;
-import static dev.exactselection.ExactSelectionController.CENTER_NAME_FIELD;
-import static dev.exactselection.ExactSelectionController.LENGTH_FIELD;
-import static dev.exactselection.ExactSelectionController.OFFSET_X_FIELD;
-import static dev.exactselection.ExactSelectionController.OFFSET_Z_FIELD;
-import static dev.exactselection.ExactSelectionController.WIDTH_FIELD;
 import static dev.exactselection.ModLog.LOG;
 
 /** The Size, Move and Center windows of the current selection. */
@@ -37,7 +33,7 @@ final class SelectionDialogs extends UiPart {
     void createCenterWaypoint() {
         SelectionBounds b = ui.state.bounds();
         if (b == null || ui.state.phase() != SelectionState.Phase.SELECTED || ui.waypoints == null) { ui.say("minimap_missing"); return; }
-        String name = ui.dialogFields[CENTER_NAME_FIELD].getValue().trim();
+        String name = ui.field(DialogField.CENTER_NAME).getValue().trim();
         if (name.isEmpty()) name = ui.tr("center_waypoint_default").getString();
         int x = (int) Math.floor(b.centerX()), z = (int) Math.floor(b.centerZ());
         int y = ui.mc.player == null ? 0 : ui.mc.player.blockPosition().getY();
@@ -60,8 +56,8 @@ final class SelectionDialogs extends UiPart {
     void applySizeOrMove() throws Exception {
         SelectionBounds current = ui.state.bounds();
         if (ui.dialog == Dialog.SIZE) {
-            long width = positive(ui.dialogFields[WIDTH_FIELD].getValue());
-            long length = positive(ui.dialogFields[LENGTH_FIELD].getValue());
+            long width = positive(ui.field(DialogField.WIDTH).getValue());
+            long length = positive(ui.field(DialogField.LENGTH).getValue());
             if (current == null) throw new IllegalArgumentException();
             SelectionBounds next = sizeFromCenter
                     ? SelectionBounds.aroundCenter(current.centerX(), current.centerZ(), width, length)
@@ -70,8 +66,8 @@ final class SelectionDialogs extends UiPart {
             ui.setSelection(next, "resize");
         } else if (ui.dialog == Dialog.MOVE) {
             if (current == null) throw new IllegalArgumentException();
-            long dx = Long.parseLong(ui.dialogFields[OFFSET_X_FIELD].getValue().trim());
-            long dz = Long.parseLong(ui.dialogFields[OFFSET_Z_FIELD].getValue().trim());
+            long dx = Long.parseLong(ui.field(DialogField.OFFSET_X).getValue().trim());
+            long dz = Long.parseLong(ui.field(DialogField.OFFSET_Z).getValue().trim());
             if (moveInChunks) { dx = Math.multiplyExact(dx, 16); dz = Math.multiplyExact(dz, 16); }
             if (ui.state.geometry() instanceof PolygonGeometry) {
                 SelectionState.Snapshot before = ui.state.snapshot();

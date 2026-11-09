@@ -133,12 +133,12 @@ abstract sealed class MapGesture {
                 }
                 long minX = b.minX(), maxX = b.maxX(), minZ = b.minZ(), maxZ = b.maxZ();
                 if (handle == Handle.MOVE) { minX += dx; maxX += dx; minZ += dz; maxZ += dz; }
-                long[] xs = handle.x < 0 ? dragEdge(pointerX, (long) b.maxX() + 1, true, chunks)
+                Edges xs = handle.x < 0 ? dragEdge(pointerX, (long) b.maxX() + 1, true, chunks)
                         : handle.x > 0 ? dragEdge(pointerX, b.minX(), false, chunks) : null;
-                long[] zs = handle.z < 0 ? dragEdge(pointerZ, (long) b.maxZ() + 1, true, chunks)
+                Edges zs = handle.z < 0 ? dragEdge(pointerZ, (long) b.maxZ() + 1, true, chunks)
                         : handle.z > 0 ? dragEdge(pointerZ, b.minZ(), false, chunks) : null;
-                if (xs != null) { minX = xs[0]; maxX = xs[1] - 1; }
-                if (zs != null) { minZ = zs[0]; maxZ = zs[1] - 1; }
+                if (xs != null) { minX = xs.low(); maxX = xs.high() - 1; }
+                if (zs != null) { minZ = zs.low(); maxZ = zs.high() - 1; }
                 if (minX < -WorldLimits.MAX || minZ < -WorldLimits.MAX || maxX >= WorldLimits.MAX || maxZ >= WorldLimits.MAX) return;
                 host.state().set(new SelectionBounds((int) minX, (int) minZ, (int) maxX, (int) maxZ));
                 host.selectionMoved();
@@ -156,11 +156,14 @@ abstract sealed class MapGesture {
          * {@code fixed}. Working with outer edges keeps the size right when the dragged side crosses the fixed one:
          * the block under the pointer is always included, and chunk mode keeps whole 16-block chunks.
          */
-        private static long[] dragEdge(double pointer, long fixed, boolean lowSide, boolean chunks) {
+        private static Edges dragEdge(double pointer, long fixed, boolean lowSide, boolean chunks) {
             long low = lowerBoundary(pointer, chunks), high = upperBoundary(pointer, chunks), unit = chunks ? 16 : 1;
-            if (lowSide) return low < fixed ? new long[]{low, fixed} : new long[]{fixed, Math.max(high, fixed + unit)};
-            return high > fixed ? new long[]{fixed, high} : new long[]{Math.min(low, fixed - unit), fixed};
+            if (lowSide) return low < fixed ? new Edges(low, fixed) : new Edges(fixed, Math.max(high, fixed + unit));
+            return high > fixed ? new Edges(fixed, high) : new Edges(Math.min(low, fixed - unit), fixed);
         }
+
+        /** The outer edges of a rectangle along one axis: the blocks from {@code low} up to, not including, {@code high}. */
+        private record Edges(long low, long high) {}
 
         private static long lowerBoundary(double pointer, boolean chunks) {
             int block = SelectionBounds.block(pointer);

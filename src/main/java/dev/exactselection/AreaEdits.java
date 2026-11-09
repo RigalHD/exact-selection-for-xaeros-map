@@ -1,5 +1,6 @@
 package dev.exactselection;
 
+import dev.exactselection.ExactSelectionController.DialogField;
 import dev.exactselection.SavedAreaStore.Area;
 import dev.exactselection.SavedAreaStore.Group;
 import dev.exactselection.SavedAreaStore.State;
@@ -9,7 +10,6 @@ import java.util.List;
 import java.util.Set;
 import java.util.function.Predicate;
 import java.util.function.UnaryOperator;
-import static dev.exactselection.ExactSelectionController.AREA_NAME_FIELD;
 import static dev.exactselection.ModLog.LOG;
 
 /** Writes to the stored areas, each one undo step, and the unsaved edits of the checked areas. */
@@ -81,7 +81,7 @@ final class AreaEdits extends UiPart {
         // Keep only the fields that were not written.
         areaDraft.clear(fields);
         Area single = ui.areasWindow.selectedAreaIds.size() == 1 ? ui.areasWindow.selectedArea() : null;
-        ui.setDialogValue(AREA_NAME_FIELD, areaDraft.name != null ? areaDraft.name : single == null ? "" : single.name());
+        ui.setDialogValue(DialogField.AREA_NAME, areaDraft.name != null ? areaDraft.name : single == null ? "" : single.name());
         ui.say("area_changes_saved");
         return true;
     }
@@ -151,14 +151,18 @@ final class AreaEdits extends UiPart {
         return new State(areas, groups, current.showOnMap(), current.showOnMinimap(), current.showNames());
     }
 
-    void toggleAreaMapVisibility() { flipOverlays(true, false, false, "area_map_visibility"); }
+    /** A switch of the saved-area overlays, stored with the areas of the world. */
+    private enum Overlay { MAP, MINIMAP, NAMES }
 
-    void toggleAreaMinimapVisibility() { flipOverlays(false, true, false, "area_minimap_visibility"); }
+    void toggleAreaMapVisibility() { flip(Overlay.MAP, "area_map_visibility"); }
 
-    void toggleAreaNames() { flipOverlays(false, false, true, "area_names_visibility"); }
+    void toggleAreaMinimapVisibility() { flip(Overlay.MINIMAP, "area_minimap_visibility"); }
 
-    private void flipOverlays(boolean map, boolean minimap, boolean names, String label) {
+    void toggleAreaNames() { flip(Overlay.NAMES, "area_names_visibility"); }
+
+    private void flip(Overlay overlay, String label) {
         State s = ui.areaStore.state();
-        changeAreas(new State(s.areas(), s.groups(), s.showOnMap() ^ map, s.showOnMinimap() ^ minimap, s.showNames() ^ names), label);
+        changeAreas(new State(s.areas(), s.groups(), s.showOnMap() ^ (overlay == Overlay.MAP),
+                s.showOnMinimap() ^ (overlay == Overlay.MINIMAP), s.showNames() ^ (overlay == Overlay.NAMES)), label);
     }
 }

@@ -27,11 +27,15 @@ final class ZoneSnap extends UiPart {
         return side;
     }
 
+    /** A block of the world by its X and Z. */
+    record Block(int x, int z) {}
+
     /** The block for a rectangle's corner: the one touching an area in reach on the pointer's side, so their edges meet. */
-    int[] block(MapBridge.Frame frame, double x, double y) {
+    Block block(MapBridge.Frame frame, double x, double y) {
         double worldX = frame.worldX(x), worldZ = frame.worldZ(y);
         GridPoint stuck = point(frame, x, y);
-        return stuck == null ? new int[]{SelectionBounds.block(worldX), SelectionBounds.block(worldZ)}
-                : new int[]{SelectionBounds.block(stuck.x() - (worldX < stuck.x() ? 1 : 0)), SelectionBounds.block(stuck.z() - (worldZ < stuck.z() ? 1 : 0))};
+        if (stuck == null) return new Block(SelectionBounds.block(worldX), SelectionBounds.block(worldZ));
+        return new Block(SelectionBounds.block(stuck.x() - (worldX < stuck.x() ? 1 : 0)),
+                SelectionBounds.block(stuck.z() - (worldZ < stuck.z() ? 1 : 0)));
     }
 }

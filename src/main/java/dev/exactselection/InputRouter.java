@@ -1,6 +1,7 @@
 package dev.exactselection;
 
 import dev.exactselection.ExactSelectionController.Dialog;
+import dev.exactselection.ExactSelectionController.DialogField;
 import java.util.List;
 import net.minecraft.client.gui.components.AbstractWidget;
 import net.minecraft.client.gui.components.Button;
@@ -10,9 +11,6 @@ import net.minecraft.client.input.KeyEvent;
 import net.minecraft.client.input.MouseButtonEvent;
 import org.lwjgl.glfw.GLFW;
 import xaero.map.controls.ControlsRegister;
-import static dev.exactselection.ExactSelectionController.AREA_NAME_FIELD;
-import static dev.exactselection.ExactSelectionController.HEX_FIELD;
-import static dev.exactselection.ExactSelectionController.RENAME_FIELD;
 
 /** Mouse and keyboard from Xaero's screen: each event goes to the window, panel or map tool it belongs to. */
 final class InputRouter extends UiPart {
@@ -243,11 +241,11 @@ final class InputRouter extends UiPart {
     private void enterInField(EditBox field) {
         if ((ui.dialog == Dialog.SIZE || ui.dialog == Dialog.MOVE || ui.dialog == Dialog.AREA_NAME || ui.dialog == Dialog.GROUP_NAME)
                 && ui.modalApply.active) ui.windows.applyDialog();
-        else if (ui.dialog == Dialog.AREAS && field == ui.dialogFields[AREA_NAME_FIELD])
+        else if (ui.dialog == Dialog.AREAS && field == ui.field(DialogField.AREA_NAME))
             ui.areaEdits.commitDraft(ui.autosave.covers(AutosaveSettings.Field.NAME) ? f -> f == AutosaveSettings.Field.NAME : f -> true);
         else if (ui.dialog == Dialog.CENTER) ui.selectionDialogs.createCenterWaypoint();
-        else if (ui.dialog == Dialog.COLOR && field == ui.dialogFields[HEX_FIELD]) ui.colorWindows.applyHexColor();
-        else if (ui.dialog == Dialog.WAYPOINTS && field == ui.dialogFields[RENAME_FIELD] && ui.waypointsWindow.pointRename.active) ui.waypointsWindow.renamePoints();
+        else if (ui.dialog == Dialog.COLOR && field == ui.field(DialogField.HEX)) ui.colorWindows.applyHexColor();
+        else if (ui.dialog == Dialog.WAYPOINTS && field == ui.field(DialogField.RENAME) && ui.waypointsWindow.pointRename.active) ui.waypointsWindow.renamePoints();
         else if (ui.dialog == Dialog.NONE) ui.applyFields();
     }
 

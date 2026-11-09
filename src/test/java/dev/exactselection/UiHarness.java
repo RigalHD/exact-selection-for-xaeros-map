@@ -343,6 +343,12 @@ final class UiHarness {
         return array((Rect) method.invoke(null, r[0], r[1], r[2], r[3]));
     }
 
+    /** The Areas window's copy buttons in the order of {@code AreasWindow.AreaCopy}. */
+    @SuppressWarnings("unchecked")
+    static Button[] areaCopies(Object controller) throws Exception {
+        return ((java.util.Map<?, Button>) get(controller, "areaCopies")).values().toArray(Button[]::new);
+    }
+
     /** The open window's rectangle as {x, y, width, height}. */
     static int[] dialogRect(Object controller) throws Exception { return array((Rect) call(controller, "dialogRect")); }
 

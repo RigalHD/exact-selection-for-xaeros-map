@@ -54,6 +54,7 @@ final class PanelChecks {
         selection.setGeometry(new PolygonGeometry(List.of(new GridPoint(0, 0), new GridPoint(10, 0), new GridPoint(0, 10))));
         call(controller, "updateVisibility");
         require(export.active, "Finished polygon cannot be exported");
+        @SuppressWarnings("unchecked")
         List<GridPoint> draft = (List<GridPoint>) get(polygon(controller), "draft");
         draft.add(new GridPoint(1, 1)); call(controller, "updateVisibility");
         require(!export.active, "Unfinished polygon can export an old selection");
@@ -151,7 +152,7 @@ final class PanelChecks {
             var area = SavedAreaStore.create("Corners", bounds, AreaPalette.DEFAULT, 25, null);
             store.replace(new SavedAreaStore.State(List.of(area), List.of(), true, true));
             press(controller, "areasButton"); pick(controller, store, area.id()); call(controller, "layoutDialog");
-            Button[] copies = (Button[]) get(controller, "areaCopies");
+            Button[] copies = areaCopies(controller);
             // Four corners by direction (north is -Z, west is -X): NW and NE on one line, SW and SE below.
             require(copies[1].visible && copies[7].visible && copies[8].visible && copies[6].visible
                     && copies[1].getY() == copies[7].getY() && copies[8].getY() == copies[6].getY()

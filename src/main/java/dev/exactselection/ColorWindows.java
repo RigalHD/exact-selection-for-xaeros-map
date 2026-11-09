@@ -1,12 +1,12 @@
 package dev.exactselection;
 
 import dev.exactselection.ExactSelectionController.Dialog;
+import dev.exactselection.ExactSelectionController.DialogField;
 import dev.exactselection.SavedAreaStore.Area;
 import java.util.List;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.input.MouseButtonEvent;
-import static dev.exactselection.ExactSelectionController.HEX_FIELD;
 import static dev.exactselection.ExactSelectionController.place;
 
 /** The color window with its swatches and the full color picker. */
@@ -31,7 +31,7 @@ final class ColorWindows extends UiPart {
         if (area == null || ui.loadFailed) return;
         colorReturn = Dialog.NONE;
         ui.dialog = Dialog.COLOR;
-        ui.setDialogValue(HEX_FIELD, AreaPalette.format(area.color()));
+        ui.setDialogValue(DialogField.HEX, AreaPalette.format(area.color()));
         ui.message = ""; ui.focus(null);
     }
 
@@ -43,13 +43,13 @@ final class ColorWindows extends UiPart {
         ui.dialog = Dialog.COLOR;
         Area area = ui.areasWindow.selectedArea();
         if (area == null && !ui.areasWindow.selectedAreas().isEmpty()) area = ui.areasWindow.selectedAreas().get(0);
-        ui.setDialogValue(HEX_FIELD, AreaPalette.format(ui.areaEdits.areaDraft.color != null ? ui.areaEdits.areaDraft.color
+        ui.setDialogValue(DialogField.HEX, AreaPalette.format(ui.areaEdits.areaDraft.color != null ? ui.areaEdits.areaDraft.color
                 : area == null ? AreaPalette.DEFAULT : area.color()));
         ui.message = ""; ui.focus(null);
     }
 
     void applyHexColor() {
-        int color = AreaPalette.parse(ui.dialogFields[HEX_FIELD].getValue());
+        int color = AreaPalette.parse(ui.field(DialogField.HEX).getValue());
         if (color < 0) { ui.say("color_invalid"); return; }
         applyColor(color);
     }
@@ -122,7 +122,7 @@ final class ColorWindows extends UiPart {
         List<WaypointAccess.Point> points = ui.waypointsWindow.filteredChosenPoints();
         int current = colorReturn == Dialog.WAYPOINTS
                 ? points.isEmpty() ? -1 : ui.waypoints.colorRgb(points.get(0).color())
-                : AreaPalette.parse(ui.dialogFields[HEX_FIELD].getValue());
+                : AreaPalette.parse(ui.field(DialogField.HEX).getValue());
         renderSwatches(g, x, y, w, paletteColors(), current);
         if (colorReturn != Dialog.WAYPOINTS) {
             int px = colorPreviewX(x, w);
@@ -147,7 +147,7 @@ final class ColorWindows extends UiPart {
     void applyPicker() {
         int color = pickerColor();
         ui.dialog = pickerReturn; pickerDrag = PickerDrag.NONE;
-        ui.setDialogValue(HEX_FIELD, AreaPalette.format(color));
+        ui.setDialogValue(DialogField.HEX, AreaPalette.format(color));
         // The color window applies a choice at once, like a swatch.
         if (pickerReturn == Dialog.COLOR) { applyColor(color); return; }
         ui.newAreaWindow.newAreaColor = color;
@@ -195,7 +195,7 @@ final class ColorWindows extends UiPart {
         int px = colorPreviewX(x, w);
         if (colorReturn != Dialog.WAYPOINTS && event.x() >= px && event.x() < px + 40
                 && event.y() >= y + 110 && event.y() < y + 128) {
-            int typed = AreaPalette.parse(ui.dialogFields[HEX_FIELD].getValue());
+            int typed = AreaPalette.parse(ui.field(DialogField.HEX).getValue());
             openPicker(Dialog.COLOR, typed < 0 ? AreaPalette.DEFAULT : typed);
             return;
         }
@@ -213,13 +213,13 @@ final class ColorWindows extends UiPart {
 
     void layoutColorDialog(int x, int y, int w, int h, int buttonY) {
         // The field leaves room for the preview, which opens the full picker.
-        place(ui.dialogFields[HEX_FIELD], x + 12, y + 110, colorPreviewX(x, w) - 4 - (x + 12), 18);
+        place(ui.field(DialogField.HEX), x + 12, y + 110, colorPreviewX(x, w) - 4 - (x + 12), 18);
         place(colorHexApply, x + w - 102, y + 110, 90, 18);
         place(ui.modalCancel, x + w / 2 - 55, buttonY, 110, 18);
     }
 
     void createColorWidgets() {
-        ui.dialogFields[HEX_FIELD].setResponder(value -> {
+        ui.field(DialogField.HEX).setResponder(value -> {
             if (ui.syncing) return;
             // The new-area window takes a typed color as soon as it is complete.
             int color = AreaPalette.parse(value);

@@ -5,7 +5,6 @@ import dev.exactselection.SavedAreaStore.Area;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.stream.Collectors;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.AbstractWidget;
@@ -172,30 +171,31 @@ final class SelectionPanel extends UiPart {
 
     private List<String> dimensionText() { return dimensionParts(ui.state.bounds(), ui.chunks); }
 
-    /** The panel's metric lines; their y is relative to the panel top, as for line(). */
-    private List<Map.Entry<Integer, MetricLine>> panelMetricLines() {
-        List<Map.Entry<Integer, MetricLine>> lines = new ArrayList<>();
+    /** A metric line of the panel and its y below the panel's top, as for line(). */
+    private record PanelLine(int y, MetricLine line) {}
+
+    private List<PanelLine> panelMetricLines() {
+        int first = compact ? 33 : 82, second = first + 12, third = second + 12;
         if (ui.rulerTool.mode) {
-            lines.add(Map.entry(compact ? 33 : 82, new MetricLine(List.of(ui.rulerTool.rulerDistanceText()), List.of(copyRulerDistance))));
-            lines.add(Map.entry(compact ? 45 : 94, new MetricLine(ui.rulerTool.rulerDeltaParts(), List.of())));
+            List<PanelLine> lines = new ArrayList<>(List.of(
+                    new PanelLine(first, new MetricLine(List.of(ui.rulerTool.rulerDistanceText()), List.of(copyRulerDistance))),
+                    new PanelLine(second, new MetricLine(ui.rulerTool.rulerDeltaParts(), List.of()))));
             String other = ui.rulerTool.rulerOtherDimensionText();
-            if (other != null) lines.add(Map.entry(compact ? 57 : 106, new MetricLine(List.of(other), List.of())));
+            if (other != null) lines.add(new PanelLine(third, new MetricLine(List.of(other), List.of())));
             return lines;
         }
-        lines.add(Map.entry(compact ? 33 : 82, new MetricLine(dimensionText(), List.of(copyWidth, copyLength))));
-        if (metricsShift != 0) lines.add(Map.entry(compact ? 45 : 94, new MetricLine(
+        PanelLine dimensions = new PanelLine(first, new MetricLine(dimensionText(), List.of(copyWidth, copyLength)));
+        if (metricsShift != 0) return List.of(dimensions, new PanelLine(second, new MetricLine(
                 List.of(areaText().getString(), perimeterText().getString()), List.of(copyArea, copyPerimeter))));
-        else {
-            lines.add(Map.entry(compact ? 45 : 94, new MetricLine(List.of(areaText().getString()), List.of(copyArea))));
-            lines.add(Map.entry(compact ? 57 : 106, new MetricLine(List.of(perimeterText().getString()), List.of(copyPerimeter))));
-        }
-        return lines;
+        return List.of(dimensions,
+                new PanelLine(second, new MetricLine(List.of(areaText().getString()), List.of(copyArea))),
+                new PanelLine(third, new MetricLine(List.of(perimeterText().getString()), List.of(copyPerimeter))));
     }
 
     private void placePanelCopies() {
         int scroll = compact ? 0 : panelScroll;
-        for (Map.Entry<Integer, MetricLine> line : panelMetricLines())
-            placeMetricLine(line.getValue(), PANEL_X + 8, PANEL_Y + line.getKey() - scroll, panelWidth - 16);
+        for (PanelLine line : panelMetricLines())
+            placeMetricLine(line.line(), PANEL_X + 8, PANEL_Y + line.y() - scroll, panelWidth - 16);
     }
 
     private void arrowRow(Button[] buttons, int x, int y, int width) {
@@ -262,8 +262,8 @@ final class SelectionPanel extends UiPart {
         }
         int sh = metricsShift;
         boolean first = true;
-        for (Map.Entry<Integer, MetricLine> metric : panelMetricLines()) {
-            drawMetricLine(g, metric.getValue(), PANEL_X + 8, PANEL_Y + metric.getKey() - (compact ? 0 : panelScroll), panelWidth - 16,
+        for (PanelLine metric : panelMetricLines()) {
+            drawMetricLine(g, metric.line(), PANEL_X + 8, PANEL_Y + metric.y() - (compact ? 0 : panelScroll), panelWidth - 16,
                     first ? -1 : ACCENT);
             first = false;
         }
@@ -417,7 +417,7 @@ final class SelectionPanel extends UiPart {
         panelModeButton = ui.button("panel_expand", this::togglePanelMode);
         apply = ui.button("apply_short", "apply", ui::applyFields);
         copyCoordinates = ui.iconButton("copy_corner_a_tooltip", this::copyCoordinates);
-        copyCornerB = ui.iconButton("copy_corner_b_tooltip", () -> copySelection(5));
+        copyCornerB = ui.iconButton("copy_corner_b_tooltip", () -> copySelection(Metric.CORNER_B));
         copyArea = ui.iconButton("copy_area_tooltip", this::copyArea);
         copyPerimeter = ui.iconButton("copy_perimeter_tooltip", this::copyPerimeter);
         copyLength = ui.iconButton("copy_length_tooltip", this::copyLength);
@@ -453,33 +453,39 @@ final class SelectionPanel extends UiPart {
         if (bounds != null) copyToClipboard(cornerCoordinates(bounds, true));
     }
 
-    private void copyArea() { copySelection(1); }
+    private void copyArea() { copySelection(Metric.AREA); }
 
-    private void copyPerimeter() { copySelection(2); }
+    private void copyPerimeter() { copySelection(Metric.PERIMETER); }
 
-    private void copyLength() { copySelection(3); }
+    private void copyLength() { copySelection(Metric.LENGTH); }
 
-    private void copyWidth() { copySelection(4); }
+    private void copyWidth() { copySelection(Metric.WIDTH); }
 
-    private void copySelection(int kind) {
+    private void copySelection(Metric metric) {
         SelectionBounds b = copyableBounds();
-        if (b != null) copyMetric(kind, ui.state.geometry(), b);
+        if (b != null) copyMetric(metric, ui.state.geometry(), b);
     }
 
     private static String cornerCoordinates(SelectionBounds bounds, boolean first) {
         return first ? bounds.x1() + " " + bounds.z1() : bounds.x2() + " " + bounds.z2();
     }
 
-    /** Copies one value: 0 corner A or polygon vertices, 1 area, 2 perimeter, 3 length, 4 width, 5 corner B. */
-    void copyMetric(int kind, AreaGeometry geometry, SelectionBounds b) {
-        copyToClipboard(switch (kind) {
-            case 0 -> geometry instanceof RectangleGeometry ? cornerCoordinates(b, true)
+    /** A value of a shape that a copy button puts on the clipboard. */
+    enum Metric {
+        /** Corner A of a rectangle, or every vertex of a polygon or a route. */
+        CORNER_A, CORNER_B, AREA, PERIMETER, LENGTH, WIDTH
+    }
+
+    void copyMetric(Metric metric, AreaGeometry geometry, SelectionBounds b) {
+        boolean exact = ui.autosave.rounding() == AutosaveSettings.Rounding.EXACT;
+        copyToClipboard(switch (metric) {
+            case CORNER_A -> geometry instanceof RectangleGeometry ? cornerCoordinates(b, true)
                     : geometry.vertices().stream().map(p -> p.x() + " " + p.z()).collect(Collectors.joining("; "));
-            case 1 -> ui.autosave.rounding() == AutosaveSettings.Rounding.EXACT ? SelectionDialogs.formatNumber(geometry.area()) : rounded(geometry.area());
-            case 2 -> ui.autosave.rounding() == AutosaveSettings.Rounding.EXACT ? formatLength(geometry.perimeter()) : rounded(geometry.perimeter());
-            case 3 -> Long.toString(b.length());
-            case 5 -> cornerCoordinates(b, false);
-            default -> Long.toString(b.width());
+            case CORNER_B -> cornerCoordinates(b, false);
+            case AREA -> exact ? SelectionDialogs.formatNumber(geometry.area()) : rounded(geometry.area());
+            case PERIMETER -> exact ? formatLength(geometry.perimeter()) : rounded(geometry.perimeter());
+            case LENGTH -> Long.toString(b.length());
+            case WIDTH -> Long.toString(b.width());
         });
     }
 

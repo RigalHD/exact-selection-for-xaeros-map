@@ -10,6 +10,7 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import xaero.hud.minimap.element.render.MinimapElementRenderInfo;
 
+/** Draws saved areas on the minimap before its own elements. Optional: an unsupported Minimap only loses this overlay. */
 @Pseudo
 @Mixin(targets = "xaero.hud.minimap.element.render.over.MinimapElementOverMapRendererHandler", remap = false)
 public abstract class MinimapOverlayMixin {

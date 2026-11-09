@@ -15,6 +15,7 @@ import net.minecraft.client.gui.render.state.GuiRenderState;
 import net.minecraft.client.renderer.RenderPipelines;
 import org.joml.Matrix3x2fc;
 
+/** Draws shapes on the World Map screen: filled triangles clipped to the screen and smoothed outlines. */
 public final class GeometryScreenRenderer {
     /** Width of the smoothed outline edge when the GUI scale is unknown, in GUI units. */
     private static final double DEFAULT_FRINGE = 0.5;

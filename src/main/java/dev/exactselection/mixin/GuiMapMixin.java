@@ -26,6 +26,7 @@ import xaero.map.gui.GuiMap;
 import xaero.map.gui.MapMouseButtonPress;
 import xaero.map.gui.MapTileSelection;
 
+/** Hooks the tool into Xaero's World Map screen: creates the controller with the screen, passes it input before Xaero and drawing after the map, keeps the zoom anchored on the pointer, and exposes the camera as {@link MapBridge}. */
 @Mixin(value = GuiMap.class, remap = false)
 public abstract class GuiMapMixin extends Screen implements MapBridge {
     @Shadow

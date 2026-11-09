@@ -2,6 +2,7 @@ package dev.exactselection;
 
 import java.util.Locale;
 
+/** The 24 colors offered for areas, and conversions between RGB, "#RRGGBB" text and hue, saturation and brightness. */
 public final class AreaPalette {
     public static final int[] COLORS = {
         0xFF5555, 0xFF8A3D, 0xFFCF62, 0xF2E85C, 0x9BE15D, 0x7CE38B, 0x3FC77A, 0x59E3CE,

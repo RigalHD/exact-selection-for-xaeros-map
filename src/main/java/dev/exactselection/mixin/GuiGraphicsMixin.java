@@ -7,6 +7,7 @@ import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 
+/** Exposes the GUI render state, which shapes are submitted to. */
 @Mixin(GuiGraphics.class)
 public abstract class GuiGraphicsMixin implements GuiGraphicsBridge {
     @Shadow

@@ -30,6 +30,7 @@ import xaero.map.WorldMapSession;
 import xaero.map.world.MapDimension;
 import xaero.map.world.MapWorld;
 
+/** Saved areas on Xaero's minimap, drawn before its own elements; it reads the areas of the dimension the minimap shows. */
 public final class MinimapAreaOverlay {
     private static final class StoreHolder {
         private static final SavedAreaStore STORE =

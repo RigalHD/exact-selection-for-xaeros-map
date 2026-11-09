@@ -2,6 +2,7 @@ package dev.exactselection;
 
 import java.util.List;
 
+/** A rectangle given by its two corner blocks, kept in the order they were drawn. */
 public record RectangleGeometry(SelectionBounds blocks) implements AreaGeometry {
     public RectangleGeometry {
         if (blocks == null) throw new IllegalArgumentException("Rectangle bounds are required");

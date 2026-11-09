@@ -6,6 +6,7 @@ import org.spongepowered.asm.mixin.Pseudo;
 import org.spongepowered.asm.mixin.gen.Accessor;
 import xaero.map.file.export.PNGExporter;
 
+/** Reads and redirects the folder Xaero exports to. */
 @Pseudo
 @Mixin(value = PNGExporter.class, remap = false)
 public interface PNGExporterAccessor {

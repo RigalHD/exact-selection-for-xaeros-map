@@ -6,6 +6,7 @@ import org.spongepowered.asm.mixin.gen.Accessor;
 import xaero.map.file.MapSaveLoad;
 import xaero.map.file.export.PNGExporter;
 
+/** Reaches Xaero's PNG exporter and its "export in progress" flag. */
 @Pseudo
 @Mixin(value = MapSaveLoad.class, remap = false)
 public interface MapSaveLoadAccessor {

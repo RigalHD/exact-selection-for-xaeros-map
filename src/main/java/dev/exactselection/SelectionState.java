@@ -1,5 +1,6 @@
 package dev.exactselection;
 
+/** The current selection: its phase, its shape and the saved area it edits, if any. Snapshots of it are what undo and redo restore. */
 public final class SelectionState {
     public enum Phase {
         OFF,

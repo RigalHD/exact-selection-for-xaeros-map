@@ -1,5 +1,6 @@
 package dev.exactselection;
 
+/** The outer edges of a shape in block corners: {@code max} is the first corner past the shape, so width is {@code maxX - minX}. Compare {@link SelectionBounds}, which holds blocks and includes both ends. */
 public record GeometryBounds(long minX, long minZ, long maxX, long maxZ) {
     public GeometryBounds {
         if (minX >= maxX || minZ >= maxZ) throw new IllegalArgumentException("Geometry must have positive bounds");

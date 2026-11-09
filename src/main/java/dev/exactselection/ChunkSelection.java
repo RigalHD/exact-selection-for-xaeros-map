@@ -1,5 +1,6 @@
 package dev.exactselection;
 
+/** Chunk mode of the two-click selection: turns the first corner and the pointer into whole 16-block chunks. */
 public final class ChunkSelection {
     private ChunkSelection() {}
 

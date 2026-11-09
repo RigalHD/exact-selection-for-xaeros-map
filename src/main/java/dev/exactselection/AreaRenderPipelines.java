@@ -8,6 +8,7 @@ import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import com.mojang.blaze3d.vertex.VertexFormat;
 import net.minecraft.resources.Identifier;
 
+/** The render pipeline for area fills and outlines on the minimap: translucent, without depth test or culling. */
 public final class AreaRenderPipelines {
     public static final RenderPipeline COLOR = RenderPipeline.builder()
             .withLocation(Identifier.fromNamespaceAndPath("xaero_exact_selection", "pipeline/area_color"))

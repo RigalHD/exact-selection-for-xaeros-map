@@ -3,6 +3,7 @@ package dev.exactselection;
 import java.util.ArrayDeque;
 import java.util.Deque;
 
+/** Undo and redo of everything the tool changes: the selection, saved areas and waypoints. At most 100 steps. */
 public final class SelectionHistory {
     public interface Action {
         void undo() throws Exception;

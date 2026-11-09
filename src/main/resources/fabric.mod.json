@@ -27,7 +27,8 @@
     "xaeroworldmap": ">=1.40.4 <1.48.0"
   },
   "suggests": {
-    "xaerominimap": ">=25.3.5"
+    "xaerominimap": ">=25.3.5",
+    "modmenu": "*"
   },
   "authors": [
     "rigalshd"

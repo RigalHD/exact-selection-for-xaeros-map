@@ -2,7 +2,7 @@ plugins {
     id 'net.fabricmc.fabric-loom-remap' version '1.17.20'
     id 'com.diffplug.spotless' version '8.8.0'
 }
-version = '1.3.3+1.21.11'
+version = project.mod_version
 group = 'dev.exactselection'
 repositories {
     mavenCentral()
@@ -39,6 +39,9 @@ tasks.withType(JavaCompile).configureEach {
 processResources {
     inputs.property 'version', project.version
     filesMatching('fabric.mod.json') { expand version: project.version }
+}
+jar {
+    from('LICENSE')
 }
 // One code style for the whole project; `./gradlew spotlessApply` formats, and `check` fails on unformatted code.
 spotless {

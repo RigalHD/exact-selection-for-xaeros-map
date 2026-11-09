@@ -39,6 +39,50 @@ final class GroupsWindow extends UiPart {
 
     private Map<String, Totals> totals = new HashMap<>();
 
+    final Window nameWindow = new Window() {
+        @Override
+        int width() {
+            return 420;
+        }
+
+        @Override
+        int height() {
+            return 140;
+        }
+
+        @Override
+        String title() {
+            return renamingGroup ? "group_rename_title" : "group_new_title";
+        }
+
+        @Override
+        Dialog returnTo() {
+            return Dialog.GROUPS;
+        }
+
+        @Override
+        void show() {
+            ui.show(true, ui.field(DialogField.GROUP_NAME), ui.modalApply, ui.modalCancel);
+        }
+
+        @Override
+        void layout(Rect r, int buttonY) {
+            int x = r.x(), y = r.y(), w = r.width();
+            place(ui.field(DialogField.GROUP_NAME), x + 16, y + 48, w - 32, 18);
+            place(ui.modalApply, x + w / 2 - 116, buttonY, 110, 18);
+            place(ui.modalCancel, x + w / 2 + 6, buttonY, 110, 18);
+        }
+
+        @Override
+        void render(GuiGraphics g, Rect r) {
+            int x = r.x(), y = r.y(), w = r.width();
+            g.drawString(ui.mc.font, ui.tr("group_name"), x + 16, y + 32, -1);
+            if (!ui.message.isEmpty())
+                g.drawString(
+                        ui.mc.font, ui.mc.font.plainSubstrByWidth(ui.message, w - 32), x + 16, y + 80, Theme.WARNING);
+        }
+    };
+
     GroupsWindow(ExactSelectionController ui) {
         super(ui);
     }

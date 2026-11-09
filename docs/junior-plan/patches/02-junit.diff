@@ -1,0 +1,521 @@
+diff --git a/build.gradle b/build.gradle
+index 187854d..61b0f05 100644
+--- a/build.gradle
++++ b/build.gradle
+@@ -15,6 +15,9 @@ dependencies {
+     modImplementation 'net.fabricmc:fabric-loader:0.19.5'
+     modImplementation 'net.fabricmc.fabric-api:fabric-api:0.141.6+1.21.11'
+     modCompileOnly 'com.terraformersmc:modmenu:17.0.1'
++    testImplementation platform('org.junit:junit-bom:5.13.4')
++    testImplementation 'org.junit.jupiter:junit-jupiter'
++    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+     if (project.hasProperty('xaeroDeps')) {
+         modImplementation fileTree(dir: project.property('xaeroDeps'), include: '*.jar')
+     } else {
+@@ -47,15 +50,9 @@ spotless {
+         endWithNewline()
+     }
+ }
+-tasks.named('test') { failOnNoDiscoveredTests = false }
+-// Each *Check class under src/test is a standalone main() run as part of `check`.
+-fileTree('src/test/java/dev/exactselection').matching { include '*Check.java' }.each { source ->
+-    String name = source.name - '.java'
+-    def task = tasks.register(name[0].toLowerCase() + name.substring(1), JavaExec) {
+-        dependsOn testClasses
+-        classpath = sourceSets.test.runtimeClasspath
+-        mainClass = "dev.exactselection.${name}"
+-        enableAssertions = true
+-    }
+-    check.dependsOn task
++tasks.named('test') {
++    useJUnitPlatform()
++    // Each class builds its own fake Minecraft in static fields, as each check did in its own JVM.
++    forkEvery = 1
++    testLogging { events 'passed', 'skipped', 'failed' }
+ }
+diff --git a/src/test/java/dev/exactselection/ChecksTest.java b/src/test/java/dev/exactselection/ChecksTest.java
+new file mode 100644
+index 0000000..bffccb2
+--- /dev/null
++++ b/src/test/java/dev/exactselection/ChecksTest.java
+@@ -0,0 +1,51 @@
++package dev.exactselection;
++
++import org.junit.jupiter.api.Test;
++
++/** The checks that are still one {@code main} each: a failed one fails its test, and its output names what passed. */
++class ChecksTest {
++    @Test
++    void areaExport() throws Exception {
++        AreaExportCheck.main(new String[0]);
++    }
++
++    @Test
++    void areaRendering() throws Exception {
++        AreaRenderingCheck.main(new String[0]);
++    }
++
++    @Test
++    void exportFinish() throws Exception {
++        ExportFinishCheck.main(new String[0]);
++    }
++
++    @Test
++    void polygonRendering() throws Exception {
++        PolygonRenderingCheck.main(new String[0]);
++    }
++
++    @Test
++    void safeWaypointAccess() throws Exception {
++        SafeWaypointAccessCheck.main(new String[0]);
++    }
++
++    @Test
++    void savedAreaStore() throws Exception {
++        SavedAreaStoreCheck.main(new String[0]);
++    }
++
++    @Test
++    void selection() throws Exception {
++        SelectionCheck.main(new String[0]);
++    }
++
++    @Test
++    void waypointDeletion() throws Exception {
++        WaypointDeletionCheck.main(new String[0]);
++    }
++
++    @Test
++    void waypointEdit() throws Exception {
++        WaypointEditCheck.main(new String[0]);
++    }
++}
+diff --git a/src/test/java/dev/exactselection/ManagementUiCheck.java b/src/test/java/dev/exactselection/ManagementUiCheck.java
+deleted file mode 100644
+index e27628f..0000000
+--- a/src/test/java/dev/exactselection/ManagementUiCheck.java
++++ /dev/null
+@@ -1,122 +0,0 @@
+-package dev.exactselection;
+-
+-import static dev.exactselection.AreaChecks.*;
+-import static dev.exactselection.GestureChecks.*;
+-import static dev.exactselection.PanelChecks.*;
+-import static dev.exactselection.PolygonChecks.*;
+-import static dev.exactselection.SessionChecks.*;
+-import static dev.exactselection.ToolChecks.*;
+-import static dev.exactselection.UiHarness.*;
+-import static dev.exactselection.WindowChecks.*;
+-
+-import java.lang.reflect.Field;
+-import java.nio.file.Files;
+-import java.nio.file.Path;
+-import java.util.ArrayList;
+-import java.util.Comparator;
+-import java.util.List;
+-import net.minecraft.SharedConstants;
+-import net.minecraft.client.Minecraft;
+-import sun.misc.Unsafe;
+-import xaero.map.MapProcessor;
+-import xaero.map.gui.GuiMap;
+-
+-public final class ManagementUiCheck {
+-    public static void main(String[] args) throws Exception {
+-        SharedConstants.tryDetectVersion();
+-        Field unsafeField = Unsafe.class.getDeclaredField("theUnsafe");
+-        unsafeField.setAccessible(true);
+-        Unsafe unsafe = (Unsafe) unsafeField.get(null);
+-        Minecraft minecraft = (Minecraft) unsafe.allocateInstance(Minecraft.class);
+-        Field instance = Minecraft.class.getDeclaredField("instance");
+-        instance.setAccessible(true);
+-        instance.set(null, minecraft);
+-        FixedFont font = new FixedFont();
+-        set(minecraft, "font", font);
+-        GuiMap map = (GuiMap) unsafe.allocateInstance(GuiMap.class);
+-        set(map, "minecraft", minecraft);
+-        set(map, "font", font);
+-        for (String name : List.of("children", "narratables", "renderables")) set(map, name, new ArrayList<>());
+-        map.width = 640;
+-        map.height = 360;
+-        Path directory = Files.createTempDirectory("exact-selection-ui-");
+-        try {
+-            MapBridge.Context context = new MapBridge.Context(new Object(), "ui-check", null, "main");
+-            MapBridge bridge = new MapBridge() {
+-                @Override
+-                public Frame exactselection$frame() {
+-                    return new Frame(context, 0, 0, 1, 1, map.width, map.height);
+-                }
+-
+-                @Override
+-                public MapProcessor exactselection$processor() {
+-                    return null;
+-                }
+-
+-                @Override
+-                public void exactselection$pan(double x, double y) {}
+-
+-                @Override
+-                public void exactselection$clearNativeInput() {}
+-
+-                @Override
+-                public void exactselection$moveCamera(double x, double z, double pixelsPerBlock) {}
+-
+-                @Override
+-                public void exactselection$closeMap() {}
+-            };
+-            SavedAreaStore store = new SavedAreaStore(directory);
+-            store.useContext(context);
+-            var a = SavedAreaStore.create("First", new SelectionBounds(0, 0, 10, 10), 0x123456, 25, null);
+-            var b = SavedAreaStore.create("Second", new SelectionBounds(20, 20, 30, 30), 0x654321, 50, null);
+-            store.replace(new SavedAreaStore.State(List.of(a, b), List.of(), true, true));
+-            SavedAreaStore minimapStore = new SavedAreaStore(directory);
+-            minimapStore.useContext(context);
+-            ExactSelectionController controller = new ExactSelectionController(map, bridge, minecraft, store, null);
+-            autosaveProperties(controller);
+-            controller.init();
+-            SelectionState selection = (SelectionState) get(controller, "state");
+-            selection.enable();
+-            selection.set(new SelectionBounds(40, 40, 50, 50));
+-            set(controller, "context", context);
+-            set(controller, "historyContext", context);
+-            call(controller, "updateVisibility");
+-            checkSeparateCorners(controller, map, minecraft, store, unsafe);
+-            checkSelectionPanel(controller, map);
+-            checkHintFitting(controller);
+-            checkFramedAreasAndMetrics(controller, store);
+-            checkAreaDraftAndAutosave(controller, map, store, unsafe);
+-            checkLayersAndOverlap(controller, store);
+-            checkAreaListAndTransfer(controller, store, directory);
+-            checkExportWindow(controller, map, directory);
+-            checkExportNotice(controller, map, directory);
+-            checkPolygonEditing(controller, map, store, directory, context);
+-            checkSavedLabelLayering(controller, store, unsafe);
+-            checkPolygonInsertionAndUpdate(controller, map, store, directory, context);
+-            checkGeometryGestures(controller, map, unsafe);
+-            checkGestureEdgeCases(controller, context);
+-            checkPrecisePointer(controller, minecraft, unsafe);
+-            checkWaypointRows(controller);
+-            checkReleaseFeatures(controller, map, store);
+-            checkQuickMenu(controller, store);
+-            checkContourOverLoadedArea(controller, store);
+-            checkRuler(controller, minecraft, store, unsafe, context);
+-            checkEventsInOneFrame(map, bridge, minecraft, directory, context);
+-            checkModesAcrossWindows(map, bridge, minecraft, unsafe, directory, context);
+-            checkKeepingWork(map, bridge, minecraft, unsafe, directory, context);
+-            checkZonesOnTheMap(map, bridge, minecraft, unsafe, directory, context);
+-            checkToolKeys(map, bridge, minecraft, directory, context);
+-            checkZoneSnap(map, bridge, minecraft, directory, context);
+-            checkRoutes(map, bridge, minecraft, unsafe, directory, context);
+-            checkColorPicker(controller);
+-            checkWaypointManagement(map, bridge, minecraft, store, context);
+-            checkGroups(controller, map, store, minimapStore, selection, directory, context);
+-            System.out.println(
+-                    "PASS: management UI callbacks, separate windows, layouts, assignment, visibility, persistence, and undo");
+-        } finally {
+-            try (var paths = Files.walk(directory)) {
+-                for (Path path : paths.sorted(Comparator.reverseOrder()).toList()) Files.delete(path);
+-            }
+-        }
+-    }
+-}
+diff --git a/src/test/java/dev/exactselection/ManagementUiTest.java b/src/test/java/dev/exactselection/ManagementUiTest.java
+new file mode 100644
+index 0000000..178a6f2
+--- /dev/null
++++ b/src/test/java/dev/exactselection/ManagementUiTest.java
+@@ -0,0 +1,295 @@
++package dev.exactselection;
++
++import static dev.exactselection.AreaChecks.*;
++import static dev.exactselection.GestureChecks.*;
++import static dev.exactselection.PanelChecks.*;
++import static dev.exactselection.PolygonChecks.*;
++import static dev.exactselection.SessionChecks.*;
++import static dev.exactselection.ToolChecks.*;
++import static dev.exactselection.UiHarness.*;
++import static dev.exactselection.WindowChecks.*;
++
++import java.lang.reflect.Field;
++import java.nio.file.Files;
++import java.nio.file.Path;
++import java.util.ArrayList;
++import java.util.Comparator;
++import java.util.List;
++import net.minecraft.SharedConstants;
++import net.minecraft.client.Minecraft;
++import org.junit.jupiter.api.AfterAll;
++import org.junit.jupiter.api.BeforeAll;
++import org.junit.jupiter.api.MethodOrderer;
++import org.junit.jupiter.api.Order;
++import org.junit.jupiter.api.Test;
++import org.junit.jupiter.api.TestInstance;
++import org.junit.jupiter.api.TestMethodOrder;
++import sun.misc.Unsafe;
++import xaero.map.MapProcessor;
++import xaero.map.gui.GuiMap;
++
++/**
++ * The interface scenarios, in the order they were written: each one starts from the state the one before it left, so
++ * they share one controller and run in a fixed order.
++ */
++@TestInstance(TestInstance.Lifecycle.PER_CLASS)
++@TestMethodOrder(MethodOrderer.OrderAnnotation.class)
++class ManagementUiTest {
++    private Unsafe unsafe;
++    private Minecraft minecraft;
++    private GuiMap map;
++    private Path directory;
++    private MapBridge.Context context;
++    private MapBridge bridge;
++    private SavedAreaStore store, minimapStore;
++    private ExactSelectionController controller;
++    private SelectionState selection;
++
++    @BeforeAll
++    void setUp() throws Exception {
++        SharedConstants.tryDetectVersion();
++        Field unsafeField = Unsafe.class.getDeclaredField("theUnsafe");
++        unsafeField.setAccessible(true);
++        unsafe = (Unsafe) unsafeField.get(null);
++        minecraft = (Minecraft) unsafe.allocateInstance(Minecraft.class);
++        Field instance = Minecraft.class.getDeclaredField("instance");
++        instance.setAccessible(true);
++        instance.set(null, minecraft);
++        FixedFont font = new FixedFont();
++        set(minecraft, "font", font);
++        map = (GuiMap) unsafe.allocateInstance(GuiMap.class);
++        set(map, "minecraft", minecraft);
++        set(map, "font", font);
++        for (String name : List.of("children", "narratables", "renderables")) set(map, name, new ArrayList<>());
++        map.width = 640;
++        map.height = 360;
++        directory = Files.createTempDirectory("exact-selection-ui-");
++        context = new MapBridge.Context(new Object(), "ui-check", null, "main");
++        bridge = new MapBridge() {
++            @Override
++            public Frame exactselection$frame() {
++                return new Frame(context, 0, 0, 1, 1, map.width, map.height);
++            }
++
++            @Override
++            public MapProcessor exactselection$processor() {
++                return null;
++            }
++
++            @Override
++            public void exactselection$pan(double x, double y) {}
++
++            @Override
++            public void exactselection$clearNativeInput() {}
++
++            @Override
++            public void exactselection$moveCamera(double x, double z, double pixelsPerBlock) {}
++
++            @Override
++            public void exactselection$closeMap() {}
++        };
++        store = new SavedAreaStore(directory);
++        store.useContext(context);
++        var a = SavedAreaStore.create("First", new SelectionBounds(0, 0, 10, 10), 0x123456, 25, null);
++        var b = SavedAreaStore.create("Second", new SelectionBounds(20, 20, 30, 30), 0x654321, 50, null);
++        store.replace(new SavedAreaStore.State(List.of(a, b), List.of(), true, true));
++        minimapStore = new SavedAreaStore(directory);
++        minimapStore.useContext(context);
++        controller = new ExactSelectionController(map, bridge, minecraft, store, null);
++        autosaveProperties(controller);
++        controller.init();
++        selection = (SelectionState) get(controller, "state");
++        selection.enable();
++        selection.set(new SelectionBounds(40, 40, 50, 50));
++        set(controller, "context", context);
++        set(controller, "historyContext", context);
++        call(controller, "updateVisibility");
++    }
++
++    @AfterAll
++    void cleanUp() throws Exception {
++        try (var paths = Files.walk(directory)) {
++            for (Path path : paths.sorted(Comparator.reverseOrder()).toList()) Files.delete(path);
++        }
++    }
++
++    @Test
++    @Order(1)
++    void separateCorners() throws Exception {
++        checkSeparateCorners(controller, map, minecraft, store, unsafe);
++    }
++
++    @Test
++    @Order(2)
++    void selectionPanel() throws Exception {
++        checkSelectionPanel(controller, map);
++    }
++
++    @Test
++    @Order(3)
++    void hintFitting() throws Exception {
++        checkHintFitting(controller);
++    }
++
++    @Test
++    @Order(4)
++    void framedAreasAndMetrics() throws Exception {
++        checkFramedAreasAndMetrics(controller, store);
++    }
++
++    @Test
++    @Order(5)
++    void areaDraftAndAutosave() throws Exception {
++        checkAreaDraftAndAutosave(controller, map, store, unsafe);
++    }
++
++    @Test
++    @Order(6)
++    void layersAndOverlap() throws Exception {
++        checkLayersAndOverlap(controller, store);
++    }
++
++    @Test
++    @Order(7)
++    void areaListAndTransfer() throws Exception {
++        checkAreaListAndTransfer(controller, store, directory);
++    }
++
++    @Test
++    @Order(8)
++    void exportWindow() throws Exception {
++        checkExportWindow(controller, map, directory);
++    }
++
++    @Test
++    @Order(9)
++    void exportNotice() throws Exception {
++        checkExportNotice(controller, map, directory);
++    }
++
++    @Test
++    @Order(10)
++    void polygonEditing() throws Exception {
++        checkPolygonEditing(controller, map, store, directory, context);
++    }
++
++    @Test
++    @Order(11)
++    void savedLabelLayering() throws Exception {
++        checkSavedLabelLayering(controller, store, unsafe);
++    }
++
++    @Test
++    @Order(12)
++    void polygonInsertionAndUpdate() throws Exception {
++        checkPolygonInsertionAndUpdate(controller, map, store, directory, context);
++    }
++
++    @Test
++    @Order(13)
++    void geometryGestures() throws Exception {
++        checkGeometryGestures(controller, map, unsafe);
++    }
++
++    @Test
++    @Order(14)
++    void gestureEdgeCases() throws Exception {
++        checkGestureEdgeCases(controller, context);
++    }
++
++    @Test
++    @Order(15)
++    void precisePointer() throws Exception {
++        checkPrecisePointer(controller, minecraft, unsafe);
++    }
++
++    @Test
++    @Order(16)
++    void waypointRows() throws Exception {
++        checkWaypointRows(controller);
++    }
++
++    @Test
++    @Order(17)
++    void releaseFeatures() throws Exception {
++        checkReleaseFeatures(controller, map, store);
++    }
++
++    @Test
++    @Order(18)
++    void quickMenu() throws Exception {
++        checkQuickMenu(controller, store);
++    }
++
++    @Test
++    @Order(19)
++    void contourOverLoadedArea() throws Exception {
++        checkContourOverLoadedArea(controller, store);
++    }
++
++    @Test
++    @Order(20)
++    void ruler() throws Exception {
++        checkRuler(controller, minecraft, store, unsafe, context);
++    }
++
++    @Test
++    @Order(21)
++    void eventsInOneFrame() throws Exception {
++        checkEventsInOneFrame(map, bridge, minecraft, directory, context);
++    }
++
++    @Test
++    @Order(22)
++    void modesAcrossWindows() throws Exception {
++        checkModesAcrossWindows(map, bridge, minecraft, unsafe, directory, context);
++    }
++
++    @Test
++    @Order(23)
++    void keepingWork() throws Exception {
++        checkKeepingWork(map, bridge, minecraft, unsafe, directory, context);
++    }
++
++    @Test
++    @Order(24)
++    void zonesOnTheMap() throws Exception {
++        checkZonesOnTheMap(map, bridge, minecraft, unsafe, directory, context);
++    }
++
++    @Test
++    @Order(25)
++    void toolKeys() throws Exception {
++        checkToolKeys(map, bridge, minecraft, directory, context);
++    }
++
++    @Test
++    @Order(26)
++    void zoneSnap() throws Exception {
++        checkZoneSnap(map, bridge, minecraft, directory, context);
++    }
++
++    @Test
++    @Order(27)
++    void routes() throws Exception {
++        checkRoutes(map, bridge, minecraft, unsafe, directory, context);
++    }
++
++    @Test
++    @Order(28)
++    void colorPicker() throws Exception {
++        checkColorPicker(controller);
++    }
++
++    @Test
++    @Order(29)
++    void waypointManagement() throws Exception {
++        checkWaypointManagement(map, bridge, minecraft, store, context);
++    }
++
++    @Test
++    @Order(30)
++    void groups() throws Exception {
++        checkGroups(controller, map, store, minimapStore, selection, directory, context);
++    }
++}

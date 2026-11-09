@@ -1,0 +1,250 @@
+diff --git a/src/main/java/dev/exactselection/ExactSelectionController.java b/src/main/java/dev/exactselection/ExactSelectionController.java
+index ff1ce9f..dd7f668 100644
+--- a/src/main/java/dev/exactselection/ExactSelectionController.java
++++ b/src/main/java/dev/exactselection/ExactSelectionController.java
+@@ -105,6 +105,7 @@ public final class ExactSelectionController {
+     final SelectionHistory history = new SelectionHistory();
+     final WaypointAccess waypoints;
+     final SavedAreaStore areaStore;
++    final UiState uiState;
+     final List<AbstractWidget> widgets = new ArrayList<>();
+     /** One field for each {@link DialogField}, in its order. */
+     final EditBox[] dialogFields = new EditBox[DialogField.values().length];
+@@ -202,11 +203,34 @@ public final class ExactSelectionController {
+                 new SavedAreaStore(FabricLoader.getInstance().getConfigDir()),
+                 FabricLoader.getInstance().isModLoaded("xaerominimap")
+                         ? SafeWaypointAccess.create(XaeroWaypointBridge::new)
+-                        : null);
++                        : null,
++                UiState.load(FabricLoader.getInstance().getConfigDir()));
++    }
++
++    /** Leaving a world: the next map gets a new tool, and this one lets go of the world it showed. */
++    public static void forget() {
++        current = null;
+     }
+ 
+     ExactSelectionController(
+             GuiMap screen, MapBridge bridge, Minecraft mc, SavedAreaStore areaStore, WaypointAccess waypoints) {
++        this(screen, bridge, mc, areaStore, waypoints, UiState.inMemory());
++    }
++
++    ExactSelectionController(
++            GuiMap screen,
++            MapBridge bridge,
++            Minecraft mc,
++            SavedAreaStore areaStore,
++            WaypointAccess waypoints,
++            UiState uiState) {
++        this.uiState = uiState;
++        selectionPanel.compact = uiState.compactPanel;
++        chunks = uiState.chunks;
++        newAreaWindow.newAreaColor = uiState.newAreaColor;
++        newAreaWindow.newAreaOpacity = uiState.newAreaOpacity;
++        selectionDialogs.sizeFromCenter = uiState.sizeFromCenter;
++        selectionDialogs.moveInChunks = uiState.moveInChunks;
+         this.screen = screen;
+         this.bridge = bridge;
+         this.mc = mc;
+@@ -581,6 +605,8 @@ public final class ExactSelectionController {
+ 
+     void toggleChunks() {
+         chunks = !chunks;
++        uiState.chunks = chunks;
++        uiState.save();
+         selectionPanel.chunkMode.setMessage(tr(chunks ? "units_chunks" : "units_blocks"));
+         if (chunks && state.phase() == SelectionState.Phase.PREVIEW && gesture instanceof MapGesture.Corners corners) {
+             corners.cancel(gestureHost);
+@@ -596,6 +622,8 @@ public final class ExactSelectionController {
+                 if (!next.equals(state.bounds())) setSelection(next, "snap_chunks");
+             } catch (IllegalArgumentException e) {
+                 chunks = false;
++                uiState.chunks = false;
++                uiState.save();
+                 selectionPanel.chunkMode.setMessage(tr("units_blocks"));
+                 say("invalid_coordinates");
+             }
+diff --git a/src/main/java/dev/exactselection/NewAreaWindow.java b/src/main/java/dev/exactselection/NewAreaWindow.java
+index 8c3d17a..d561d76 100644
+--- a/src/main/java/dev/exactselection/NewAreaWindow.java
++++ b/src/main/java/dev/exactselection/NewAreaWindow.java
+@@ -24,7 +24,7 @@ final class NewAreaWindow extends UiPart {
+     /** Style for the next saved area; kept between saves so a series of areas can share it. */
+     int newAreaColor = AreaPalette.DEFAULT;
+ 
+-    private int newAreaOpacity = 25;
++    int newAreaOpacity = 25;
+ 
+     NewAreaWindow(ExactSelectionController ui) {
+         super(ui);
+@@ -101,6 +101,10 @@ final class NewAreaWindow extends UiPart {
+                                                 ui.windows.dialogRect().height())));
+         }
+         // The saved shape now lives in the list; clearing it (its own undo step) frees the map for the next area.
++        // The style of the area just saved is the one the next area starts with, also after a restart.
++        ui.uiState.newAreaColor = newAreaColor;
++        ui.uiState.newAreaOpacity = newAreaOpacity;
++        ui.uiState.save();
+         if (route) ui.rulerTool.clearRuler();
+         else ui.reset();
+         routeToSave = null;
+diff --git a/src/main/java/dev/exactselection/SelectionDialogs.java b/src/main/java/dev/exactselection/SelectionDialogs.java
+index 14415c6..45d0736 100644
+--- a/src/main/java/dev/exactselection/SelectionDialogs.java
++++ b/src/main/java/dev/exactselection/SelectionDialogs.java
+@@ -104,11 +104,15 @@ final class SelectionDialogs extends UiPart {
+     void createDialogWidgets() {
+         anchorButton = ui.button("anchor_lower_left", () -> {
+             sizeFromCenter = !sizeFromCenter;
++            ui.uiState.sizeFromCenter = sizeFromCenter;
++            ui.uiState.save();
+             anchorButton.setMessage(ui.tr(sizeFromCenter ? "anchor_center" : "anchor_lower_left"));
+         });
+         anchorButton.setMessage(ui.tr(sizeFromCenter ? "anchor_center" : "anchor_lower_left"));
+         moveUnitsButton = ui.button("units_blocks", () -> {
+             moveInChunks = !moveInChunks;
++            ui.uiState.moveInChunks = moveInChunks;
++            ui.uiState.save();
+             moveUnitsButton.setMessage(ui.tr(moveInChunks ? "units_chunks" : "units_blocks"));
+         });
+         moveUnitsButton.setMessage(ui.tr(moveInChunks ? "units_chunks" : "units_blocks"));
+diff --git a/src/main/java/dev/exactselection/SelectionPanel.java b/src/main/java/dev/exactselection/SelectionPanel.java
+index d12b02e..228bf3d 100644
+--- a/src/main/java/dev/exactselection/SelectionPanel.java
++++ b/src/main/java/dev/exactselection/SelectionPanel.java
+@@ -64,6 +64,8 @@ final class SelectionPanel extends UiPart {
+             compact = false;
+             ui.message = "";
+         } else compact = !compact;
++        ui.uiState.compactPanel = compact;
++        ui.uiState.save();
+         panelScroll = 0;
+         ui.focus(null);
+         layoutMainPanel();
+diff --git a/src/main/java/dev/exactselection/ToolKeys.java b/src/main/java/dev/exactselection/ToolKeys.java
+index 22fad0e..f710932 100644
+--- a/src/main/java/dev/exactselection/ToolKeys.java
++++ b/src/main/java/dev/exactselection/ToolKeys.java
+@@ -3,6 +3,7 @@ package dev.exactselection;
+ import java.util.List;
+ import net.fabricmc.api.ClientModInitializer;
+ import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
++import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
+ import net.minecraft.client.KeyMapping;
+ import net.minecraft.resources.Identifier;
+ import org.lwjgl.glfw.GLFW;
+@@ -23,5 +24,6 @@ public final class ToolKeys implements ClientModInitializer {
+     @Override
+     public void onInitializeClient() {
+         for (KeyMapping key : List.of(POLYGON, RULER, AREAS, UNITS)) KeyBindingHelper.registerKeyBinding(key);
++        ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> ExactSelectionController.forget());
+     }
+ }
+diff --git a/src/main/java/dev/exactselection/UiState.java b/src/main/java/dev/exactselection/UiState.java
+new file mode 100644
+index 0000000..17844fb
+--- /dev/null
++++ b/src/main/java/dev/exactselection/UiState.java
+@@ -0,0 +1,76 @@
++package dev.exactselection;
++
++import static dev.exactselection.ModLog.LOG;
++
++import com.google.gson.JsonObject;
++import com.google.gson.JsonParser;
++import java.io.IOException;
++import java.nio.charset.StandardCharsets;
++import java.nio.file.Files;
++import java.nio.file.Path;
++
++/**
++ * What the interface remembers between game sessions, shared by all worlds: the panel's view, the units, the style
++ * of the next saved area and the choices of the Size and Move windows.
++ */
++final class UiState {
++    /** Null keeps the state in memory only, as the checks need: they share one folder between controllers. */
++    private final Path file;
++
++    boolean compactPanel = true;
++    boolean chunks;
++    int newAreaColor = AreaPalette.DEFAULT;
++    int newAreaOpacity = 25;
++    boolean sizeFromCenter;
++    boolean moveInChunks;
++
++    private UiState(Path file) {
++        this.file = file;
++    }
++
++    /** A state that is never read from or written to disk. */
++    static UiState inMemory() {
++        return new UiState(null);
++    }
++
++    /** Reads {@code <root>/xaero-exact-selection/ui.json}; a missing or unreadable file gives the defaults. */
++    static UiState load(Path root) {
++        UiState state = new UiState(ModFiles.directory(root).resolve("ui.json"));
++        if (!Files.exists(state.file)) return state;
++        try {
++            JsonObject json = JsonParser.parseString(Files.readString(state.file, StandardCharsets.UTF_8))
++                    .getAsJsonObject();
++            if (json.has("compactPanel"))
++                state.compactPanel = json.get("compactPanel").getAsBoolean();
++            if (json.has("chunks")) state.chunks = json.get("chunks").getAsBoolean();
++            if (json.has("newAreaColor"))
++                state.newAreaColor = json.get("newAreaColor").getAsInt() & 0xFFFFFF;
++            if (json.has("newAreaOpacity"))
++                state.newAreaOpacity =
++                        Math.max(0, Math.min(100, json.get("newAreaOpacity").getAsInt()));
++            if (json.has("sizeFromCenter"))
++                state.sizeFromCenter = json.get("sizeFromCenter").getAsBoolean();
++            if (json.has("moveInChunks"))
++                state.moveInChunks = json.get("moveInChunks").getAsBoolean();
++        } catch (Exception e) {
++            LOG.warn("Could not read the interface state; using defaults", e);
++        }
++        return state;
++    }
++
++    void save() {
++        if (file == null) return;
++        JsonObject json = new JsonObject();
++        json.addProperty("compactPanel", compactPanel);
++        json.addProperty("chunks", chunks);
++        json.addProperty("newAreaColor", newAreaColor);
++        json.addProperty("newAreaOpacity", newAreaOpacity);
++        json.addProperty("sizeFromCenter", sizeFromCenter);
++        json.addProperty("moveInChunks", moveInChunks);
++        try {
++            SavedAreaStore.writeAtomically(file, json.toString());
++        } catch (IOException e) {
++            LOG.warn("Could not save the interface state", e);
++        }
++    }
++}
+diff --git a/src/main/java/dev/exactselection/WaypointsWindow.java b/src/main/java/dev/exactselection/WaypointsWindow.java
+index 8d508d5..35b4a9a 100644
+--- a/src/main/java/dev/exactselection/WaypointsWindow.java
++++ b/src/main/java/dev/exactselection/WaypointsWindow.java
+@@ -58,10 +58,20 @@ final class WaypointsWindow extends UiPart {
+         colorFilter = colorFilter < 0 ? 0 : colorFilter >= WaypointAccess.COLOR_COUNT - 1 ? -1 : colorFilter + 1;
+     }
+ 
++    /** The last filtered list and what it was made from; the list is asked for several times a frame. */
++    private List<WaypointAccess.Point> filtered = List.of();
++
++    private WaypointAccess.Snapshot filteredFrom;
++    private String filteredBy = "";
++
+     List<WaypointAccess.Point> filteredPoints() {
+         if (pending == null) return List.of();
+         String query = ui.field(DialogField.POINT_SEARCH).getValue().trim().toLowerCase(Locale.ROOT);
+-        return pending.points().stream()
++        String by = query + "\n" + visibilityFilter + "\n" + colorFilter;
++        if (pending == filteredFrom && by.equals(filteredBy)) return filtered;
++        filteredFrom = pending;
++        filteredBy = by;
++        return filtered = pending.points().stream()
+                 .filter(WaypointAccess.Point::editable)
+                 .filter(p ->
+                         query.isEmpty() || p.name().toLowerCase(Locale.ROOT).contains(query))

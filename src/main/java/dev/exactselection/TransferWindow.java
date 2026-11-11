@@ -65,6 +65,7 @@ final class TransferWindow extends UiPart {
         @Override
         void layout(Rect r, int buttonY) {
             int x = r.x(), y = r.y(), w = r.width(), h = r.height();
+            importScroll = Math.min(importScroll, Math.max(0, importFiles.size() - importRows(r.height())));
             place(ui.managementClose, x + w - 82, y + 7, 70, 18);
             place(importOpenFolder, x + 12, y + h - 28, 150, 18);
         }
@@ -190,7 +191,6 @@ final class TransferWindow extends UiPart {
                 y + 32,
                 Theme.TEXT_MUTED);
         int rows = importRows(h);
-        importScroll = Math.min(importScroll, Math.max(0, importFiles.size() - rows));
         g.fill(x + 10, y + 46, x + w - 10, y + 48 + rows * 20, Theme.LIST_BACKGROUND);
         if (importFiles.isEmpty()) g.drawString(ui.mc.font, ui.tr("import_empty"), x + 16, y + 54, Theme.TEXT_MUTED);
         for (int i = 0; i < rows && i + importScroll < importFiles.size(); i++) {

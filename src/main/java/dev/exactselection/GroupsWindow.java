@@ -117,6 +117,8 @@ final class GroupsWindow extends UiPart {
         @Override
         void layout(Rect r, int buttonY) {
             int x = r.x(), y = r.y(), w = r.width(), h = r.height();
+            assignmentScroll =
+                    Math.min(assignmentScroll, Math.max(0, ui.groups().size() + 1 - visibleAssignmentRows(r.height())));
             place(ui.managementClose, x + w - 82, y + 7, 70, 18);
             place(manageGroups, x + 12, y + h - 36, w - 24, 18);
         }
@@ -172,6 +174,9 @@ final class GroupsWindow extends UiPart {
 
         @Override
         void layout(Rect r, int buttonY) {
+            if (!groupDeleteConfirmation)
+                groupScroll =
+                        Math.min(groupScroll, Math.max(0, ui.groups().size() - visibleGroupDialogRows(r.height())));
             layoutGroups(r.x(), r.y(), r.width(), r.height(), buttonY);
         }
 
@@ -380,7 +385,6 @@ final class GroupsWindow extends UiPart {
         int col = (w - 36) / 2, right = x + w - col - 12;
         List<Group> groups = ui.groups();
         int rows = visibleGroupDialogRows(h);
-        groupScroll = Math.min(groupScroll, Math.max(0, groups.size() - rows));
         g.drawString(ui.mc.font, ui.tr("groups_list_title"), x + 12, y + 34, Theme.TEXT_MUTED);
         g.fill(x + 10, y + 46, x + 14 + col, y + h - 52, Theme.LIST_BACKGROUND);
         if (groups.isEmpty()) g.drawString(ui.mc.font, ui.tr("groups_empty"), x + 16, y + 54, Theme.TEXT_MUTED);
@@ -452,7 +456,6 @@ final class GroupsWindow extends UiPart {
         g.drawString(
                 ui.mc.font, ui.tr("group_picker_count", assignmentTargets.size()), x + 12, y + 32, Theme.TEXT_MUTED);
         int rows = visibleAssignmentRows(h), count = ui.groups().size() + 1;
-        assignmentScroll = Math.min(assignmentScroll, Math.max(0, count - rows));
         List<Area> targets = ui.areas().stream()
                 .filter(a -> assignmentTargets.contains(a.id()))
                 .toList();

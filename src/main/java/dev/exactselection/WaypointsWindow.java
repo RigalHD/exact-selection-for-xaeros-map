@@ -63,6 +63,8 @@ final class WaypointsWindow extends UiPart {
 
         @Override
         void layout(Rect r, int buttonY) {
+            if (pending != null)
+                modalScroll = Math.min(modalScroll, Math.max(0, filteredPoints().size() - waypointRows(r.height())));
             layoutWaypoints(r.x(), r.y(), r.width(), r.height(), buttonY);
         }
 
@@ -138,7 +140,6 @@ final class WaypointsWindow extends UiPart {
         if (pending == null) return;
         List<WaypointAccess.Point> points = filteredPoints();
         int rows = waypointRows(h);
-        modalScroll = Math.min(modalScroll, Math.max(0, points.size() - rows));
         int chosen = filteredChosenPoints().size();
         g.drawString(
                 ui.mc.font, ui.tr("waypoint_filter_count", chosen, points.size()), x + 12, y + 29, Theme.TEXT_MUTED);

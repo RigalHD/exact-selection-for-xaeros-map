@@ -145,6 +145,9 @@ final class AreasWindow extends UiPart {
 
         @Override
         void layout(Rect r, int buttonY) {
+            if (!areaDeleteConfirmation)
+                areaScroll =
+                        Math.min(areaScroll, Math.max(0, displayedAreas().size() - visibleAreaDialogRows(r.height())));
             layoutAreas(r.x(), r.y(), r.width(), r.height(), buttonY);
         }
 
@@ -572,7 +575,6 @@ final class AreasWindow extends UiPart {
         int col = (w - 36) / 2, right = x + w - col - 12;
         List<Area> areas = displayedAreas();
         int rows = visibleAreaDialogRows(h);
-        areaScroll = Math.min(areaScroll, Math.max(0, areas.size() - rows));
         Span search = areaSearchSpan(x, col);
         if (search.x() > x + 12 || !search.fits())
             g.drawString(

@@ -80,7 +80,7 @@ final class ToolChecks {
                             && new GridPoint(110, 60).equals(get(ruler(controller), "pointB")),
                     "Ruler points are wrong: " + get(ruler(controller), "pointA") + " "
                             + get(ruler(controller), "pointB"));
-            require((double) call(controller, "rulerDistance") == 50, "Ruler distance is wrong");
+            require((double) call(controller, "distance") == 50, "Ruler distance is wrong");
             require(selection.snapshot().equals(before), "Ruler clicks changed the selection");
             call(controller, "updateVisibility");
             press(controller, "copyRulerDistance");
@@ -286,19 +286,17 @@ final class ToolChecks {
             // Ctrl/Cmd + click goes on from B; the length adds up, the same point twice adds nothing.
             mapClick(routes, 100, 300, left);
             mapClick(routes, 160, 300, left);
-            require(
-                    (double) call(get(routes, "rulerTool"), "rulerDistance") == 60,
-                    "The ruler's first segment is wrong");
+            require((double) call(get(routes, "rulerTool"), "distance") == 60, "The ruler's first segment is wrong");
             clickMap(routes, 160, 340, GLFW.GLFW_MOD_CONTROL);
             clickMap(routes, 160, 340, GLFW.GLFW_MOD_CONTROL);
-            require((double) call(get(routes, "rulerTool"), "rulerDistance") == 100, "The route's length is wrong");
+            require((double) call(get(routes, "rulerTool"), "distance") == 100, "The route's length is wrong");
             key(routes, GLFW.GLFW_KEY_BACKSPACE, 0);
             require(
-                    (double) call(get(routes, "rulerTool"), "rulerDistance") == 60,
+                    (double) call(get(routes, "rulerTool"), "distance") == 60,
                     "Backspace did not take the last point back");
             // Cmd does the same on a Mac, where Minecraft turns Ctrl + left click into a right click.
             clickMap(routes, 160, 340, GLFW.GLFW_MOD_SUPER);
-            require((double) call(get(routes, "rulerTool"), "rulerDistance") == 100, "Cmd + click did not add a point");
+            require((double) call(get(routes, "rulerTool"), "distance") == 100, "Cmd + click did not add a point");
             // Saving makes it an entry of the Areas list, and leaves the ruler on and empty.
             call(routes, "updateVisibility");
             require(save.visible && save.active, "A finished line cannot be saved");

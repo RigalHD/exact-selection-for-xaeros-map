@@ -75,7 +75,7 @@ final class RulerTool extends UiPart {
     }
 
     boolean routeReady() {
-        return pointB != null && rulerDistance() > 0;
+        return pointB != null && distance() > 0;
     }
 
     void saveRoute() {
@@ -105,7 +105,7 @@ final class RulerTool extends UiPart {
     }
 
     /** Length of the line from A to the current end. */
-    private double rulerDistance() {
+    private double distance() {
         List<GridPoint> route = rulerRoute();
         double length = 0;
         for (int i = 1; i < route.size(); i++)
@@ -118,7 +118,7 @@ final class RulerTool extends UiPart {
     String rulerDistanceText() {
         return pointA == null || rulerEnd() == null
                 ? ui.tr("ruler_distance_empty").getString()
-                : ui.tr("ruler_distance", formatLength(rulerDistance())).getString();
+                : ui.tr("ruler_distance", formatLength(distance())).getString();
     }
 
     List<String> rulerDeltaParts() {
@@ -139,15 +139,15 @@ final class RulerTool extends UiPart {
                 ? ""
                 : ui.context.dimension().identifier().toString();
         if (dimension.equals("minecraft:the_nether"))
-            return ui.tr("ruler_overworld", formatLength(rulerDistance() * 8)).getString();
+            return ui.tr("ruler_overworld", formatLength(distance() * 8)).getString();
         if (dimension.equals("minecraft:overworld"))
-            return ui.tr("ruler_nether", formatLength(rulerDistance() / 8)).getString();
+            return ui.tr("ruler_nether", formatLength(distance() / 8)).getString();
         return null;
     }
 
     void copyRulerDistance() {
         if (pointA == null || pointB == null) return;
-        double distance = rulerDistance();
+        double distance = distance();
         ui.selectionPanel.copyToClipboard(
                 ui.autosave.rounding() == AutosaveSettings.Rounding.EXACT
                         ? formatLength(distance)
@@ -176,11 +176,11 @@ final class RulerTool extends UiPart {
             if (px < -5 || px > ui.screen.width + 5 || py < -5 || py > ui.screen.height + 5) continue;
             MapOverlays.marker(g, (int) px, (int) py, 2, COLOR);
         }
-        if (rulerDistance() > 0) {
+        if (distance() > 0) {
             GridPoint a = route.get(route.size() - 2), b = route.getLast();
             ui.mapOverlays.label(
                     g,
-                    ui.tr("ruler_label", formatLength(rulerDistance())),
+                    ui.tr("ruler_label", formatLength(distance())),
                     (int) ((frame.screenX(a.x()) + frame.screenX(b.x())) / 2),
                     (int) ((frame.screenY(a.z()) + frame.screenY(b.z())) / 2) - 14,
                     COLOR);

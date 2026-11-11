@@ -670,6 +670,28 @@ public final class ExactSelectionController {
             polygonTool.trackPolygonCursor(frame, mouseX, mouseY);
             rulerTool.trackRulerCursor(frame, mouseX, mouseY);
         }
+        // Only the second corner of a selection follows the pointer.
+        if (frame != null
+                && state.phase() == SelectionState.Phase.PREVIEW
+                && dialog == Dialog.NONE
+                && !dirty
+                && !rulerTool.mode
+                && !selectionPanel.overPanel(mouseX, mouseY)
+                && !overNativeWidget(mouseX, mouseY)) {
+            try {
+                ZoneSnap.Block corner = zoneSnap.block(frame, mouseX, mouseY);
+                int wx = corner.x(), wz = corner.z();
+                if (chunks) {
+                    int originX = chunkOriginX(), originZ = chunkOriginZ();
+                    int ax = ChunkSelection.anchor(originX, wx), az = ChunkSelection.anchor(originZ, wz);
+                    int ex = ChunkSelection.endpoint(wx, originX), ez = ChunkSelection.endpoint(wz, originZ);
+                    state.hover(ax, az, ex, ez);
+                } else state.hover(wx, wz);
+                syncFields();
+            } catch (IllegalArgumentException ignored) {
+                /* Cursor outside world bounds. */
+            }
+        }
         lastMouseX = mouseX;
         lastMouseY = mouseY;
     }
@@ -732,27 +754,6 @@ public final class ExactSelectionController {
         List<MapLabel> mapLabels = new ArrayList<>();
         g.nextStratum();
         if (enabled()) {
-            // Only the second corner of a selection follows the pointer.
-            if (state.phase() == SelectionState.Phase.PREVIEW
-                    && dialog == Dialog.NONE
-                    && !dirty
-                    && !rulerTool.mode
-                    && !selectionPanel.overPanel(mouseX, mouseY)
-                    && !overNativeWidget(mouseX, mouseY)) {
-                try {
-                    ZoneSnap.Block corner = zoneSnap.block(frame, mouseX, mouseY);
-                    int wx = corner.x(), wz = corner.z();
-                    if (chunks) {
-                        int originX = chunkOriginX(), originZ = chunkOriginZ();
-                        int ax = ChunkSelection.anchor(originX, wx), az = ChunkSelection.anchor(originZ, wz);
-                        int ex = ChunkSelection.endpoint(wx, originX), ez = ChunkSelection.endpoint(wz, originZ);
-                        state.hover(ax, az, ex, ez);
-                    } else state.hover(wx, wz);
-                    syncFields();
-                } catch (IllegalArgumentException ignored) {
-                    /* Cursor outside world bounds. */
-                }
-            }
             followWaypoints();
             // With the tool on, saved areas always show: the Map switch is for the overlay outside it.
             g.nextStratum();

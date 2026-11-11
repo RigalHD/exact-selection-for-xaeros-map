@@ -111,6 +111,7 @@ final class GestureChecks {
         previewGraphics.events = new ArrayList<>();
         previewGraphics.transform = new Matrix3x2fStack(16);
         previewGraphics.state = new GuiRenderState();
+        controller.beforeRender(480, 240);
         controller.renderMapOverlays(previewGraphics, 480, 240);
         require(
                 selection.bounds().equals(new SelectionBounds(191, 95, 160, 48)),

@@ -123,7 +123,7 @@ final class ColorWindows extends UiPart {
     /** The color window for the area of the right-click menu; a swatch or hex applies at once. */
     void openQuickColor() {
         Area area = ui.rightClickMenu.menuArea();
-        ui.rightClickMenu.quickMenu = false;
+        ui.rightClickMenu.closeMenu();
         if (area == null || ui.loadFailed) return;
         colorReturn = Dialog.NONE;
         ui.dialog = Dialog.COLOR;

@@ -42,7 +42,7 @@ final class InputRouter extends UiPart {
         if (ui.rightClickMenu.quickMenu) {
             for (Button item : ui.rightClickMenu.quickMenuButtons())
                 if (item.visible && item.mouseClicked(event, twice)) return true;
-            ui.rightClickMenu.quickMenu = false;
+            ui.rightClickMenu.closeMenu();
             return true;
         }
         if (ui.selectionPanel.overPanel(event.x(), event.y())) {
@@ -95,7 +95,7 @@ final class InputRouter extends UiPart {
 
     boolean mouseScrolled(double x, double y, double vertical) {
         // Zooming moves the selection away from the menu, which stays where it opened.
-        ui.rightClickMenu.quickMenu = false;
+        ui.rightClickMenu.closeMenu();
         int step = vertical > 0 ? 1 : vertical < 0 ? -1 : 0;
         if (ui.dialog != Dialog.NONE) {
             scrollWindow(step);
@@ -212,7 +212,7 @@ final class InputRouter extends UiPart {
      * itself.
      */
     private void escape() {
-        if (ui.rightClickMenu.quickMenu) ui.rightClickMenu.quickMenu = false;
+        if (ui.rightClickMenu.quickMenu) ui.rightClickMenu.closeMenu();
         else if (ui.gesture instanceof MapGesture.VertexDrag) {
             ui.cancelGesture();
             ui.say("draft_cancelled");

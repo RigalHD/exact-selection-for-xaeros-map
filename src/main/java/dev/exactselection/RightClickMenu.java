@@ -39,6 +39,10 @@ final class RightClickMenu extends UiPart {
         super(ui);
     }
 
+    void closeMenu() {
+        quickMenu = false;
+    }
+
     /**
      * Opens the quick menu at the pointer when a right click (not a drag) lands inside the finished selection or a
      * saved area.

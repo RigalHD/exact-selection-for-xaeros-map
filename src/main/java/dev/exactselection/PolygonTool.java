@@ -16,7 +16,7 @@ final class PolygonTool extends UiPart {
     boolean mode;
     final List<GridPoint> draft = new ArrayList<>();
     GridPoint cursor;
-    SelectionState.Snapshot stateBefore;
+    private SelectionState.Snapshot stateBefore;
     final Deque<List<GridPoint>> draftUndo = new ArrayDeque<>();
     final Deque<List<GridPoint>> draftRedo = new ArrayDeque<>();
 

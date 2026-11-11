@@ -30,8 +30,8 @@ final class GroupsWindow extends UiPart {
     Dialog groupsReturnDialog = Dialog.NONE;
     private final Set<String> assignmentTargets = new LinkedHashSet<>();
     int assignmentScroll;
-    String groupId;
-    int groupScroll;
+    private String groupId;
+    private int groupScroll;
     private State indexedState;
     private Map<String, Group> groupsById = Map.of();
     /** How many areas a set holds and the sum of their areas. */

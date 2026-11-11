@@ -16,7 +16,7 @@ import net.minecraft.client.input.MouseButtonEvent;
 /** The window that names a new area or route, with the style the next one gets. */
 final class NewAreaWindow extends UiPart {
     Button newAreaGroup, newAreaOpacityButton;
-    Dialog areaNameReturn = Dialog.AREAS;
+    private Dialog areaNameReturn = Dialog.AREAS;
     /** The ruler's route being named; null while the name window is for the selection. */
     PolylineGeometry routeToSave;
 

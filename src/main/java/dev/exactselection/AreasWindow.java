@@ -165,9 +165,9 @@ final class AreasWindow extends UiPart {
         }
     };
     /** The confirmation was opened from the right-click menu, so it returns to the map. */
-    boolean areaDeleteFromMenu;
+    private boolean areaDeleteFromMenu;
 
-    String areaId;
+    private String areaId;
     final Set<String> selectedAreaIds = new LinkedHashSet<>();
 
     private AreaGeometry overlapGeometry;
@@ -179,7 +179,7 @@ final class AreasWindow extends UiPart {
     private String sortedQuery = "";
     private List<Area> sortedAreas = List.of();
 
-    int areaScroll;
+    private int areaScroll;
 
     AreasWindow(ExactSelectionController ui) {
         super(ui);

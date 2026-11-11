@@ -299,7 +299,7 @@ final class PolygonChecks {
         require(
                 area.geometry().equals(moved) && area.opacity() > 0 && area.visible(),
                 "Saved polygon lost its geometry, visibility, or fill");
-        press(controller, "areaLoad");
+        press(controller, "editShapeButton");
         controller.mouseClicked(left(590, 90, GLFW.GLFW_MOD_SUPER), false);
         controller.mouseReleased(left(600, 95, GLFW.GLFW_MOD_SUPER));
         AreaGeometry editedSaved = selection.geometry();
@@ -347,7 +347,7 @@ final class PolygonChecks {
                 List.of(area), List.of(new SavedAreaStore.Group("polygon-group", "Group", false)), true, true));
         press(controller, "areasButton");
         pick(controller, store, area.id());
-        press(controller, "areaLoad");
+        press(controller, "editShapeButton");
         require(
                 selection.geometry().equals(polygon) && !(Boolean) get(polygon(controller), "mode"),
                 "Loading a polygon did not enter safe editing mode");
@@ -398,7 +398,7 @@ final class PolygonChecks {
         require(store.state().areas().get(0).equals(area), "Geometry update undo did not restore the saved polygon");
         press(controller, "managementRedo");
         pick(controller, store, area.id());
-        Button edit = (Button) get(controller, "areaLoad");
+        Button edit = (Button) get(controller, "editShapeButton");
         require(
                 !edit.active
                         && edit.getMessage()

@@ -149,7 +149,7 @@ final class SessionChecks {
                     store.state().areas().stream().allMatch(a -> a.color() == 0xAABBCC),
                     "Custom RGB did not apply to all selected areas");
             row(controller, store.state().areas().size() - 1, false);
-            press(controller, "areaLoad");
+            press(controller, "editShapeButton");
             require(
                     selection.source().equals(added.id()) && !((Button) get(controller, "quickSave")).active,
                     "Edit did not link the saved area or unchanged geometry can be applied");
@@ -252,7 +252,7 @@ final class SessionChecks {
             throws Exception {
         ExactSelectionController tool = toolOn(map, bridge, minecraft, directory, context, true, "one-frame");
         press(tool, "areasButton");
-        Button edit = (Button) get(tool, "areaLoad"), close = (Button) get(tool, "managementClose");
+        Button edit = (Button) get(tool, "editShapeButton"), close = (Button) get(tool, "managementClose");
         require(!edit.active && close.visible, "The Areas window did not open with nothing checked");
         int[] window = dialogRect(tool);
         tool.mouseClicked(left(window[0] + 54, window[1] + 54, 0), false);
@@ -296,7 +296,7 @@ final class SessionChecks {
             call(editing, "updateVisibility");
             press(editing, "areasButton");
             row(editing, 0, false);
-            press(editing, "areaLoad");
+            press(editing, "editShapeButton");
             call(editing, "updateVisibility");
             require(get(editing, "gesture") == null, "Editing an area left the two-click selection open");
             require(
@@ -326,7 +326,7 @@ final class SessionChecks {
             press(ruler, "rulerButton");
             press(ruler, "areasButton");
             row(ruler, 0, false);
-            press(ruler, "areaLoad");
+            press(ruler, "editShapeButton");
             require(!(boolean) get(ruler(ruler), "mode"), "Editing an area left the ruler on");
 
             // Typed coordinates survive collapsing the panel; a map click they hold back says why, and Esc releases it.
@@ -411,7 +411,7 @@ final class SessionChecks {
             SelectionState unitsState = (SelectionState) get(units, "state");
             press(units, "areasButton");
             row(units, 0, false);
-            press(units, "areaLoad");
+            press(units, "editShapeButton");
             SelectionBounds loaded = unitsState.bounds();
             call(units, "toggleChunks");
             require(loaded.equals(unitsState.bounds()), "Switching to chunks changed the open saved area");
@@ -544,11 +544,11 @@ final class SessionChecks {
             call(editing, "updateVisibility");
             press(editing, "areasButton");
             row(editing, 0, false);
-            press(editing, "areaLoad");
+            press(editing, "editShapeButton");
             require(camera.camera == null, "Editing a visible area moved the map");
             press(editing, "areasButton");
             row(editing, 1, false);
-            press(editing, "areaLoad");
+            press(editing, "editShapeButton");
             require(
                     camera.camera != null && camera.camera[0] == 5050.5 && camera.camera[1] == 5050.5,
                     "Editing a far area did not move the map to it");

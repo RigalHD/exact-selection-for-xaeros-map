@@ -369,7 +369,8 @@ final class ToolChecks {
             press(routes, "areasButton");
             row(routes, 1, false);
             require(
-                    !((Button) get(routes, "areaLoad")).active && !((Button) get(routes, "areaExportButton")).active,
+                    !((Button) get(routes, "editShapeButton")).active
+                            && !((Button) get(routes, "areaExportButton")).active,
                     "A route offers to be edited or exported");
             call(routes, "cancelDialog");
             // A saved route's points stick like an area's, but not its open end to its start.

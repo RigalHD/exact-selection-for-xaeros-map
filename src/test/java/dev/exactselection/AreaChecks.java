@@ -168,7 +168,8 @@ final class AreaChecks {
                     "Changes were written before Save while autosave is off");
             Button save = (Button) get(controller, "areaSaveChanges");
             require(save.visible && save.active, "Save is unavailable for pending changes");
-            Button load = (Button) get(controller, "areaLoad"), shown = (Button) get(controller, "areaVisibility");
+            Button load = (Button) get(controller, "editShapeButton"),
+                    shown = (Button) get(controller, "areaVisibility");
             Button gear = (Button) get(controller, "autosaveButton");
             Button[] copies = areaCopies(controller);
             call(controller, "layoutDialog");
@@ -247,7 +248,7 @@ final class AreaChecks {
                     "Area copy buttons are not small icons after their values");
 
             pick(controller, store, a.id());
-            press(controller, "areaLoad");
+            press(controller, "editShapeButton");
             Button quick = (Button) get(controller, "quickSave");
             require(
                     quick.getMessage()

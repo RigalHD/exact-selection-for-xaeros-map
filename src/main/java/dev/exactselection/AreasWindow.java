@@ -33,7 +33,7 @@ import org.lwjgl.glfw.GLFW;
 
 /** The Areas window: its list with search and checked rows, the details of the checked area and its buttons. */
 final class AreasWindow extends UiPart {
-    private Button saveSelectionButton, areaLoad;
+    private Button saveSelectionButton, editShapeButton;
     Button areaShow;
     private Button areaRestore, areaDelete, areaSelectAll, areaClearSelection, areaSaveChanges;
     Button autosaveButton;
@@ -837,7 +837,7 @@ final class AreasWindow extends UiPart {
             place(groupAssign, right, y + 66, col, 18);
             place(areaColor, right, y + 86, half, 18);
             place(areaOpacity, right + half + 3, y + 86, col - half - 3, 18);
-            place(areaLoad, right, y + 106, half, 18);
+            place(editShapeButton, right, y + 106, half, 18);
             place(areaExportButton, right + half + 3, y + 106, col - half - 3, 18);
             place(areaSaveChanges, right, y + 126, col, 18);
             placeAreaInfo(y, h, right, null, col);
@@ -899,7 +899,7 @@ final class AreasWindow extends UiPart {
                         true,
                         ui.field(DialogField.AREA_NAME),
                         groupAssign,
-                        areaLoad,
+                        editShapeButton,
                         areaExportButton,
                         areaDelete,
                         areaVisibility,
@@ -925,8 +925,8 @@ final class AreasWindow extends UiPart {
         Area area = selectedArea();
         boolean editingThis = area != null && Objects.equals(area.id(), ui.state.source());
         boolean route = area != null && !area.geometry().closed();
-        areaLoad.active = singleArea && !editingThis && !route;
-        areaLoad.setMessage(ui.tr(editingThis ? "area_editing_now" : "area_edit"));
+        editShapeButton.active = singleArea && !editingThis && !route;
+        editShapeButton.setMessage(ui.tr(editingThis ? "area_editing_now" : "area_edit"));
         areaSaveChanges.active = !ui.areaEdits.areaDraft.isEmpty() && selectedCount > 0 && !ui.loadFailed;
         for (Button copy : areaCopies.values()) copy.active = singleArea;
         ui.tip(
@@ -1000,7 +1000,7 @@ final class AreasWindow extends UiPart {
         saveSelectionButton = ui.button("area_save_selection", () -> {
             ui.newAreaWindow.openAreaNameDialog(Dialog.AREAS);
         });
-        areaLoad = ui.button("area_edit", "area_edit_tooltip", () -> loadArea(selectedArea()));
+        editShapeButton = ui.button("area_edit", "area_edit_tooltip", () -> loadArea(selectedArea()));
         areaShow = ui.iconButton("area_show_tooltip", () -> showArea(selectedArea()));
         areaRestore = ui.button("area_restore", "area_restore_tooltip", ui.areaEdits::restoreAreas);
         areaDelete = ui.button("area_delete", "area_delete_tooltip", this::deleteArea);

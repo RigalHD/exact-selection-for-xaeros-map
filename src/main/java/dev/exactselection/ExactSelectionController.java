@@ -658,7 +658,7 @@ public final class ExactSelectionController {
         }
         if (colorWindows.pickerDrag != ColorWindows.PickerDrag.NONE) {
             if (dialog == Dialog.PICKER) colorWindows.dragPicker(mouseX, mouseY);
-            else colorWindows.pickerDrag = ColorWindows.PickerDrag.NONE;
+            else colorWindows.endPickerDrag();
         }
         MapBridge.Frame frame = checkedFrame();
         if (frame != null && enabled() && dragging && waypointsWindow.pending == null && dialog == Dialog.NONE)

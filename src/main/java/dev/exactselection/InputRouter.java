@@ -72,7 +72,7 @@ final class InputRouter extends UiPart {
         if (event.button() == GLFW.GLFW_MOUSE_BUTTON_LEFT
                 && ui.colorWindows.pickerDrag != ColorWindows.PickerDrag.NONE) {
             ui.colorWindows.dragPicker(event.x(), event.y());
-            ui.colorWindows.pickerDrag = ColorWindows.PickerDrag.NONE;
+            ui.colorWindows.endPickerDrag();
             return true;
         }
         if (event.button() == GLFW.GLFW_MOUSE_BUTTON_LEFT && ui.waypointsWindow.scrollbarDragging) {

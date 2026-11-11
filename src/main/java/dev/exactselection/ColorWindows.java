@@ -120,6 +120,10 @@ final class ColorWindows extends UiPart {
         super(ui);
     }
 
+    void endPickerDrag() {
+        pickerDrag = PickerDrag.NONE;
+    }
+
     /** The color window for the area of the right-click menu; a swatch or hex applies at once. */
     void openQuickColor() {
         Area area = ui.rightClickMenu.menuArea();

@@ -56,8 +56,7 @@ final class RulerTool extends UiPart {
         if (on) compactBefore = ui.selectionPanel.compact;
         mode = on;
         clearRuler();
-        ui.selectionPanel.compact = on || compactBefore;
-        ui.selectionPanel.panelScroll = 0;
+        ui.selectionPanel.showCompact(on || compactBefore);
         ui.focus(null);
         ui.selectionPanel.layoutMainPanel();
     }

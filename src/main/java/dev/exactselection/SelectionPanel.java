@@ -57,6 +57,12 @@ final class SelectionPanel extends UiPart {
         super(ui);
     }
 
+    /** The ruler's compact panel, which is not remembered as the user's choice. */
+    void showCompact(boolean on) {
+        compact = on;
+        panelScroll = 0;
+    }
+
     void togglePanelMode() {
         // The ruler keeps the panel compact; expanding it leaves the ruler.
         if (ui.rulerTool.mode) {

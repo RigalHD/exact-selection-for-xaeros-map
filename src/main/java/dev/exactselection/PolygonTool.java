@@ -24,6 +24,17 @@ final class PolygonTool extends UiPart {
         super(ui);
     }
 
+    void turnOff() {
+        mode = false;
+    }
+
+    /** A window opens: the contour's undo steps and the state before it no longer apply. */
+    void forgetDraftHistory() {
+        draftUndo.clear();
+        draftRedo.clear();
+        stateBefore = null;
+    }
+
     void togglePolygonMode() {
         if (!ui.enabled() || ui.holding()) return;
         if (mode) {

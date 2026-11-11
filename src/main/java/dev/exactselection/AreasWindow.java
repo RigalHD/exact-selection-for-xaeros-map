@@ -283,7 +283,7 @@ final class AreasWindow extends UiPart {
         SelectionState.Snapshot before = ui.historyBase();
         ui.state.load(area.geometry(), area.id());
         ui.gesture = null;
-        ui.polygonTool.mode = false;
+        ui.polygonTool.turnOff();
         ui.rulerTool.setRulerMode(false);
         ui.commitSelection(before, ui.state.snapshot(), "area_load");
         ui.dialog = Dialog.NONE;

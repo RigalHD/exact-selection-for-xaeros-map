@@ -456,7 +456,7 @@ public final class ExactSelectionController {
         dragging = dirty = false;
         gesture = null;
         polygonTool.discardDraft();
-        polygonTool.mode = false;
+        polygonTool.turnOff();
         rulerTool.setRulerMode(false);
         dialog = Dialog.NONE;
         message = "";

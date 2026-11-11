@@ -198,9 +198,7 @@ final class GroupsWindow extends UiPart {
 
     private void openGroupsWindow(Dialog returnTo) {
         if (ui.dirty || ui.waypointsWindow.pending != null || !ui.polygonTool.draft.isEmpty() || ui.holding()) return;
-        ui.polygonTool.draftUndo.clear();
-        ui.polygonTool.draftRedo.clear();
-        ui.polygonTool.stateBefore = null;
+        ui.polygonTool.forgetDraftHistory();
         groupsReturnDialog = returnTo;
         ui.dialog = Dialog.GROUPS;
         groupDeleteConfirmation = false;

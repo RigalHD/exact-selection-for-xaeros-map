@@ -38,7 +38,7 @@ final class RulerTool extends UiPart {
                     ui.state.reset();
                 ui.syncFields();
             }
-            ui.polygonTool.mode = false;
+            ui.polygonTool.turnOff();
             ui.polygonTool.clearDraft();
         }
         ui.message = mode ? ui.tr("ruler_controls").getString() : "";

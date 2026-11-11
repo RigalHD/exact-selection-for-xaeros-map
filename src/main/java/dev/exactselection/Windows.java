@@ -20,9 +20,7 @@ final class Windows extends UiPart {
 
     void openDialog(Dialog next) {
         if (ui.dirty || !ui.polygonTool.draft.isEmpty() || ui.holding() || ui.waypointsWindow.pending != null) return;
-        ui.polygonTool.draftUndo.clear();
-        ui.polygonTool.draftRedo.clear();
-        ui.polygonTool.stateBefore = null;
+        ui.polygonTool.forgetDraftHistory();
         ui.dialog = next;
         if (next == Dialog.SIZE) {
             SelectionBounds b = ui.state.bounds();

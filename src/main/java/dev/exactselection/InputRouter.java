@@ -224,7 +224,7 @@ final class InputRouter extends UiPart {
             ui.message = "";
         } else if (ui.polygonTool.mode) {
             ui.polygonTool.discardDraft();
-            ui.polygonTool.mode = false;
+            ui.polygonTool.turnOff();
             ui.say("polygon_cancelled");
             ui.updateSelection();
         } else if (ui.dirty) {

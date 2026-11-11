@@ -264,7 +264,7 @@ public final class ExactSelectionController {
         rightClickMenu.closeMenu();
         rulerTool.endPress();
         if (dialog == Dialog.AREAS) areaEdits.flushDraft();
-        waypointsWindow.pending = null;
+        waypointsWindow.dropPending();
         dialog = Dialog.NONE;
     }
 
@@ -451,7 +451,8 @@ public final class ExactSelectionController {
             history.recordApplied(
                     selectionAction(before, new SelectionState.Snapshot(SelectionState.Phase.READY, null), "clear"));
         } else state.disable();
-        selected = waypointsWindow.pending = null;
+        selected = null;
+        waypointsWindow.dropPending();
         context = null;
         dragging = dirty = false;
         gesture = null;
@@ -467,7 +468,8 @@ public final class ExactSelectionController {
         var before = historyBase();
         state.reset();
         if (!before.equals(state.snapshot())) history.recordApplied(selectionAction(before, state.snapshot(), "clear"));
-        selected = waypointsWindow.pending = null;
+        selected = null;
+        waypointsWindow.dropPending();
         polygonTool.discardDraft();
         gesture = null;
         dirty = dragging = false;
@@ -654,7 +656,7 @@ public final class ExactSelectionController {
         double mouseX = pointerX(renderMouseX), mouseY = pointerY(renderMouseY);
         if (waypointsWindow.scrollbarDragging) {
             if (dialog == Dialog.WAYPOINTS) waypointsWindow.dragWaypointScrollbar(mouseY);
-            else waypointsWindow.scrollbarDragging = false;
+            else waypointsWindow.endScrollbarDrag();
         }
         if (colorWindows.pickerDrag != ColorWindows.PickerDrag.NONE) {
             if (dialog == Dialog.PICKER) colorWindows.dragPicker(mouseX, mouseY);

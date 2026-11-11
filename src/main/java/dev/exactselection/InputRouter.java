@@ -77,7 +77,7 @@ final class InputRouter extends UiPart {
         }
         if (event.button() == GLFW.GLFW_MOUSE_BUTTON_LEFT && ui.waypointsWindow.scrollbarDragging) {
             ui.waypointsWindow.dragWaypointScrollbar(event.y());
-            ui.waypointsWindow.scrollbarDragging = false;
+            ui.waypointsWindow.endScrollbarDrag();
             return true;
         }
         if (event.button() == GLFW.GLFW_MOUSE_BUTTON_LEFT && ui.rulerTool.pressed) {

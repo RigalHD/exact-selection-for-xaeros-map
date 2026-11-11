@@ -76,7 +76,7 @@ final class Windows extends UiPart {
             ui.focus(null);
             return;
         }
-        if (ui.dialog == Dialog.WAYPOINTS) ui.waypointsWindow.pending = null;
+        if (ui.dialog == Dialog.WAYPOINTS) ui.waypointsWindow.dropPending();
         if (ui.dialog == Dialog.AREAS) ui.areaEdits.flushDraft();
         Window open = window();
         ui.dialog = open == null ? Dialog.NONE : open.returnTo();

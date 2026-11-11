@@ -88,6 +88,15 @@ final class WaypointsWindow extends UiPart {
         super(ui);
     }
 
+    void endScrollbarDrag() {
+        scrollbarDragging = false;
+    }
+
+    /** The waypoint list closes; its snapshot of the set is dropped. */
+    void dropPending() {
+        pending = null;
+    }
+
     private void cycleVisibilityFilter() {
         visibilityFilter =
                 VisibilityFilter.values()[(visibilityFilter.ordinal() + 1) % VisibilityFilter.values().length];

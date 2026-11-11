@@ -79,11 +79,11 @@ final class RulerTool extends UiPart {
     }
 
     void saveRoute() {
-        if (routeReady()) ui.newAreaWindow.openRouteNameDialog(new PolylineGeometry(rulerRoute()));
+        if (routeReady()) ui.newAreaWindow.openRouteNameDialog(new PolylineGeometry(route()));
     }
 
     /** A, the points on the way and the current end. */
-    private List<GridPoint> rulerRoute() {
+    private List<GridPoint> route() {
         List<GridPoint> route = new ArrayList<>();
         if (pointA != null) route.add(pointA);
         route.addAll(via);
@@ -106,7 +106,7 @@ final class RulerTool extends UiPart {
 
     /** Length of the line from A to the current end. */
     private double distance() {
-        List<GridPoint> route = rulerRoute();
+        List<GridPoint> route = route();
         double length = 0;
         for (int i = 1; i < route.size(); i++)
             length += Math.hypot(
@@ -155,7 +155,7 @@ final class RulerTool extends UiPart {
     }
 
     void renderRuler(GuiGraphics g, MapBridge.Frame frame) {
-        List<GridPoint> route = rulerRoute();
+        List<GridPoint> route = route();
         if (route.isEmpty()) return;
         for (int i = 1; i < route.size(); i++) {
             GridPoint a = route.get(i - 1), b = route.get(i);
@@ -205,7 +205,7 @@ final class RulerTool extends UiPart {
 
     private void extendRoute(GridPoint point) {
         if (point.equals(pointB)) return;
-        if (rulerRoute().size() >= PolygonGeometry.MAX_VERTICES) {
+        if (route().size() >= PolygonGeometry.MAX_VERTICES) {
             ui.say("polygon_too_many_points");
             return;
         }

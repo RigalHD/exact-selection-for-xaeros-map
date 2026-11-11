@@ -493,7 +493,7 @@ final class SessionChecks {
             kept.mouseClicked(new MouseButtonEvent(120, 320, new MouseButtonInfo(left, 0)), false);
             kept.beforeRender(140, 330);
             require(get(kept, "gesture") != null && !bounds.equals(keptState.bounds()), "The drag did not start");
-            AutosaveSettings.load(keptStore.root()).setEnabled(true);
+            ModSettings.load(keptStore.root()).setEnabled(true);
             SavedAreaStore outside = new SavedAreaStore(keptStore.root());
             outside.useContext(context);
             outside.replace(new SavedAreaStore.State(List.of(), List.of(), true, true));
@@ -514,7 +514,7 @@ final class SessionChecks {
                             && ((SelectionHistory) get(kept, "history")).canUndo(),
                     "Reopening the map lost the selection or its history");
             require(
-                    ((AutosaveSettings) get(kept, "autosave")).enabled(),
+                    ((ModSettings) get(kept, "autosave")).enabled(),
                     "Reopening the map did not read the changed settings");
             require(keptStore.state().areas().isEmpty(), "Reopening the map did not read the changed area file");
             screen.noFrame = true;

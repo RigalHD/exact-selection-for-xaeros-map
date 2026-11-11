@@ -255,9 +255,7 @@ final class InputRouter extends UiPart {
                 && ui.modalApply.active) ui.windows.applyDialog();
         else if (ui.dialog == Dialog.AREAS && field == ui.field(DialogField.AREA_NAME))
             ui.areaEdits.commitDraft(
-                    ui.autosave.covers(AutosaveSettings.Field.NAME)
-                            ? f -> f == AutosaveSettings.Field.NAME
-                            : f -> true);
+                    ui.autosave.covers(ModSettings.Field.NAME) ? f -> f == ModSettings.Field.NAME : f -> true);
         else if (ui.dialog == Dialog.CENTER) ui.selectionDialogs.createCenterWaypoint();
         else if (ui.dialog == Dialog.COLOR && field == ui.field(DialogField.HEX)) ui.colorWindows.applyHexColor();
         else if (ui.dialog == Dialog.WAYPOINTS

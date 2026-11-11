@@ -112,7 +112,7 @@ public final class ExactSelectionController {
 
     Button confirm, cancel;
     Button modalApply, modalCancel;
-    AutosaveSettings autosave;
+    ModSettings autosave;
     final ExportWindow exportWindow;
     Button managementClose, managementUndo, managementRedo;
     /** A press whose pointer moves less than this many GUI pixels is a click, not a move or resize. */
@@ -236,7 +236,7 @@ public final class ExactSelectionController {
         this.mc = mc;
         this.areaStore = areaStore;
         this.waypoints = waypoints;
-        this.autosave = AutosaveSettings.load(areaStore.root());
+        this.autosave = ModSettings.load(areaStore.root());
         this.exportWindow =
                 new ExportWindow(mc, ExportPreferences.load(areaStore.root()), mapExport::defaultExportFolder);
     }
@@ -252,7 +252,7 @@ public final class ExactSelectionController {
         this.bridge = bridge;
         awaitingFrame = true;
         // Mod Menu's settings and the area file may have changed while the map was closed.
-        autosave = AutosaveSettings.load(areaStore.root());
+        autosave = ModSettings.load(areaStore.root());
         areaStore.reload();
         areasStale = true;
     }
@@ -538,7 +538,7 @@ public final class ExactSelectionController {
         if (!before.equals(after)) {
             SelectionHistory.Action action = selectionAction(before, after, key);
             Area edited = areasWindow.editedArea();
-            if (autosave.covers(AutosaveSettings.Field.GEOMETRY)
+            if (autosave.covers(ModSettings.Field.GEOMETRY)
                     && edited != null
                     && !loadFailed
                     && after.phase() == SelectionState.Phase.SELECTED

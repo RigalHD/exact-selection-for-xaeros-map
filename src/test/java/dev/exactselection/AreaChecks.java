@@ -133,10 +133,10 @@ final class AreaChecks {
         SelectionState selection = (SelectionState) get(controller, "state");
         SelectionState.Snapshot initial = selection.snapshot();
         SavedAreaStore.State saved = store.state();
-        AutosaveSettings autosave = (AutosaveSettings) get(controller, "autosave");
+        ModSettings autosave = (ModSettings) get(controller, "autosave");
         @SuppressWarnings("unchecked")
-        Map<AutosaveSettings.Field, Button> fieldButtons =
-                (Map<AutosaveSettings.Field, Button>) get(controller, "autosaveFields");
+        Map<ModSettings.Field, Button> fieldButtons =
+                (Map<ModSettings.Field, Button>) get(controller, "autosaveFields");
         var group = new SavedAreaStore.Group("draft-group", "Draft group", true);
         var a = SavedAreaStore.create("Alpha", new SelectionBounds(0, 0, 9, 9), 0x123456, 25, null);
         var b = SavedAreaStore.create("Beta", new SelectionBounds(40, 40, 49, 49), 0x654321, 25, null);
@@ -216,9 +216,9 @@ final class AreaChecks {
             require(
                     autosave.enabled() && fieldButtons.values().stream().allMatch(button -> button.active),
                     "Autosave did not switch on with its field toggles");
-            fieldButtons.get(AutosaveSettings.Field.NAME).onPress(new KeyEvent(GLFW.GLFW_KEY_ENTER, 0, 0));
-            if (!autosave.includes(AutosaveSettings.Field.GEOMETRY))
-                fieldButtons.get(AutosaveSettings.Field.GEOMETRY).onPress(new KeyEvent(GLFW.GLFW_KEY_ENTER, 0, 0));
+            fieldButtons.get(ModSettings.Field.NAME).onPress(new KeyEvent(GLFW.GLFW_KEY_ENTER, 0, 0));
+            if (!autosave.includes(ModSettings.Field.GEOMETRY))
+                fieldButtons.get(ModSettings.Field.GEOMETRY).onPress(new KeyEvent(GLFW.GLFW_KEY_ENTER, 0, 0));
             press(controller, "autosaveClose");
             require(!save.visible, "Save stays visible under autosave with nothing pending");
             call(controller, "layoutDialog");
@@ -337,8 +337,8 @@ final class AreaChecks {
             edited.restore(selectionBefore);
         } finally {
             if (!autosave.enabled()) autosave.setEnabled(true);
-            if (!autosave.includes(AutosaveSettings.Field.NAME)) autosave.toggle(AutosaveSettings.Field.NAME);
-            if (autosave.includes(AutosaveSettings.Field.GEOMETRY)) autosave.toggle(AutosaveSettings.Field.GEOMETRY);
+            if (!autosave.includes(ModSettings.Field.NAME)) autosave.toggle(ModSettings.Field.NAME);
+            if (autosave.includes(ModSettings.Field.GEOMETRY)) autosave.toggle(ModSettings.Field.GEOMETRY);
             set(controller, "autosaveOpen", false);
             store.replace(saved);
             selection.restore(initial);

@@ -14,10 +14,10 @@ import java.util.EnumSet;
 import java.util.Locale;
 
 /**
- * The Areas window's settings, shared by all worlds: which saved-area changes are written immediately instead of
+ * The mod's settings, shared by all worlds and also shown in Mod Menu: which saved-area changes are written immediately instead of
  * waiting for Save, and how copied area and perimeter are rounded.
  */
-public final class AutosaveSettings {
+public final class ModSettings {
     public enum Field {
         NAME,
         GROUP,
@@ -37,14 +37,13 @@ public final class AutosaveSettings {
     private Rounding rounding = Rounding.DOWN;
     private final EnumSet<Field> fields = EnumSet.allOf(Field.class);
 
-    private AutosaveSettings(Path file) {
+    private ModSettings(Path file) {
         this.file = file;
     }
 
     /** Reads {@code <root>/xaero-exact-selection/settings.json}; a missing or unreadable file gives the defaults. */
-    public static AutosaveSettings load(Path root) {
-        AutosaveSettings settings =
-                new AutosaveSettings(ModFiles.directory(root).resolve("settings.json"));
+    public static ModSettings load(Path root) {
+        ModSettings settings = new ModSettings(ModFiles.directory(root).resolve("settings.json"));
         if (!Files.exists(settings.file)) return settings;
         try {
             JsonObject stored = JsonParser.parseString(Files.readString(settings.file, StandardCharsets.UTF_8))

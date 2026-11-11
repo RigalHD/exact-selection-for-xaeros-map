@@ -91,14 +91,14 @@ final class ToolChecks {
             call(controller, "updateVisibility");
             press(controller, "copyRulerDistance");
             require("1".equals(keyboard.copied), "Distance was not rounded down: " + keyboard.copied);
-            AutosaveSettings autosave = (AutosaveSettings) get(controller, "autosave");
-            AutosaveSettings.Rounding rounding = autosave.rounding();
+            ModSettings autosave = (ModSettings) get(controller, "autosave");
+            ModSettings.Rounding rounding = autosave.rounding();
             try {
-                autosave.setRounding(AutosaveSettings.Rounding.UP);
+                autosave.setRounding(ModSettings.Rounding.UP);
                 call(controller, "updateVisibility");
                 press(controller, "copyRulerDistance");
                 require("2".equals(keyboard.copied), "Distance was not rounded up: " + keyboard.copied);
-                autosave.setRounding(AutosaveSettings.Rounding.EXACT);
+                autosave.setRounding(ModSettings.Rounding.EXACT);
                 call(controller, "updateVisibility");
                 press(controller, "copyRulerDistance");
                 require("1.41".equals(keyboard.copied), "Exact distance is wrong: " + keyboard.copied);

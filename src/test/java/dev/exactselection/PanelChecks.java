@@ -257,10 +257,10 @@ final class PanelChecks {
             store.replace(new SavedAreaStore.State(List.of(sloped), List.of(), true, true));
             pick(controller, store, sloped.id());
             call(controller, "layoutDialog");
-            AutosaveSettings settings = (AutosaveSettings) get(controller, "autosave");
-            AutosaveSettings.Rounding rounding = settings.rounding();
+            ModSettings settings = (ModSettings) get(controller, "autosave");
+            ModSettings.Rounding rounding = settings.rounding();
             try {
-                settings.setRounding(AutosaveSettings.Rounding.DOWN);
+                settings.setRounding(ModSettings.Rounding.DOWN);
                 double slopedArea = sloped.geometry().area(),
                         perimeter = sloped.geometry().perimeter();
                 require(
@@ -280,8 +280,8 @@ final class PanelChecks {
                 press(controller, "roundingButton");
                 checkLayout(controller);
                 require(
-                        settings.rounding() == AutosaveSettings.Rounding.UP
-                                && AutosaveSettings.load(store.root()).rounding() == AutosaveSettings.Rounding.UP,
+                        settings.rounding() == ModSettings.Rounding.UP
+                                && ModSettings.load(store.root()).rounding() == ModSettings.Rounding.UP,
                         "Rounding up was not switched on and saved");
                 copies[2].onPress(new KeyEvent(GLFW.GLFW_KEY_ENTER, 0, 0));
                 require(
@@ -292,7 +292,7 @@ final class PanelChecks {
                         Long.toString((long) Math.ceil(perimeter)).equals(keyboard.copied),
                         "Perimeter was not rounded up: " + keyboard.copied);
                 press(controller, "roundingButton");
-                require(settings.rounding() == AutosaveSettings.Rounding.EXACT, "Rounding did not cycle to none");
+                require(settings.rounding() == ModSettings.Rounding.EXACT, "Rounding did not cycle to none");
                 copies[2].onPress(new KeyEvent(GLFW.GLFW_KEY_ENTER, 0, 0));
                 require(keyboard.copied.contains("."), "Exact copying still rounded the area: " + keyboard.copied);
             } finally {

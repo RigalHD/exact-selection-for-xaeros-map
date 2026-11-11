@@ -328,11 +328,11 @@ final class GroupsWindow extends UiPart {
         ui.dialog = Dialog.AREAS;
         assignmentTargets.clear();
         ui.say(
-                ui.autosave.covers(AutosaveSettings.Field.GROUP) ? "group_assigned" : "group_staged",
+                ui.autosave.covers(ModSettings.Field.GROUP) ? "group_assigned" : "group_staged",
                 count,
                 group == null ? ui.tr("group_none").getString() : group.name());
         ui.focus(null);
-        ui.areaEdits.stage(AutosaveSettings.Field.GROUP);
+        ui.areaEdits.stage(ModSettings.Field.GROUP);
     }
 
     private void toggleGroup() {

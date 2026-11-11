@@ -182,7 +182,7 @@ final class ColorWindows extends UiPart {
         ui.dialog = Dialog.AREAS;
         ui.message = "";
         ui.focus(null);
-        ui.areaEdits.stage(AutosaveSettings.Field.COLOR);
+        ui.areaEdits.stage(ModSettings.Field.COLOR);
     }
 
     private int[] paletteColors() {

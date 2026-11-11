@@ -456,7 +456,7 @@ final class SelectionPanel extends UiPart {
             ui.show(true, ui.mapExport.openExportButton);
         }
         Area editing = route ? null : ui.areasWindow.editedArea();
-        boolean autoGeometry = editing != null && ui.autosave.covers(AutosaveSettings.Field.GEOMETRY);
+        boolean autoGeometry = editing != null && ui.autosave.covers(ModSettings.Field.GEOMETRY);
         quickSave.setMessage(ui.tr(editing == null ? "quick_save" : autoGeometry ? "quick_autosaved" : "quick_apply"));
         ui.tip(
                 quickSave,
@@ -664,7 +664,7 @@ final class SelectionPanel extends UiPart {
     }
 
     void copyMetric(Metric metric, AreaGeometry geometry, SelectionBounds b) {
-        boolean exact = ui.autosave.rounding() == AutosaveSettings.Rounding.EXACT;
+        boolean exact = ui.autosave.rounding() == ModSettings.Rounding.EXACT;
         copyToClipboard(
                 switch (metric) {
                     case CORNER_A ->
@@ -687,7 +687,7 @@ final class SelectionPanel extends UiPart {
      */
     String rounded(double value) {
         return Long.toString(
-                ui.autosave.rounding() == AutosaveSettings.Rounding.UP
+                ui.autosave.rounding() == ModSettings.Rounding.UP
                         ? (long) Math.ceil(value - 1e-9)
                         : (long) Math.floor(value + 1e-9));
     }

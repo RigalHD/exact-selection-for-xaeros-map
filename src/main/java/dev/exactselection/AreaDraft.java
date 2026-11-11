@@ -20,7 +20,7 @@ final class AreaDraft {
         return name == null && !groupSet && color == null && opacity == null;
     }
 
-    boolean pending(AutosaveSettings.Field field) {
+    boolean pending(ModSettings.Field field) {
         return switch (field) {
             case NAME -> name != null;
             case GROUP -> groupSet;
@@ -31,8 +31,8 @@ final class AreaDraft {
     }
 
     /** True when some pending field is not written by autosave, so it still needs Save. */
-    boolean needsSave(AutosaveSettings settings) {
-        for (AutosaveSettings.Field field : AutosaveSettings.Field.values())
+    boolean needsSave(ModSettings settings) {
+        for (ModSettings.Field field : ModSettings.Field.values())
             if (pending(field) && !settings.covers(field)) return true;
         return false;
     }
@@ -41,22 +41,22 @@ final class AreaDraft {
         clear(field -> true);
     }
 
-    void clear(Predicate<AutosaveSettings.Field> fields) {
-        if (fields.test(AutosaveSettings.Field.NAME)) name = null;
-        if (fields.test(AutosaveSettings.Field.GROUP)) {
+    void clear(Predicate<ModSettings.Field> fields) {
+        if (fields.test(ModSettings.Field.NAME)) name = null;
+        if (fields.test(ModSettings.Field.GROUP)) {
             groupSet = false;
             groupId = null;
         }
-        if (fields.test(AutosaveSettings.Field.COLOR)) color = null;
-        if (fields.test(AutosaveSettings.Field.OPACITY)) opacity = null;
+        if (fields.test(ModSettings.Field.COLOR)) color = null;
+        if (fields.test(ModSettings.Field.OPACITY)) opacity = null;
     }
 
     /** {@code areas} with the selected pending fields applied to every area in {@code targets}. */
-    List<Area> apply(List<Area> areas, Set<String> targets, Predicate<AutosaveSettings.Field> fields) {
-        boolean rename = name != null && targets.size() == 1 && fields.test(AutosaveSettings.Field.NAME);
-        boolean group = groupSet && fields.test(AutosaveSettings.Field.GROUP);
-        boolean recolor = color != null && fields.test(AutosaveSettings.Field.COLOR);
-        boolean fill = opacity != null && fields.test(AutosaveSettings.Field.OPACITY);
+    List<Area> apply(List<Area> areas, Set<String> targets, Predicate<ModSettings.Field> fields) {
+        boolean rename = name != null && targets.size() == 1 && fields.test(ModSettings.Field.NAME);
+        boolean group = groupSet && fields.test(ModSettings.Field.GROUP);
+        boolean recolor = color != null && fields.test(ModSettings.Field.COLOR);
+        boolean fill = opacity != null && fields.test(ModSettings.Field.OPACITY);
         return areas.stream()
                 .map(a -> {
                     if (!targets.contains(a.id())) return a;

@@ -104,7 +104,7 @@ final class AreasWindow extends UiPart {
     /** Filters the Areas window list by name; cleared whenever the window opens. */
     EditBox areaSearch;
 
-    private final Map<AutosaveSettings.Field, Button> autosaveFields = new EnumMap<>(AutosaveSettings.Field.class);
+    private final Map<ModSettings.Field, Button> autosaveFields = new EnumMap<>(ModSettings.Field.class);
     /** The Areas window shows the autosave settings instead of the area properties. */
     boolean autosaveOpen;
     /** The last row clicked without Shift; Shift+click checks the range from it. */
@@ -471,7 +471,7 @@ final class AreasWindow extends UiPart {
         if (a == null || ui.loadFailed) return;
         ui.areaEdits.areaDraft.opacity =
                 nextOpacity(ui.areaEdits.areaDraft.opacity != null ? ui.areaEdits.areaDraft.opacity : a.opacity());
-        ui.areaEdits.stage(AutosaveSettings.Field.OPACITY);
+        ui.areaEdits.stage(ModSettings.Field.OPACITY);
     }
 
     /** The fill step after the one closest to {@code opacity}: 0 → 25 → 50 → 75 → 100 → 0. */
@@ -1014,7 +1014,7 @@ final class AreasWindow extends UiPart {
             ui.autosave.setEnabled(!ui.autosave.enabled());
             if (ui.autosave.enabled()) ui.areaEdits.commitDraft(ui.autosave::covers);
         });
-        for (AutosaveSettings.Field field : AutosaveSettings.Field.values())
+        for (ModSettings.Field field : ModSettings.Field.values())
             autosaveFields.put(field, ui.button("autosave_field", () -> {
                 ui.autosave.toggle(field);
                 if (ui.autosave.covers(field)) ui.areaEdits.commitDraft(f -> f == field);
@@ -1049,7 +1049,7 @@ final class AreasWindow extends UiPart {
             if (two.size() != 2) return;
             double shared = sharedArea(two);
             ui.selectionPanel.copyToClipboard(
-                    ui.autosave.rounding() == AutosaveSettings.Rounding.EXACT
+                    ui.autosave.rounding() == ModSettings.Rounding.EXACT
                             ? formatLength(shared)
                             : ui.selectionPanel.rounded(shared));
         });

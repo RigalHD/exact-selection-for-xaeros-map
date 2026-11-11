@@ -149,7 +149,7 @@ final class RulerTool extends UiPart {
         if (pointA == null || pointB == null) return;
         double distance = distance();
         ui.selectionPanel.copyToClipboard(
-                ui.autosave.rounding() == AutosaveSettings.Rounding.EXACT
+                ui.autosave.rounding() == ModSettings.Rounding.EXACT
                         ? formatLength(distance)
                         : ui.selectionPanel.rounded(distance));
     }

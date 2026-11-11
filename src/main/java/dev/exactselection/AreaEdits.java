@@ -105,14 +105,14 @@ final class AreaEdits extends UiPart {
     }
 
     /** Writes the draft fields chosen by {@code fields} to every checked area as one undo step. */
-    boolean commitDraft(Predicate<AutosaveSettings.Field> fields) {
+    boolean commitDraft(Predicate<ModSettings.Field> fields) {
         if (ui.loadFailed || ui.areasWindow.selectedAreaIds.isEmpty()) return false;
         if (areaDraft.groupSet && areaDraft.groupId != null && ui.groupsWindow.findGroup(areaDraft.groupId) == null) {
             areaDraft.groupSet = false;
             areaDraft.groupId = null;
         }
         boolean any = false;
-        for (AutosaveSettings.Field field : AutosaveSettings.Field.values())
+        for (ModSettings.Field field : ModSettings.Field.values())
             any |= fields.test(field) && areaDraft.pending(field);
         if (!any) return false;
         List<Area> areas = areaDraft.apply(ui.areas(), Set.copyOf(ui.areasWindow.selectedAreaIds), fields);
@@ -138,7 +138,7 @@ final class AreaEdits extends UiPart {
     }
 
     /** Records a changed draft field and writes it at once when autosave covers it. */
-    void stage(AutosaveSettings.Field field) {
+    void stage(ModSettings.Field field) {
         if (ui.autosave.covers(field)) commitDraft(f -> f == field);
     }
 

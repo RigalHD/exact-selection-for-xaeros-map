@@ -279,9 +279,9 @@ final class UiHarness {
 
     /** Legacy flows expect immediate writes: autosave every property except the territory shape. */
     static void autosaveProperties(ExactSelectionController controller) throws Exception {
-        AutosaveSettings autosave = (AutosaveSettings) get(controller, "autosave");
+        ModSettings autosave = (ModSettings) get(controller, "autosave");
         if (!autosave.enabled()) autosave.setEnabled(true);
-        if (autosave.includes(AutosaveSettings.Field.GEOMETRY)) autosave.toggle(AutosaveSettings.Field.GEOMETRY);
+        if (autosave.includes(ModSettings.Field.GEOMETRY)) autosave.toggle(ModSettings.Field.GEOMETRY);
     }
 
     static void checkLayout(ExactSelectionController controller) throws Exception {

@@ -12,15 +12,15 @@ import net.minecraft.network.chat.Component;
 /** The settings from the Areas window's gear, opened from Mod Menu: autosave and copy rounding. */
 final class SettingsScreen extends Screen {
     private final Screen parent;
-    private final AutosaveSettings settings =
-            AutosaveSettings.load(FabricLoader.getInstance().getConfigDir());
+    private final ModSettings settings =
+            ModSettings.load(FabricLoader.getInstance().getConfigDir());
 
     SettingsScreen(Screen parent) {
         super(Component.translatable("exactselection.settings_title"));
         this.parent = parent;
     }
 
-    static Component roundingLabel(AutosaveSettings.Rounding rounding) {
+    static Component roundingLabel(ModSettings.Rounding rounding) {
         return Component.translatable(
                 "exactselection.rounding",
                 Component.translatable(
@@ -30,7 +30,7 @@ final class SettingsScreen extends Screen {
     @Override
     protected void init() {
         int x = width / 2 - 100, y = height / 6 + 12;
-        Button[] fields = new Button[AutosaveSettings.Field.values().length];
+        Button[] fields = new Button[ModSettings.Field.values().length];
         addRenderableWidget(Button.builder(autosaveLabel(), b -> {
                     settings.setEnabled(!settings.enabled());
                     b.setMessage(autosaveLabel());
@@ -39,7 +39,7 @@ final class SettingsScreen extends Screen {
                 .bounds(x, y, 200, 20)
                 .tooltip(Tooltip.create(Component.translatable("exactselection.autosave_hint")))
                 .build());
-        for (AutosaveSettings.Field field : AutosaveSettings.Field.values()) {
+        for (ModSettings.Field field : ModSettings.Field.values()) {
             y += 24;
             Button button = addRenderableWidget(Button.builder(fieldLabel(field), b -> {
                         settings.toggle(field);
@@ -68,7 +68,7 @@ final class SettingsScreen extends Screen {
                 settings.enabled() ? "exactselection.autosave_on" : "exactselection.autosave_off");
     }
 
-    private Component fieldLabel(AutosaveSettings.Field field) {
+    private Component fieldLabel(ModSettings.Field field) {
         return Component.translatable(
                 "exactselection.autosave_field",
                 Component.translatable(

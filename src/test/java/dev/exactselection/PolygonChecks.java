@@ -580,7 +580,7 @@ final class PolygonChecks {
         SelectionState selection = (SelectionState) get(controller, "state");
         SelectionState.Snapshot initial = selection.snapshot();
         SavedAreaStore.State saved = store.state();
-        AutosaveSettings autosave = (AutosaveSettings) get(controller, "autosave");
+        ModSettings autosave = (ModSettings) get(controller, "autosave");
         boolean autosaveWas = autosave.enabled();
         try {
             var area = SavedAreaStore.create("Loaded", new SelectionBounds(80, 80, 239, 239), 0x123456, 25, null);

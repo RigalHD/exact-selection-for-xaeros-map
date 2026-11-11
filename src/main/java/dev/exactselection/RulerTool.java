@@ -29,6 +29,11 @@ final class RulerTool extends UiPart {
         super(ui);
     }
 
+    /** The map screen went away while a ruler point was held. */
+    void endPress() {
+        pressed = false;
+    }
+
     void toggleRulerMode() {
         if (!ui.enabled() || ui.holding() || !ui.polygonTool.draft.isEmpty()) return;
         setRulerMode(!mode);

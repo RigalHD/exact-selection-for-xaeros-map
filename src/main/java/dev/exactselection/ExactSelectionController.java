@@ -262,7 +262,7 @@ public final class ExactSelectionController {
         if (holding()) cancelGesture();
         dragging = false;
         rightClickMenu.closeMenu();
-        rulerTool.pressed = false;
+        rulerTool.endPress();
         if (dialog == Dialog.AREAS) areaEdits.flushDraft();
         waypointsWindow.pending = null;
         dialog = Dialog.NONE;

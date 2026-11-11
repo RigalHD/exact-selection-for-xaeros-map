@@ -30,7 +30,7 @@ final class SelectionPanel extends UiPart {
     final EditBox[] fields = new EditBox[4];
     Button toggle, apply, clear, pointsButton, copyCoordinates, copyCornerB, copyArea, copyPerimeter, copyLength;
     Button copyWidth, undo, redo, chunkMode, sizeButton, moveButton, centerButton, areasButton, polygonModeButton;
-    Button panelModeButton, rulerButton, copyRulerDistance, quickSave, zonesButton;
+    Button panelModeButton, rulerButton, copyRulerDistance, quickSave, areasInSelectionButton;
     /** -12 while the perimeter shares the area line: everything below moves up one line and the panel gets shorter. */
     int metricsShift;
 
@@ -106,7 +106,7 @@ final class SelectionPanel extends UiPart {
             place(copyCornerB, zField + fieldWidth + 3, top + 62, COPY_SIZE, COPY_SIZE);
             place(apply, x + w - applyWidth, top + 58, applyWidth, 18);
             arrowRow(new Button[] {chunkMode, polygonModeButton, clear}, x, y + 126, w);
-            mainRow(new Button[] {areasButton, zonesButton, pointsButton}, x, y + 148, w, 18);
+            mainRow(new Button[] {areasButton, areasInSelectionButton, pointsButton}, x, y + 148, w, 18);
             place(ui.mapExport.selectionExportButton, x, y + 170, w, 18);
         }
     }
@@ -443,7 +443,7 @@ final class SelectionPanel extends UiPart {
                 copyCoordinates,
                 copyCornerB,
                 clear,
-                zonesButton,
+                areasInSelectionButton,
                 pointsButton,
                 ui.mapExport.selectionExportButton);
         if (main && ui.mapExport.hasExportNotice()) {
@@ -533,8 +533,8 @@ final class SelectionPanel extends UiPart {
         moveButton.active = centerButton.active = finished && !ui.dirty && !contourDraft && !ui.holding();
         areasButton.active = !ui.dirty && !contourDraft && !ui.holding();
         int framed = compact ? 0 : ui.areasWindow.areasInSelection().size();
-        zonesButton.setMessage(ui.tr("zones_in_selection", framed));
-        zonesButton.active = framed > 0 && !ui.dirty && !contourDraft && !ui.holding();
+        areasInSelectionButton.setMessage(ui.tr("zones_in_selection", framed));
+        areasInSelectionButton.active = framed > 0 && !ui.dirty && !contourDraft && !ui.holding();
     }
 
     void updatePanelActions() {
@@ -605,7 +605,7 @@ final class SelectionPanel extends UiPart {
             if (ui.rulerTool.mode) ui.rulerTool.saveRoute();
             else quickSave();
         });
-        zonesButton =
+        areasInSelectionButton =
                 ui.button("zones_in_selection", "zones_in_selection_tooltip", ui.areasWindow::openAreasInSelection);
         pointsButton = ui.button("waypoints_all", ui.waypointsWindow::openWaypoints);
         pointsButton.setTooltip(Tooltip.create(ui.tr(ui.waypoints == null ? "minimap_missing" : "waypoints_tooltip")));

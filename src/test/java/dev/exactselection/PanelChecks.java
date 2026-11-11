@@ -139,12 +139,13 @@ final class PanelChecks {
             store.replace(new SavedAreaStore.State(List.of(inside, touching, far, crossing), List.of(), true, true));
             selection.set(new SelectionBounds(-5, -5, 20, 20));
             press(controller, "panelModeButton");
-            Button zones = (Button) get(controller, "zonesButton"), areas = (Button) get(controller, "areasButton");
+            Button zones = (Button) get(controller, "areasInSelectionButton"),
+                    areas = (Button) get(controller, "areasButton");
             require(areas.visible && zones.visible && zones.active, "Expanded panel lost Areas or Areas in selection");
             require(
                     (Integer) get(controller, "metricsShift") == -12,
                     "Perimeter did not join the area line in the wide panel");
-            press(controller, "zonesButton");
+            press(controller, "areasInSelectionButton");
             require(
                     window(controller).equals("AREAS")
                             && get(controller, "selectedAreaIds")

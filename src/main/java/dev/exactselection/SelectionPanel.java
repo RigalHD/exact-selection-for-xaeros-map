@@ -510,6 +510,8 @@ final class SelectionPanel extends UiPart {
         chunkMode.setMessage(ui.tr(ui.chunks ? "units_chunks" : "units_blocks"));
         ui.mapExport.selectionExportButton.active = ui.mapExport.canExportSelection();
         toggle.visible = ui.dialog == Dialog.NONE;
+        // Off and without a map frame, there is nothing to turn the tool on for.
+        toggle.active = ui.enabled() || ui.bridge.exactselection$frame() != null;
         toggle.setMessage(Component.literal(ui.enabled() ? "■" : "□"));
         polygonModeButton.setMessage(ui.tr(ui.polygonTool.mode ? "polygon_mode_on" : "polygon_mode"));
         polygonModeButton.active = ui.enabled() && !ui.dirty && !ui.holding() && ui.dialog == Dialog.NONE;

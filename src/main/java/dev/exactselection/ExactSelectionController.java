@@ -786,7 +786,6 @@ public final class ExactSelectionController {
         MapBridge.Frame frame = checkedFrame();
         updateVisibility();
         if (enabled() && frame != null && dialog == Dialog.NONE) selectionPanel.renderPanel(g);
-        selectionPanel.toggle.active = enabled() || frame != null;
         if (dialog != Dialog.NONE) windows.renderDialog(g);
         List<Button> menu = rightClickMenu.quickMenu ? rightClickMenu.quickMenuButtons() : List.of();
         for (AbstractWidget widget : widgets) {

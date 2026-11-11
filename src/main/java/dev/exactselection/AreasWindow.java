@@ -462,7 +462,7 @@ final class AreasWindow extends UiPart {
         selectedAreaIds.addAll(ids);
         areaId = lastOf(ids);
         syncNameField();
-        ui.say("zones_in_selection_opened", ids.size());
+        ui.say("areas_in_selection_opened", ids.size());
     }
 
     private void cycleAreaOpacity() {

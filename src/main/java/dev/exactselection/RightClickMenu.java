@@ -216,7 +216,7 @@ final class RightClickMenu extends UiPart {
             quickMenu = false;
             if (area != null && ui.areaEdits.changeArea(area, a -> a.withVisible(false))) ui.say("areas_hidden", 1);
         });
-        quickMenuDelete = ui.button("quick_menu_delete", () -> {
+        quickMenuDelete = ui.button("quick_menu_delete_area", () -> {
             Area area = menuArea();
             quickMenu = false;
             if (area == null) return;

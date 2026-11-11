@@ -533,7 +533,7 @@ final class SelectionPanel extends UiPart {
         moveButton.active = centerButton.active = finished && !ui.dirty && !contourDraft && !ui.holding();
         areasButton.active = !ui.dirty && !contourDraft && !ui.holding();
         int framed = compact ? 0 : ui.areasWindow.areasInSelection().size();
-        areasInSelectionButton.setMessage(ui.tr("zones_in_selection", framed));
+        areasInSelectionButton.setMessage(ui.tr("areas_in_selection", framed));
         areasInSelectionButton.active = framed > 0 && !ui.dirty && !contourDraft && !ui.holding();
     }
 
@@ -606,7 +606,7 @@ final class SelectionPanel extends UiPart {
             else quickSave();
         });
         areasInSelectionButton =
-                ui.button("zones_in_selection", "zones_in_selection_tooltip", ui.areasWindow::openAreasInSelection);
+                ui.button("areas_in_selection", "areas_in_selection_tooltip", ui.areasWindow::openAreasInSelection);
         pointsButton = ui.button("waypoints_all", ui.waypointsWindow::openWaypoints);
         pointsButton.setTooltip(Tooltip.create(ui.tr(ui.waypoints == null ? "minimap_missing" : "waypoints_tooltip")));
     }

@@ -66,11 +66,7 @@ final class Windows extends UiPart {
 
     void cancelDialog() {
         if (ui.dialog == Dialog.AREAS && ui.areasWindow.areaDeleteConfirmation) {
-            ui.areasWindow.areaDeleteConfirmation = false;
-            if (ui.areasWindow.areaDeleteFromMenu) {
-                ui.areasWindow.areaDeleteFromMenu = false;
-                ui.dialog = Dialog.NONE;
-            }
+            ui.areasWindow.cancelAreaDelete();
             ui.message = "";
             ui.focus(null);
             return;

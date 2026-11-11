@@ -185,6 +185,43 @@ final class AreasWindow extends UiPart {
         super(ui);
     }
 
+    /** Esc or Cancel on the deletion question; asked from the map's menu, it returns to the map. */
+    void cancelAreaDelete() {
+        areaDeleteConfirmation = false;
+        if (areaDeleteFromMenu) {
+            areaDeleteFromMenu = false;
+            ui.dialog = Dialog.NONE;
+        }
+    }
+
+    /** Checks only this area, as a click on its row does. */
+    void checkOnly(Area area) {
+        selectedAreaIds.clear();
+        selectedAreaIds.add(area.id());
+        areaId = area.id();
+    }
+
+    /** Scrolls so the area's row is visible; a row the search hides leaves the list where it was. */
+    void scrollTo(Area area) {
+        List<Area> shown = displayedAreas();
+        int index = shown.indexOf(area);
+        if (index >= 0)
+            areaScroll = Math.max(
+                    0,
+                    Math.min(
+                            index,
+                            shown.size()
+                                    - visibleAreaDialogRows(
+                                            ui.windows.dialogRect().height())));
+    }
+
+    /** The map moved to another world: nothing checked, the list at its top. */
+    void forgetAreas() {
+        areaId = null;
+        areaScroll = 0;
+        selectedAreaIds.clear();
+    }
+
     /** The window opens with nothing checked; properties apply only to areas the user picks. */
     void resetForOpening() {
         areaSearch.setValue("");

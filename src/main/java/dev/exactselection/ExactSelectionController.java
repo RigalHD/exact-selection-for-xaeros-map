@@ -483,9 +483,8 @@ public final class ExactSelectionController {
         if (frame != null && !Objects.equals(historyContext, frame.context())) {
             history.clear();
             historyContext = frame.context();
-            areasWindow.areaId = groupsWindow.groupId = null;
-            areasWindow.areaScroll = groupsWindow.groupScroll = 0;
-            areasWindow.selectedAreaIds.clear();
+            areasWindow.forgetAreas();
+            groupsWindow.forgetGroups();
             areasStale = true;
         }
         if (frame != null && areasStale) {

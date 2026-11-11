@@ -152,24 +152,10 @@ final class NewAreaWindow extends UiPart {
         List<Area> areas = new ArrayList<>(ui.areas());
         areas.add(area);
         if (!ui.areaEdits.changeAreas(ui.areaEdits.areaState(areas, ui.groups()), "area_save")) return;
-        ui.areasWindow.selectedAreaIds.clear();
-        ui.areasWindow.selectedAreaIds.add(area.id());
-        ui.areasWindow.areaId = area.id();
+        ui.areasWindow.checkOnly(area);
         ui.setDialogValue(DialogField.AREA_NAME, area.name());
         ui.dialog = areaNameReturn;
-        if (ui.dialog == Dialog.AREAS) {
-            List<Area> shown = ui.areasWindow.displayedAreas();
-            int index = shown.indexOf(area);
-            // Scroll so the new row is visible; a row the search hides leaves the list where it was.
-            if (index >= 0)
-                ui.areasWindow.areaScroll = Math.max(
-                        0,
-                        Math.min(
-                                index,
-                                shown.size()
-                                        - ui.areasWindow.visibleAreaDialogRows(
-                                                ui.windows.dialogRect().height())));
-        }
+        if (ui.dialog == Dialog.AREAS) ui.areasWindow.scrollTo(area);
         // The saved shape now lives in the list; clearing it (its own undo step) frees the map for the next area.
         // The style of the area just saved is the one the next area starts with, also after a restart.
         ui.uiState.newAreaColor = newAreaColor;

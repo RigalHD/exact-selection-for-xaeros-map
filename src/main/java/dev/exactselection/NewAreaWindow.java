@@ -90,6 +90,16 @@ final class NewAreaWindow extends UiPart {
         super(ui);
     }
 
+    void useColor(int color) {
+        newAreaColor = color;
+    }
+
+    /** Opens the name window for the selection; Cancel leads to {@code returnTo}. */
+    void openAreaNameDialog(Dialog returnTo) {
+        areaNameReturn = returnTo;
+        openAreaNameDialog();
+    }
+
     void openAreaNameDialog() {
         if (ui.state.phase() != SelectionState.Phase.SELECTED || ui.dirty || ui.loadFailed) return;
         routeToSave = null;

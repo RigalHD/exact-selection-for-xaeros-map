@@ -280,7 +280,7 @@ final class ColorWindows extends UiPart {
             applyColor(color);
             return;
         }
-        ui.newAreaWindow.newAreaColor = color;
+        ui.newAreaWindow.useColor(color);
         ui.focus(null);
     }
 
@@ -372,7 +372,7 @@ final class ColorWindows extends UiPart {
             if (ui.syncing) return;
             // The new-area window takes a typed color as soon as it is complete.
             int color = AreaPalette.parse(value);
-            if (ui.dialog == Dialog.AREA_NAME && color >= 0) ui.newAreaWindow.newAreaColor = color;
+            if (ui.dialog == Dialog.AREA_NAME && color >= 0) ui.newAreaWindow.useColor(color);
         });
         colorHexApply = ui.button("color_apply", "color_hex_tooltip", this::applyHexColor);
     }

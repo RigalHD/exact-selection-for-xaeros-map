@@ -606,8 +606,7 @@ final class SelectionPanel extends UiPart {
     void quickSave() {
         if (ui.areasWindow.editedArea() != null) ui.areasWindow.applyEditedArea();
         else {
-            ui.newAreaWindow.areaNameReturn = Dialog.NONE;
-            ui.newAreaWindow.openAreaNameDialog();
+            ui.newAreaWindow.openAreaNameDialog(Dialog.NONE);
         }
     }
 

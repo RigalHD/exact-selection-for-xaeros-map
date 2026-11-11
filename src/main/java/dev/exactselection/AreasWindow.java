@@ -959,8 +959,7 @@ final class AreasWindow extends UiPart {
             ui.areaEdits.areaDraft.name = area == null || name.isEmpty() || name.equals(area.name()) ? null : name;
         });
         areaSave = ui.button("area_save_selection", () -> {
-            ui.newAreaWindow.areaNameReturn = Dialog.AREAS;
-            ui.newAreaWindow.openAreaNameDialog();
+            ui.newAreaWindow.openAreaNameDialog(Dialog.AREAS);
         });
         areaLoad = ui.button("area_edit", "area_edit_tooltip", () -> loadArea(selectedArea()));
         areaShow = ui.iconButton("area_show_tooltip", () -> showArea(selectedArea()));

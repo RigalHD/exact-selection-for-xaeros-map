@@ -217,7 +217,7 @@ final class SessionChecks {
                 checkLayout(controller);
                 key(controller, GLFW.GLFW_KEY_ESCAPE, 0);
                 require(!window(controller).equals("COLOR"), "Esc did not close the color window");
-                press(controller, "areaSave");
+                press(controller, "saveSelectionButton");
                 checkLayout(controller);
                 press(controller, "modalCancel");
                 press(controller, "managementClose");

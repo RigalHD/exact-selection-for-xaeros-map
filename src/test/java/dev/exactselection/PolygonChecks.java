@@ -292,7 +292,7 @@ final class PolygonChecks {
                 draft.isEmpty() && selection.geometry().equals(moved),
                 "Cancelling the next path lost the completed area");
         press(controller, "areasButton");
-        press(controller, "areaSave");
+        press(controller, "saveSelectionButton");
         enter(controller, map, 8, "Polygon editing check");
         SavedAreaStore.Area area =
                 store.state().areas().get(store.state().areas().size() - 1);

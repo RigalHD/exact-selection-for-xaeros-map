@@ -33,7 +33,7 @@ import org.lwjgl.glfw.GLFW;
 
 /** The Areas window: its list with search and checked rows, the details of the checked area and its buttons. */
 final class AreasWindow extends UiPart {
-    private Button areaSave, areaLoad;
+    private Button saveSelectionButton, areaLoad;
     Button areaShow;
     private Button areaRestore, areaDelete, areaSelectAll, areaClearSelection, areaSaveChanges;
     Button autosaveButton;
@@ -860,7 +860,7 @@ final class AreasWindow extends UiPart {
         place(ui.transferWindow.transferFolderButton, x + 12 + col - 18, y + h - 92, 18, 18);
         place(areaSelectAll, x + 12, y + h - 72, half, 18);
         place(areaClearSelection, x + 15 + half, y + h - 72, col - half - 3, 18);
-        place(areaSave, x + 12, y + h - 52, col, 18);
+        place(saveSelectionButton, x + 12, y + h - 52, col, 18);
         int third = (col - 6) / 3;
         place(areaMapVisibility, x + 12, y + h - 32, third, 18);
         place(areaMinimapVisibility, x + 15 + third, y + h - 32, third, 18);
@@ -876,7 +876,7 @@ final class AreasWindow extends UiPart {
                     ui.groupsWindow.manageGroups,
                     ui.managementUndo,
                     ui.managementRedo,
-                    areaSave,
+                    saveSelectionButton,
                     ui.transferWindow.areaExportFile,
                     ui.transferWindow.areaImport,
                     ui.transferWindow.transferFolderButton,
@@ -949,7 +949,7 @@ final class AreasWindow extends UiPart {
         areaOpacity.active = areaColor.active && !route;
         areaVisibility.active = selectedCount > 0 && !ui.loadFailed;
         groupAssign.active = selectedCount > 0 && !ui.loadFailed;
-        areaSave.active = ui.state.phase() == SelectionState.Phase.SELECTED && !ui.dirty && !ui.loadFailed;
+        saveSelectionButton.active = ui.state.phase() == SelectionState.Phase.SELECTED && !ui.dirty && !ui.loadFailed;
         ui.field(DialogField.AREA_NAME).active = singleArea && !ui.loadFailed;
         ui.transferWindow.areaExportFile.active = !ui.loadFailed && !ui.areas().isEmpty();
         ui.transferWindow.areaExportFile.setMessage(
@@ -987,7 +987,7 @@ final class AreasWindow extends UiPart {
         areaSelectAll.active =
                 !ui.loadFailed && displayedAreas().stream().anyMatch(a -> !selectedAreaIds.contains(a.id()));
         areaClearSelection.active = selectedCount > 0;
-        ui.tip(areaSave, ui.tr(ui.loadFailed ? ui.loadFailedKey() : "area_save_tooltip"));
+        ui.tip(saveSelectionButton, ui.tr(ui.loadFailed ? ui.loadFailedKey() : "area_save_tooltip"));
     }
 
     void createAreaWidgets() {
@@ -997,7 +997,7 @@ final class AreasWindow extends UiPart {
             String name = value.trim();
             ui.areaEdits.areaDraft.name = area == null || name.isEmpty() || name.equals(area.name()) ? null : name;
         });
-        areaSave = ui.button("area_save_selection", () -> {
+        saveSelectionButton = ui.button("area_save_selection", () -> {
             ui.newAreaWindow.openAreaNameDialog(Dialog.AREAS);
         });
         areaLoad = ui.button("area_edit", "area_edit_tooltip", () -> loadArea(selectedArea()));

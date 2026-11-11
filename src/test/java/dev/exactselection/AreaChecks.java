@@ -724,7 +724,7 @@ final class AreaChecks {
                         && store.state().areas().stream().allMatch(area -> thirdGroup.equals(area.groupId())),
                 "Undo group deletion failed");
         press(controller, "managementClose");
-        press(controller, "areaSave");
+        press(controller, "saveSelectionButton");
         enter(controller, map, 8, "Third area");
         require(
                 store.state().areas().size() == 3 && ((Set<?>) get(controller, "selectedAreaIds")).size() == 1,
@@ -743,7 +743,7 @@ final class AreaChecks {
             press(controller, "groupAssign");
             checkLayout(controller);
             press(controller, "managementClose");
-            press(controller, "areaSave");
+            press(controller, "saveSelectionButton");
             checkLayout(controller);
             press(controller, "modalCancel");
             press(controller, "manageGroups");

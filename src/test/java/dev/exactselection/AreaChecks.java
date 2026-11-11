@@ -312,7 +312,7 @@ final class AreaChecks {
             require(
                     text(controller, 4).getValue().equals("Unsaved name") && "Unsaved name".equals(draft.name),
                     "Switching the map layer silently dropped the unsaved name");
-            press(controller, "areaDelete");
+            press(controller, "deleteButton");
             press(controller, "confirm");
             require(
                     store.state().areas().size() == 1
@@ -327,7 +327,7 @@ final class AreaChecks {
             SavedAreaStore.Area last = store.state().areas().get(0);
             edited.load(last.geometry(), last.id());
             pick(controller, store, last.id());
-            press(controller, "areaDelete");
+            press(controller, "deleteButton");
             press(controller, "confirm");
             require(
                     store.state().areas().isEmpty() && edited.source() == null && edited.geometry() != null,

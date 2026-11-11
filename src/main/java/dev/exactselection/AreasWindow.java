@@ -35,7 +35,7 @@ import org.lwjgl.glfw.GLFW;
 final class AreasWindow extends UiPart {
     private Button saveSelectionButton, editShapeButton;
     Button areaShow;
-    private Button areaRestore, areaDelete, areaSelectAll, areaClearSelection, areaSaveChanges;
+    private Button areaRestore, deleteButton, areaSelectAll, areaClearSelection, areaSaveChanges;
     Button autosaveButton;
     private Button autosaveToggle, autosaveClose, roundingButton;
     /** A rectangle corner by compass direction; north is -Z and west is -X, as in Minecraft. */
@@ -844,7 +844,7 @@ final class AreasWindow extends UiPart {
             // "Selected" section: visibility and deletion of every checked area, apart from the territory above.
             int selectedTop = selectedSectionTop(y, h);
             place(areaVisibility, right, selectedTop + 12, half, 18);
-            place(areaDelete, right + half + 3, selectedTop + 12, col - half - 3, 18);
+            place(deleteButton, right + half + 3, selectedTop + 12, col - half - 3, 18);
         }
         place(ui.mapExport.openExportButton, right, y + h - 44, col, 16);
         // A damaged file allows no export, so its notice cannot be there at the same time.
@@ -901,7 +901,7 @@ final class AreasWindow extends UiPart {
                         groupAssign,
                         editShapeButton,
                         areaExportButton,
-                        areaDelete,
+                        deleteButton,
                         areaVisibility,
                         areaColor,
                         areaOpacity);
@@ -944,7 +944,7 @@ final class AreasWindow extends UiPart {
             button.active = ui.autosave.enabled();
         });
         areaExportButton.active = singleArea && !route && !ui.loadFailed && !ui.mapExport.exportRunning;
-        areaDelete.active = selectedCount > 0 && !ui.loadFailed;
+        deleteButton.active = selectedCount > 0 && !ui.loadFailed;
         areaColor.active = selectedCount > 0 && !ui.loadFailed;
         areaOpacity.active = areaColor.active && !route;
         areaVisibility.active = selectedCount > 0 && !ui.loadFailed;
@@ -983,7 +983,7 @@ final class AreasWindow extends UiPart {
                 ui.tr(ui.areaStore.state().showOnMinimap() ? "area_minimap_on" : "area_minimap_off"));
         areaNames.setMessage(ui.tr(ui.areaStore.state().showNames() ? "area_names_on" : "area_names_off"));
         areaMapVisibility.active = areaMinimapVisibility.active = areaNames.active = !ui.loadFailed;
-        areaDelete.setMessage(ui.tr("area_delete_count", selectedCount));
+        deleteButton.setMessage(ui.tr("area_delete_count", selectedCount));
         areaSelectAll.active =
                 !ui.loadFailed && displayedAreas().stream().anyMatch(a -> !selectedAreaIds.contains(a.id()));
         areaClearSelection.active = selectedCount > 0;
@@ -1003,7 +1003,7 @@ final class AreasWindow extends UiPart {
         editShapeButton = ui.button("area_edit", "area_edit_tooltip", () -> loadArea(selectedArea()));
         areaShow = ui.iconButton("area_show_tooltip", () -> showArea(selectedArea()));
         areaRestore = ui.button("area_restore", "area_restore_tooltip", ui.areaEdits::restoreAreas);
-        areaDelete = ui.button("area_delete", "area_delete_tooltip", this::deleteArea);
+        deleteButton = ui.button("area_delete", "area_delete_tooltip", this::deleteArea);
         areaSaveChanges = ui.button(
                 "area_save_changes", "area_save_changes_tooltip", () -> ui.areaEdits.commitDraft(field -> true));
         autosaveButton = ui.iconButton("autosave_tooltip", () -> {

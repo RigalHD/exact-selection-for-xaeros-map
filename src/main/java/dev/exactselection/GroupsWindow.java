@@ -235,6 +235,21 @@ final class GroupsWindow extends UiPart {
         return Math.max(1, (height - 110) / 20);
     }
 
+    /** After the groups changed under the window: a chosen group that no longer exists is dropped. */
+    void dropMissingGroup() {
+        if (selectedGroup() == null) groupId = null;
+    }
+
+    void cancelGroupDelete() {
+        groupDeleteConfirmation = false;
+    }
+
+    /** The map moved to another world: nothing chosen, the list at its top. */
+    void forgetGroups() {
+        groupId = null;
+        groupScroll = 0;
+    }
+
     Group selectedGroup() {
         return findGroup(groupId);
     }

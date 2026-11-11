@@ -194,7 +194,7 @@ final class AreasWindow extends UiPart {
         ui.areaEdits.areaDraft.clear();
         autosaveOpen = false;
         areaDeleteConfirmation = areaDeleteFromMenu = false;
-        ui.groupsWindow.groupDeleteConfirmation = false;
+        ui.groupsWindow.cancelGroupDelete();
         ui.setDialogValue(DialogField.AREA_NAME, "");
         ui.message = "";
     }
@@ -222,7 +222,7 @@ final class AreasWindow extends UiPart {
         for (Area area : areas) existing.add(area.id());
         selectedAreaIds.retainAll(existing);
         if (!selectedAreaIds.contains(areaId)) areaId = lastOf(selectedAreaIds);
-        if (ui.groupsWindow.selectedGroup() == null) ui.groupsWindow.groupId = null;
+        ui.groupsWindow.dropMissingGroup();
         ui.detachMissingSource();
         // History replaced the stored areas; a draft based on the old values no longer applies.
         ui.areaEdits.areaDraft.clear();

@@ -76,7 +76,7 @@ final class Windows extends UiPart {
             return;
         }
         if (ui.dialog == Dialog.GROUPS && ui.groupsWindow.groupDeleteConfirmation) {
-            ui.groupsWindow.groupDeleteConfirmation = false;
+            ui.groupsWindow.cancelGroupDelete();
             ui.focus(null);
             return;
         }

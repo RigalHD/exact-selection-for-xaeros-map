@@ -1,5 +1,6 @@
 package dev.exactselection;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.IdentityHashMap;
@@ -45,7 +46,7 @@ public final class XaeroWaypointBridge implements WaypointAccess {
 
     @FunctionalInterface
     interface Save {
-        void run() throws Exception;
+        void run() throws IOException;
     }
 
     /**
@@ -161,7 +162,7 @@ public final class XaeroWaypointBridge implements WaypointAccess {
     }
 
     /** Applies a change and saves it; when that fails, takes the change back and saves again. */
-    private static void change(Runnable apply, Runnable undo, Save save) throws Exception {
+    private static void change(Runnable apply, Runnable undo, Save save) throws IOException {
         try {
             apply.run();
             save.run();
@@ -178,16 +179,16 @@ public final class XaeroWaypointBridge implements WaypointAccess {
     }
 
     @Override
-    public void delete(Snapshot snapshot) throws Exception {
+    public void delete(Snapshot snapshot) throws IOException {
         deleteAndSave(snapshot, saver(snapshot.world(), snapshot.set()));
     }
 
     @Override
-    public void edit(Snapshot snapshot, List<Point> from, List<Point> to) throws Exception {
+    public void edit(Snapshot snapshot, List<Point> from, List<Point> to) throws IOException {
         editAndSave((WaypointSet) snapshot.set(), from, to, saver(snapshot.world(), snapshot.set()));
     }
 
-    static void editAndSave(WaypointSet set, List<Point> from, List<Point> to, Save save) throws Exception {
+    static void editAndSave(WaypointSet set, List<Point> from, List<Point> to, Save save) throws IOException {
         if (from.size() != to.size()) throw new IllegalStateException("Waypoint changed after confirmation");
         Set<Object> identities = Collections.newSetFromMap(new IdentityHashMap<>());
         List<Waypoint> current = new ArrayList<>();
@@ -222,7 +223,7 @@ public final class XaeroWaypointBridge implements WaypointAccess {
                 save);
     }
 
-    static void deleteAndSave(Snapshot snapshot, Save save) throws Exception {
+    static void deleteAndSave(Snapshot snapshot, Save save) throws IOException {
         WaypointSet set = (WaypointSet) snapshot.set();
         List<Waypoint> before = new ArrayList<>();
         set.addTo(before);
@@ -254,7 +255,7 @@ public final class XaeroWaypointBridge implements WaypointAccess {
     }
 
     @Override
-    public void restore(Snapshot snapshot) throws Exception {
+    public void restore(Snapshot snapshot) throws IOException {
         WaypointSet set = (WaypointSet) snapshot.set();
         Save save = saver(snapshot.world(), set);
         List<Waypoint> current = new ArrayList<>();
@@ -309,7 +310,7 @@ public final class XaeroWaypointBridge implements WaypointAccess {
     }
 
     @Override
-    public Point create(MapBridge.Context context, int x, int y, int z, String name) throws Exception {
+    public Point create(MapBridge.Context context, int x, int y, int z, String name) throws IOException {
         if (context == null) throw new IllegalStateException("Minimap unavailable");
         MinimapWorld world = displayedWorld();
         WaypointSet set = world == null ? null : world.getCurrentWaypointSet();
@@ -326,7 +327,7 @@ public final class XaeroWaypointBridge implements WaypointAccess {
     }
 
     @Override
-    public Point recreate(MapBridge.Context context, Point point) throws Exception {
+    public Point recreate(MapBridge.Context context, Point point) throws IOException {
         if (point == null) throw new IllegalStateException("Waypoint context changed");
         WaypointSet set = (WaypointSet) point.setIdentity();
         Save save = saver(point.worldIdentity(), set);
@@ -345,7 +346,7 @@ public final class XaeroWaypointBridge implements WaypointAccess {
     }
 
     @Override
-    public void removeCreated(MapBridge.Context context, Point point) throws Exception {
+    public void removeCreated(MapBridge.Context context, Point point) throws IOException {
         if (context == null || point == null) throw new IllegalStateException("Minimap unavailable");
         WaypointSet set = (WaypointSet) point.setIdentity();
         Save save = saver(point.worldIdentity(), set);

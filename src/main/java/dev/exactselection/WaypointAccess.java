@@ -1,5 +1,6 @@
 package dev.exactselection;
 
+import java.io.IOException;
 import java.util.List;
 
 /** Optional Minimap integration stays out of the controller's class signatures. */
@@ -116,19 +117,19 @@ public interface WaypointAccess {
         return scale == 1 ? coordinate : (int) Math.floor(coordinate / scale);
     }
 
-    void edit(Snapshot snapshot, List<Point> from, List<Point> to) throws Exception;
+    void edit(Snapshot snapshot, List<Point> from, List<Point> to) throws IOException;
 
     int colorRgb(int index);
 
     Snapshot captureSet(Snapshot snapshot);
 
-    void delete(Snapshot snapshot) throws Exception;
+    void delete(Snapshot snapshot) throws IOException;
 
-    void restore(Snapshot snapshot) throws Exception;
+    void restore(Snapshot snapshot) throws IOException;
 
-    Point create(MapBridge.Context context, int x, int y, int z, String name) throws Exception;
+    Point create(MapBridge.Context context, int x, int y, int z, String name) throws IOException;
 
-    Point recreate(MapBridge.Context context, Point point) throws Exception;
+    Point recreate(MapBridge.Context context, Point point) throws IOException;
 
-    void removeCreated(MapBridge.Context context, Point point) throws Exception;
+    void removeCreated(MapBridge.Context context, Point point) throws IOException;
 }

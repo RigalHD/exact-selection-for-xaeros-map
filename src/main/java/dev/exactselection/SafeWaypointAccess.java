@@ -2,6 +2,7 @@ package dev.exactselection;
 
 import static dev.exactselection.ModLog.LOG;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.function.Supplier;
 
@@ -44,14 +45,14 @@ final class SafeWaypointAccess implements WaypointAccess {
     }
 
     private interface Action {
-        void run() throws Exception;
+        void run() throws IOException;
     }
 
     private interface Result<T> {
-        T get() throws Exception;
+        T get() throws IOException;
     }
 
-    private <T> T action(Result<T> call) throws Exception {
+    private <T> T action(Result<T> call) throws IOException {
         if (broken) throw new IllegalStateException("Unsupported Xaero's Minimap version");
         try {
             return call.get();
@@ -62,7 +63,7 @@ final class SafeWaypointAccess implements WaypointAccess {
         }
     }
 
-    private void action(Action call) throws Exception {
+    private void action(Action call) throws IOException {
         action(() -> {
             call.run();
             return null;
@@ -95,32 +96,32 @@ final class SafeWaypointAccess implements WaypointAccess {
     }
 
     @Override
-    public void edit(Snapshot snapshot, List<Point> from, List<Point> to) throws Exception {
+    public void edit(Snapshot snapshot, List<Point> from, List<Point> to) throws IOException {
         action(() -> delegate.edit(snapshot, from, to));
     }
 
     @Override
-    public void delete(Snapshot snapshot) throws Exception {
+    public void delete(Snapshot snapshot) throws IOException {
         action(() -> delegate.delete(snapshot));
     }
 
     @Override
-    public void restore(Snapshot snapshot) throws Exception {
+    public void restore(Snapshot snapshot) throws IOException {
         action(() -> delegate.restore(snapshot));
     }
 
     @Override
-    public Point create(MapBridge.Context context, int x, int y, int z, String name) throws Exception {
+    public Point create(MapBridge.Context context, int x, int y, int z, String name) throws IOException {
         return action(() -> delegate.create(context, x, y, z, name));
     }
 
     @Override
-    public Point recreate(MapBridge.Context context, Point point) throws Exception {
+    public Point recreate(MapBridge.Context context, Point point) throws IOException {
         return action(() -> delegate.recreate(context, point));
     }
 
     @Override
-    public void removeCreated(MapBridge.Context context, Point point) throws Exception {
+    public void removeCreated(MapBridge.Context context, Point point) throws IOException {
         action(() -> delegate.removeCreated(context, point));
     }
 }

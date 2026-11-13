@@ -170,7 +170,7 @@ final class AreasWindow extends UiPart {
     /** The confirmation was opened from the right-click menu, so it returns to the map. */
     private boolean areaDeleteFromMenu;
 
-    private String areaId;
+    String areaId;
     final Set<String> selectedAreaIds = new LinkedHashSet<>();
 
     private AreaGeometry overlapGeometry;
@@ -182,7 +182,7 @@ final class AreasWindow extends UiPart {
     private String sortedQuery = "";
     private List<Area> sortedAreas = List.of();
 
-    private int areaScroll;
+    int areaScroll;
 
     AreasWindow(ExactSelectionController ui) {
         super(ui);
@@ -914,8 +914,11 @@ final class AreasWindow extends UiPart {
             }
         }
         areaRestore.visible = !areaDeleteConfirmation && ui.areaStore.canRestore();
-        // Restore takes the same place; a damaged file comes first.
-        if (!areaDeleteConfirmation && !areaRestore.visible && ui.mapExport.hasExportNotice())
+        // Restore takes the same place; a damaged file comes first. In a low window the Selected section reaches
+        // down to that place, and the button stays in the panel only.
+        Rect r = ui.windows.dialogRect();
+        boolean room = selectedSectionTop(r.y(), r.height()) + 30 <= r.y() + r.height() - 44;
+        if (!areaDeleteConfirmation && !areaRestore.visible && room && ui.mapExport.hasExportNotice())
             ui.show(true, ui.mapExport.openExportButton);
     }
 

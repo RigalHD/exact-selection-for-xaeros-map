@@ -36,6 +36,12 @@ def outline(name):
             if line.startswith('#')]
 
 readme_sections = outline('README.md') == outline('README.ru.md')
+
+# Both READMEs name the JAR of the version in gradle.properties.
+version = re.search(r'^mod_version=(.+)$', (root / 'gradle.properties').read_text(encoding='utf-8'), re.M).group(1)
+for name in ('README.md', 'README.ru.md'):
+    jars = re.findall(r'exact-selection-for-xaeros-map-([^`\s]+)\.jar', (root / name).read_text(encoding='utf-8'))
+    assert jars and all(jar == version for jar in jars), f'{name} names the JAR of {jars}, the version is {version}'
 print(f'PASS: {len(en)} matching localization keys, placeholders, English text, keys used by the code')
 if not readme_sections:
     print('NOTE: README.md and README.ru.md differ in their headings')

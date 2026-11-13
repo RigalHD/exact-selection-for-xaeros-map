@@ -37,5 +37,12 @@
     "homepage": "https://github.com/RigalHD/xaero-exact-selection",
     "sources": "https://github.com/RigalHD/xaero-exact-selection",
     "issues": "https://github.com/RigalHD/xaero-exact-selection/issues"
+  },
+  "custom": {
+    "modmenu": {
+      "links": {
+        "modmenu.github_releases": "https://github.com/RigalHD/xaero-exact-selection/releases"
+      }
+    }
   }
 }

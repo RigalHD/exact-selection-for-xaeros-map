@@ -532,7 +532,9 @@ final class GroupsWindow extends UiPart {
                     groupDelete,
                     ui.transferWindow.groupExport,
                     ui.transferWindow.transferFolderButton);
-            ui.show(ui.mapExport.hasExportNotice(), ui.mapExport.openExportButton);
+            // A low window has the totals where the button goes; the panel and the Areas window still show it.
+            boolean room = ui.windows.dialogRect().height() - 44 >= 218;
+            ui.show(room && ui.mapExport.hasExportNotice(), ui.mapExport.openExportButton);
         }
     }
 

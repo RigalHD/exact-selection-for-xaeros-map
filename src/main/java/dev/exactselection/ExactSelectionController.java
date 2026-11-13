@@ -841,8 +841,8 @@ public final class ExactSelectionController {
      */
     void updateVisibility() {
         if (selectionPanel.toggle == null) return;
-        if ((selectionPanel.perimeterInline() ? -12 : 0) != selectionPanel.metricsShift)
-            selectionPanel.layoutMainPanel();
+        if ((selectionPanel.perimeterInline() ? -12 : 0) != selectionPanel.metricsShift
+                || selectionPanel.fileRow != mapExport.hasExportNotice()) selectionPanel.layoutMainPanel();
         for (AbstractWidget widget : widgets) widget.visible = false;
         selectionPanel.updatePanelWidgets();
         windows.showWindowWidgets();

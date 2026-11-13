@@ -33,6 +33,7 @@
 - Faster with many areas: an unchanged area file is not read again when the map opens, the minimap reuses what the map read, polygons keep their triangles and bounds, sticking skips areas away from the pointer, and tooltips are rebuilt only when their text changes.
 - The Russian interface says «область» everywhere instead of mixing it with «зона».
 - Leaving a world releases the map world the tool was holding.
+- The Show file button stays until the next export instead of disappearing with the next message, and has its own row in the panel under the status line.
 
 ### Fixed
 

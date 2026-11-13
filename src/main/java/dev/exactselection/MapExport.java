@@ -27,7 +27,6 @@ final class MapExport extends UiPart {
 
     Path lastExport;
     boolean exportRunning;
-    String exportNotice = "";
 
     final Window window = new Window() {
         @Override
@@ -170,18 +169,17 @@ final class MapExport extends UiPart {
 
     private void exportCompleted(AreaExportService.Result result) {
         lastExport = result.file().toAbsolutePath().normalize();
-        exportNotice = ui.tr("area_exported", result.width(), result.height()).getString();
-        ui.message = exportNotice;
+        String notice = ui.tr("area_exported", result.width(), result.height()).getString();
+        ui.message = notice;
         setExportTooltip(Component.literal(lastExport.getFileName().toString())
                 .append(" · ")
-                .append(exportNotice));
+                .append(notice));
         ui.selectionPanel.layoutMainPanel();
     }
 
     /** Announces a written file and keeps the Show file button for it. */
     void announceFile(Path file, String notice, Component tooltip) {
         lastExport = file.toAbsolutePath().normalize();
-        exportNotice = notice;
         ui.message = notice;
         setExportTooltip(tooltip);
     }
@@ -191,13 +189,15 @@ final class MapExport extends UiPart {
         openExportButton.setTooltip(exportTooltip);
     }
 
+    /** A written file the Show file button still points to: until the next export, or until the file is gone. */
     boolean hasExportNotice() {
-        return lastExport != null && !exportNotice.isEmpty() && ui.message.equals(exportNotice);
+        return lastExport != null;
     }
 
     private void openLastExport() {
         if (lastExport == null) return;
         if (!Files.isRegularFile(lastExport)) {
+            lastExport = null;
             ui.say("export_file_missing");
             return;
         }

@@ -847,7 +847,6 @@ final class AreasWindow extends UiPart {
             place(deleteButton, right + half + 3, selectedTop + 12, col - half - 3, 18);
         }
         place(ui.mapExport.openExportButton, right, y + h - 44, col, 16);
-        // A damaged file allows no export, so its notice cannot be there at the same time.
         place(areaRestore, right, y + h - 44, col, 16);
         place(areaSortButton, x + 14 + col - 130, y + 27, 130, 16);
         Span search = areaSearchSpan(x, col);
@@ -914,8 +913,10 @@ final class AreasWindow extends UiPart {
                 areaShow.visible = copy(AreaCopy.NAME).visible;
             }
         }
-        if (!areaDeleteConfirmation && ui.mapExport.hasExportNotice()) ui.show(true, ui.mapExport.openExportButton);
         areaRestore.visible = !areaDeleteConfirmation && ui.areaStore.canRestore();
+        // Restore takes the same place; a damaged file comes first.
+        if (!areaDeleteConfirmation && !areaRestore.visible && ui.mapExport.hasExportNotice())
+            ui.show(true, ui.mapExport.openExportButton);
     }
 
     void updateAreaWidgets() {

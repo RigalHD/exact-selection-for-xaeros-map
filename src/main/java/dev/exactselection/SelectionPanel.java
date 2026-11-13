@@ -33,6 +33,10 @@ final class SelectionPanel extends UiPart {
     Button panelModeButton, rulerButton, copyRulerDistance, quickSave, areasInSelectionButton;
     /** -12 while the perimeter shares the area line: everything below moves up one line and the panel gets shorter. */
     int metricsShift;
+    /** The Show file button has its own row under the status line while there is a file to show. */
+    boolean fileRow;
+
+    private static final int FILE_ROW = 18;
 
     boolean compact = true;
     private int panelHeight;
@@ -80,6 +84,7 @@ final class SelectionPanel extends UiPart {
     void layoutMainPanel() {
         panelWidth = Math.min(compact ? 256 : 320, Math.max(224, ui.screen.width - 68));
         metricsShift = perimeterInline() ? -12 : 0;
+        fileRow = ui.mapExport.hasExportNotice();
         panelHeight = Math.min(contentHeight(), ui.screen.height - PANEL_Y - 8);
         panelScroll = Math.max(0, Math.min(panelScroll, maxPanelScroll()));
         int x = PANEL_X + 8, top = PANEL_Y - (compact ? 0 : panelScroll), y = top + metricsShift, w = panelWidth - 16;
@@ -112,7 +117,7 @@ final class SelectionPanel extends UiPart {
     }
 
     private int contentHeight() {
-        return (compact ? COMPACT_HEIGHT : EXPANDED_HEIGHT) + metricsShift;
+        return (compact ? COMPACT_HEIGHT : EXPANDED_HEIGHT) + metricsShift + (fileRow ? FILE_ROW : 0);
     }
 
     private Component areaText() {
@@ -281,8 +286,7 @@ final class SelectionPanel extends UiPart {
             toastText = ui.message;
             toastShownAt = now;
         }
-        // The export notice also keeps the panel's "Show file" button; only the toast hides.
-        if (!ui.message.isEmpty() && now - toastShownAt > TOAST_MILLIS && !ui.mapExport.hasExportNotice()) {
+        if (!ui.message.isEmpty() && now - toastShownAt > TOAST_MILLIS) {
             ui.message = "";
             toastText = "";
         }
@@ -380,8 +384,7 @@ final class SelectionPanel extends UiPart {
                 : compact && ui.dirty
                         ? ui.tr("coordinates_pending")
                         : editing == null ? ui.tr("controls") : ui.tr("editing_area", editing.name());
-        if (!ui.mapExport.hasExportNotice())
-            line(g, status, (compact ? 96 : 221) + sh, loadWarning ? Theme.WARNING : Theme.TEXT_MUTED);
+        line(g, status, (compact ? 96 : 221) + sh, loadWarning ? Theme.WARNING : Theme.TEXT_MUTED);
         g.disableScissor();
         if (maxPanelScroll() > 0)
             g.drawString(ui.mc.font, ui.tr("panel_scroll"), PANEL_X + 8, PANEL_Y + panelHeight - 12, Theme.TEXT_MUTED);
@@ -451,7 +454,7 @@ final class SelectionPanel extends UiPart {
             place(
                     ui.mapExport.openExportButton,
                     PANEL_X + 8,
-                    PANEL_Y + metricsShift + (compact ? 93 : 218 - panelScroll),
+                    PANEL_Y + metricsShift + (compact ? 108 : 233 - panelScroll),
                     panelWidth - 16,
                     16);
             ui.show(true, ui.mapExport.openExportButton);

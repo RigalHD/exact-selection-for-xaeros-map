@@ -21,6 +21,9 @@ final class WindowChecks {
 
     static void checkExportNotice(ExactSelectionController controller, GuiMap map, Path directory) throws Exception {
         Button open = (Button) get(controller, "openExportButton");
+        // Earlier scenarios exported files; this one starts without any.
+        set(controller, "lastExport", null);
+        controller.updateVisibility();
         require(!open.visible, "File button is visible before an export");
         Method completed = declared("exportCompleted", AreaExportService.Result.class);
         completed.setAccessible(true);
@@ -29,19 +32,20 @@ final class WindowChecks {
         completed.invoke(receiver(controller, completed), new AreaExportService.Result(first, 100, 200));
         controller.updateVisibility();
         require(open.visible && open.active, "Successful export did not show the file button");
-        // The bottom toast hides after a while, but the file button stays until another message replaces the notice.
+        // The message goes away after a while and others come and go; the file button stays until the next export.
         set(controller, "toastText", get(controller, "message"));
         set(controller, "toastShownAt", net.minecraft.util.Util.getMillis() - 7000);
         call(controller, "expireToast");
         call(controller, "updateVisibility");
-        require(open.visible, "The file button disappeared with the toast");
-        Object notice = get(controller, "message");
+        require(get(controller, "message").equals(""), "An expired export message was kept");
+        require(open.visible, "The file button disappeared with the message");
         set(controller, "message", "x");
+        call(controller, "updateVisibility");
+        require(open.visible, "Another message hid the file button");
         set(controller, "toastText", "x");
         set(controller, "toastShownAt", net.minecraft.util.Util.getMillis() - 7000);
         call(controller, "expireToast");
         require(get(controller, "message").equals(""), "An expired ordinary message was kept");
-        set(controller, "message", notice);
         call(controller, "updateVisibility");
         require(
                 get(controller, "lastExport").equals(first.toAbsolutePath()),

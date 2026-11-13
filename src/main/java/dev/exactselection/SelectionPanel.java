@@ -274,21 +274,22 @@ final class SelectionPanel extends UiPart {
     /**
      * The latest message, centred near the bottom of the screen for a few seconds instead of cut short in the panel.
      */
-    void renderToast(GuiGraphics g) {
+    /** Every frame with the panel on screen: a new message starts its time, an old one goes away. */
+    void expireToast() {
         long now = Util.getMillis();
         if (!ui.message.equals(toastText)) {
             toastText = ui.message;
             toastShownAt = now;
         }
-        if (ui.message.isEmpty()) return;
-        if (now - toastShownAt > TOAST_MILLIS) {
-            // The export notice also keeps the panel's "Show file" button; only the toast hides.
-            if (!ui.mapExport.hasExportNotice()) {
-                ui.message = "";
-                toastText = "";
-            }
-            return;
+        // The export notice also keeps the panel's "Show file" button; only the toast hides.
+        if (!ui.message.isEmpty() && now - toastShownAt > TOAST_MILLIS && !ui.mapExport.hasExportNotice()) {
+            ui.message = "";
+            toastText = "";
         }
+    }
+
+    void renderToast(GuiGraphics g) {
+        if (ui.message.isEmpty() || Util.getMillis() - toastShownAt > TOAST_MILLIS) return;
         List<FormattedCharSequence> lines =
                 ui.mc.font.split(Component.literal(ui.message), Math.min(360, ui.screen.width - 40));
         if (lines.size() > 3) lines = lines.subList(0, 3);

@@ -665,6 +665,7 @@ public final class ExactSelectionController {
         MapBridge.Frame frame = checkedFrame();
         if (frame != null && enabled() && dragging && waypointsWindow.pending == null && dialog == Dialog.NONE)
             bridge.exactselection$pan(mouseX - lastMouseX, mouseY - lastMouseY);
+        if (frame != null && dialog == Dialog.NONE) selectionPanel.expireToast();
         mapPointer.followPointer(frame, mouseX, mouseY);
         if (frame != null) {
             polygonTool.trackPolygonCursor(frame, mouseX, mouseY);

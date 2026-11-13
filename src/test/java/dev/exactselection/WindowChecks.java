@@ -30,18 +30,16 @@ final class WindowChecks {
         controller.updateVisibility();
         require(open.visible && open.active, "Successful export did not show the file button");
         // The bottom toast hides after a while, but the file button stays until another message replaces the notice.
-        Method toast = declared("renderToast", net.minecraft.client.gui.GuiGraphics.class);
-        toast.setAccessible(true);
         set(controller, "toastText", get(controller, "message"));
         set(controller, "toastShownAt", net.minecraft.util.Util.getMillis() - 7000);
-        toast.invoke(receiver(controller, toast), (Object) null);
+        call(controller, "expireToast");
         call(controller, "updateVisibility");
         require(open.visible, "The file button disappeared with the toast");
         Object notice = get(controller, "message");
         set(controller, "message", "x");
         set(controller, "toastText", "x");
         set(controller, "toastShownAt", net.minecraft.util.Util.getMillis() - 7000);
-        toast.invoke(receiver(controller, toast), (Object) null);
+        call(controller, "expireToast");
         require(get(controller, "message").equals(""), "An expired ordinary message was kept");
         set(controller, "message", notice);
         call(controller, "updateVisibility");

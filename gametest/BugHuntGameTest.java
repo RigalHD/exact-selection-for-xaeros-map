@@ -46,13 +46,15 @@ public class BugHuntGameTest extends MapUiGameTest {
     private void ensureTool() throws Exception {
         if (!ui().enabled()) press("toggle");
         check(ui().enabled(), "the tool is on");
+        // The panel's view is remembered between sessions; the scenarios click the map where the expanded one lies.
+        if (!ui().selectionPanel.compact) press("panelModeButton");
     }
 
     private void saveZone(String name, double x1, double y1, double x2, double y2) throws Exception {
         selectRect(x1, y1, x2, y2);
         rightClick((x1 + x2) / 2, (y1 + y2) / 2);
         press("quickMenuSave");
-        typeInto(ui().dialogFields[ExactSelectionController.NEW_AREA_FIELD], name);
+        typeInto(ui().field(ExactSelectionController.DialogField.NEW_AREA), name);
         key(GLFW.GLFW_KEY_ENTER);
         check(hasZone(name), "the zone was saved: " + name);
     }
@@ -142,11 +144,15 @@ public class BugHuntGameTest extends MapUiGameTest {
                 int wx = (int) Math.floor(f.worldX(x)), wz = (int) Math.floor(f.worldZ(y));
                 int size = Math.max(2, (int) (f.worldX(x + 14) - f.worldX(x)));
                 if (i % 10 == 0) {
+                    // At a close zoom the ring is a few blocks wide and rounding repeats its vertices; each is kept
+                    // once.
                     List<GridPoint> ring = new ArrayList<>();
-                    for (int v = 0; v < 64; v++)
-                        ring.add(new GridPoint(
+                    for (int v = 0; v < 64; v++) {
+                        GridPoint point = new GridPoint(
                                 wx + Math.round(size * 2 * Math.cos(v * Math.PI / 32)),
-                                wz + Math.round(size * 2 * Math.sin(v * Math.PI / 32))));
+                                wz + Math.round(size * 2 * Math.sin(v * Math.PI / 32)));
+                        if (!ring.contains(point)) ring.add(point);
+                    }
                     list.add(SavedAreaStore.create("Ring " + i, new PolygonGeometry(ring), 0x33AA66, 25, null));
                 } else
                     list.add(SavedAreaStore.create(
@@ -227,7 +233,8 @@ public class BugHuntGameTest extends MapUiGameTest {
         press("run");
         c.waitTicks(3);
         check(
-                !ui.mapExport.exportRunning && ui.message.contains("explored"),
+                // The scenario before this one leaves the game in Russian.
+                !ui.mapExport.exportRunning && (ui.message.contains("explored") || ui.message.contains("исследована")),
                 "an unexplored place gets a clear message: " + ui.message);
         shot("b13_unexplored");
         press("panelModeButton");

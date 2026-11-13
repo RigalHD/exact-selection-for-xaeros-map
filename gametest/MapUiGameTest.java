@@ -231,7 +231,8 @@ public class MapUiGameTest implements FabricClientGameTest {
     }
 
     int[] rect() {
-        return ui().windows.dialogRect();
+        Rect r = ui().windows.dialogRect();
+        return new int[] {r.x(), r.y(), r.width(), r.height()};
     }
 
     void row(int index) {
@@ -482,14 +483,14 @@ public class MapUiGameTest implements FabricClientGameTest {
         rightClick((sx(b.minX()) + sx(b.maxX() + 1L)) / 2, (sy(b.minZ()) + sy(b.maxZ() + 1L)) / 2);
         press("moveButton");
         check(ui.dialog == Dialog.MOVE, "Move opens its window");
-        clickWidget(ui.dialogFields[ExactSelectionController.OFFSET_X_FIELD]);
-        typeInto(ui.dialogFields[ExactSelectionController.OFFSET_X_FIELD], "7");
+        clickWidget(ui.field(ExactSelectionController.DialogField.OFFSET_X));
+        typeInto(ui.field(ExactSelectionController.DialogField.OFFSET_X), "7");
         key(GLFW.GLFW_KEY_ENTER);
         check(ui.dialog == Dialog.NONE && ui.state.bounds().minX() == b.minX() + 7, "Enter moves the selection");
         rightClick((sx(b.minX() + 7L) + sx(b.maxX() + 8L)) / 2, (sy(b.minZ()) + sy(b.maxZ() + 1L)) / 2);
         press("quickMenuSave");
         check(ui.dialog == Dialog.AREA_NAME, "Save opens the name window");
-        EditBox name = ui.dialogFields[ExactSelectionController.NEW_AREA_FIELD];
+        EditBox name = ui.field(ExactSelectionController.DialogField.NEW_AREA);
         check(name.visible && ui.screen.getFocused() == name, "the name field is shown and focused");
         shot("07_new_area");
         press("newAreaOpacityButton");
@@ -519,16 +520,16 @@ public class MapUiGameTest implements FabricClientGameTest {
         ExactSelectionController ui = ui();
         key(GLFW.GLFW_KEY_J);
         check(ui.dialog == Dialog.AREAS, "J opens Areas");
-        check(w("managementClose").visible && w("areaSave").visible, "the window's widgets show");
+        check(w("managementClose").visible && w("saveSelectionButton").visible, "the window's widgets show");
         check(!w("toggle").visible && !w("areasButton").visible, "the panel's buttons are hidden behind it");
-        check(!w("areaLoad").active, "nothing is checked at first");
+        check(!w("editShapeButton").active, "nothing is checked at first");
         shot("09_areas");
         row(0);
         check(
-                ui.areasWindow.selectedAreaIds.size() == 1 && w("areaLoad").active && w("areaDelete").active,
+                ui.areasWindow.selectedAreaIds.size() == 1 && w("editShapeButton").active && w("deleteButton").active,
                 "a row click checks the area");
         shot("10_area_row");
-        EditBox name = ui.dialogFields[ExactSelectionController.AREA_NAME_FIELD];
+        EditBox name = ui.field(ExactSelectionController.DialogField.AREA_NAME);
         clickWidget(name);
         check(ui.screen.getFocused() == name, "a click focuses the name");
         typeInto(name, "Renamed");
@@ -554,7 +555,7 @@ public class MapUiGameTest implements FabricClientGameTest {
         press("roundingButton");
         press("autosaveToggle");
         press("autosaveClose");
-        check(!ui.areasWindow.autosaveOpen && w("areaLoad").visible, "Close returns to the area");
+        check(!ui.areasWindow.autosaveOpen && w("editShapeButton").visible, "Close returns to the area");
         press("areaMapVisibility");
         check(!ui.areaStore.state().showOnMap(), "the Map switch turns the overlay off");
         press("areaMapVisibility");
@@ -574,11 +575,11 @@ public class MapUiGameTest implements FabricClientGameTest {
         check(!ui.areas().get(0).visible(), "the window's redo repeats it");
         press("areaVisibility");
         check(ui.areas().get(0).visible(), "Show shows it again");
-        press("areaDelete");
+        press("deleteButton");
         check(
                 ui.areasWindow.areaDeleteConfirmation && w("confirm").visible && ui.screen.getFocused() == w("confirm"),
                 "Delete asks, with the focus on its button");
-        check(!w("areaDelete").visible, "the other buttons hide while it asks");
+        check(!w("deleteButton").visible, "the other buttons hide while it asks");
         shot("14_delete");
         key(GLFW.GLFW_KEY_ESCAPE);
         check(
@@ -586,7 +587,7 @@ public class MapUiGameTest implements FabricClientGameTest {
                         && ui.dialog == Dialog.AREAS
                         && ui.areas().size() == 1,
                 "Esc only cancels the question");
-        press("areaDelete");
+        press("deleteButton");
         press("confirm");
         check(ui.areas().isEmpty(), "Confirm deletes");
         shot("15_empty");
@@ -620,7 +621,7 @@ public class MapUiGameTest implements FabricClientGameTest {
         c.waitTicks(20);
         key(GLFW.GLFW_KEY_J);
         row(0);
-        press("areaLoad");
+        press("editShapeButton");
         check(
                 ui.dialog == Dialog.NONE && ui.state.source() != null && ui.state.bounds() != null,
                 "Edit loads the area");
@@ -639,7 +640,7 @@ public class MapUiGameTest implements FabricClientGameTest {
         shot("20_groups");
         press("groupCreate");
         check(ui.dialog == Dialog.GROUP_NAME, "New group asks for a name");
-        EditBox name = ui.dialogFields[ExactSelectionController.GROUP_NAME_FIELD];
+        EditBox name = ui.field(ExactSelectionController.DialogField.GROUP_NAME);
         check(name.visible, "the group name field shows");
         check(!w("modalApply").active, "an empty group name cannot be created");
         shot("21_group_name");
@@ -752,7 +753,7 @@ public class MapUiGameTest implements FabricClientGameTest {
         rowMods(2, GLFW.GLFW_MOD_SUPER);
         check(ui.areasWindow.selectedAreaIds.size() == 4, "Cmd+click unchecks one");
         shot("30_range");
-        press("areaDelete");
+        press("deleteButton");
         press("confirm");
         check(
                 ui.areas().size() == 37,
@@ -844,7 +845,7 @@ public class MapUiGameTest implements FabricClientGameTest {
         check(ui.rightClickMenu.quickMenu, "a right click on the polygon opens the menu");
         shot("35_polygon_menu");
         press("quickMenuSave");
-        EditBox name = ui.dialogFields[ExactSelectionController.NEW_AREA_FIELD];
+        EditBox name = ui.field(ExactSelectionController.DialogField.NEW_AREA);
         typeInto(name, "Poly");
         key(GLFW.GLFW_KEY_ENTER);
         check(
@@ -960,7 +961,7 @@ public class MapUiGameTest implements FabricClientGameTest {
         press("centerButton");
         check(ui.dialog == Dialog.CENTER, "Center opens");
         shot("47_center");
-        EditBox name = ui.dialogFields[ExactSelectionController.CENTER_NAME_FIELD];
+        EditBox name = ui.field(ExactSelectionController.DialogField.CENTER_NAME);
         clickWidget(name);
         typeInto(name, "E2E point");
         press("centerCreate");
@@ -990,7 +991,7 @@ public class MapUiGameTest implements FabricClientGameTest {
         shot("50b_unchecked");
         click(r[0] + 60, r[1] + 88);
         check(ui.waypointsWindow.chosenPoints.size() == 1 && w("confirm").active, "another click checks it again");
-        EditBox rename = ui.dialogFields[ExactSelectionController.RENAME_FIELD];
+        EditBox rename = ui.field(ExactSelectionController.DialogField.RENAME);
         clickWidget(rename);
         typeInto(rename, "Renamed point");
         check(w("pointRename").active, "typing enables Rename");
@@ -1119,15 +1120,15 @@ public class MapUiGameTest implements FabricClientGameTest {
         selectRect(400, 120, 560, 300);
         key(GLFW.GLFW_KEY_J);
         row(0);
-        EditBox name = ui.dialogFields[ExactSelectionController.AREA_NAME_FIELD];
+        EditBox name = ui.field(ExactSelectionController.DialogField.AREA_NAME);
         clickWidget(name);
         in.typeChars("Typed");
         c.waitTick();
-        String typed = ui.dialogFields[ExactSelectionController.AREA_NAME_FIELD].getValue();
+        String typed = ui.field(ExactSelectionController.DialogField.AREA_NAME).getValue();
         in.resizeWindow(1024, 640);
         c.waitTicks(3);
         check(
-                ui.dialogFields[ExactSelectionController.AREA_NAME_FIELD]
+                ui.field(ExactSelectionController.DialogField.AREA_NAME)
                         .getValue()
                         .equals(typed),
                 "a resize keeps typed text");

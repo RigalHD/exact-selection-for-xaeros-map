@@ -601,7 +601,7 @@ final class SessionChecks {
             ExactSelectionController full = toolOn(map, bridge, minecraft, directory, context, true, "limit");
             SavedAreaStore fullStore = (SavedAreaStore) get(full, "areaStore");
             List<SavedAreaStore.Area> many = new ArrayList<>();
-            for (int i = 0; i < 1000; i++)
+            for (int i = 0; i < SavedAreaStore.MAX_AREAS; i++)
                 many.add(SavedAreaStore.create(
                         "Z" + i, new SelectionBounds(i * 20, 5000, i * 20 + 5, 5005), 0x123456, 25, null));
             fullStore.replace(new SavedAreaStore.State(many, List.of(), true, true));
@@ -610,7 +610,7 @@ final class SessionChecks {
             call(full, "quickSave");
             press(full, "modalApply");
             require(
-                    fullStore.state().areas().size() == 1000
+                    fullStore.state().areas().size() == SavedAreaStore.MAX_AREAS
                             && get(full, "message").toString().contains("areas_limit"),
                     "The limit was not named");
 

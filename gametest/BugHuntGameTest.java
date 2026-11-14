@@ -136,13 +136,16 @@ public class BugHuntGameTest extends MapUiGameTest {
             mc.options.framerateLimit().set(260);
         });
         double empty = msPerFrame("no zones, tool on");
+        int count = SavedAreaStore.MAX_AREAS;
         List<SavedAreaStore.Area> areas = c.computeOnClient(mc -> {
             MapBridge.Frame f = ui.bridge.exactselection$frame();
             List<SavedAreaStore.Area> list = new ArrayList<>();
-            for (int i = 0; i < 1000; i++) {
-                double x = 60 + (i % 40) * 17.5, y = 30 + (i / 40) * 15;
+            // A grid over the map, 100 zones a row, as many rows as the limit takes.
+            int columns = 100, rows = (count + columns - 1) / columns;
+            for (int i = 0; i < count; i++) {
+                double x = 60 + (i % columns) * 7.0, y = 30 + (i / columns) * (375.0 / rows);
                 int wx = (int) Math.floor(f.worldX(x)), wz = (int) Math.floor(f.worldZ(y));
-                int size = Math.max(2, (int) (f.worldX(x + 14) - f.worldX(x)));
+                int size = Math.max(2, (int) (f.worldX(x + 5) - f.worldX(x)));
                 if (i % 10 == 0) {
                     // At a close zoom the ring is a few blocks wide and rounding repeats its vertices; each is kept
                     // once.
@@ -166,25 +169,25 @@ public class BugHuntGameTest extends MapUiGameTest {
                 mc -> ui.areaEdits.changeAreas(ui.areaEdits.areaState(tooMany, ui.groups()), "area_save"));
         check(
                 !added && ui.areas().isEmpty() && !ui.message.isEmpty(),
-                "1001 zones are refused with a message: " + ui.message);
+                (count + 1) + " zones are refused with a message: " + ui.message);
         boolean saved = c.computeOnClient(
                 mc -> ui.areaEdits.changeAreas(ui.areaEdits.areaState(areas, ui.groups()), "area_save"));
-        check(saved && ui.areas().size() == 1000, "1000 zones are accepted");
-        double zones = msPerFrame("1000 zones, tool on");
-        shot("b01_1000_zones");
+        check(saved && ui.areas().size() == count, count + " zones are accepted");
+        double zones = msPerFrame(count + " zones, tool on");
+        shot("b01_zone_limit");
         at(400, 200);
-        double hoverOn = msPerFrame("1000 zones, pointer over them");
+        double hoverOn = msPerFrame(count + " zones, pointer over them");
         click(300, 120);
         at(500, 300);
-        double preview = msPerFrame("1000 zones, second corner");
+        double preview = msPerFrame(count + " zones, second corner");
         key(GLFW.GLFW_KEY_ESCAPE);
         key(GLFW.GLFW_KEY_O);
         at(420, 210);
-        double contour = msPerFrame("1000 zones, Polygon tool");
+        double contour = msPerFrame(count + " zones, Polygon tool");
         key(GLFW.GLFW_KEY_O);
         key(GLFW.GLFW_KEY_J);
-        double window = msPerFrame("1000 zones, Areas window");
-        shot("b02_1000_areas_window");
+        double window = msPerFrame(count + " zones, Areas window");
+        shot("b02_zone_limit_areas_window");
         long t = System.nanoTime();
         press("areaSelectAll");
         press("areaClearSelection");
@@ -193,7 +196,7 @@ public class BugHuntGameTest extends MapUiGameTest {
         key(GLFW.GLFW_KEY_ESCAPE);
         press("toggle");
         at(400, 200);
-        double off = msPerFrame("1000 zones, tool off, hover");
+        double off = msPerFrame(count + " zones, tool off, hover");
         press("toggle");
         c.runOnClient(mc -> {
             long u = System.nanoTime();
@@ -214,7 +217,7 @@ public class BugHuntGameTest extends MapUiGameTest {
             ui.areaEdits.toggleAreaNames();
             return (System.nanoTime() - u) / 2000000;
         });
-        System.out.println("E2E: speed one write of 1000 zones " + w + " ms");
+        System.out.println("E2E: speed one write of " + count + " zones " + w + " ms");
         c.runOnClient(mc -> ui.areaStore.replace(ui.areaEdits.areaState(List.of(), ui.groups())));
         check(ui.areas().isEmpty(), "the test zones are gone");
     }

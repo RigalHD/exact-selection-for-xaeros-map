@@ -157,7 +157,7 @@ public final class SavedAreaStore {
         }
     }
 
-    static final int MAX_AREAS = 1000, MAX_GROUPS = 200;
+    static final int MAX_AREAS = 5000, MAX_GROUPS = 1000;
     private static final ConcurrentHashMap<Path, Long> GENERATIONS = new ConcurrentHashMap<>();
     private static final ConcurrentHashMap<Path, Loaded> LOADED = new ConcurrentHashMap<>();
     private final Path root;

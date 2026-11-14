@@ -34,6 +34,7 @@
 - The Russian interface says «область» everywhere instead of mixing it with «зона».
 - Leaving a world releases the map world the tool was holding.
 - The Show file button stays until the next export instead of disappearing with the next message, and has its own row in the panel under the status line.
+- One dimension holds up to 5000 areas and 1000 groups instead of 1000 and 200, and import takes files up to 64 MB instead of 16 MB.
 
 ### Fixed
 
@@ -43,7 +44,7 @@
 - Esc, the Polygon button, Clear or turning the tool off lost a contour for good; undo now brings it back.
 - Edit on an area off screen seemed to do nothing; the map now moves to it.
 - Ctrl/Cmd+Z behind the new-area, color, size and similar windows changed what they work on, and Create then did nothing.
-- At the limit of 1000 areas or 200 groups the message spoke of a failed write; it now names the limit.
+- At the limit of areas or groups the message spoke of a failed write; it now names the limit.
 - The Show file button lost its tooltip on a window resize.
 - Default names repeated after a deletion.
 - A click on the map held back by typed coordinates in the expanded panel said nothing.

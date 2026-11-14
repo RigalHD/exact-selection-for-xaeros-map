@@ -278,19 +278,10 @@ final class AreaChecks {
             List<Integer> colors = new ArrayList<>();
             graphics.state.forEachElement(
                     element -> {
-                        try {
-                            // Vertex colors; the outline's smoothed fringe fades to transparent and is left out.
-                            Method vertices = element.getClass().getDeclaredMethod("vertices");
-                            vertices.setAccessible(true);
-                            for (Object vertex : (List<?>) vertices.invoke(element)) {
-                                Method color = vertex.getClass().getDeclaredMethod("color");
-                                color.setAccessible(true);
-                                int value = (Integer) color.invoke(vertex);
-                                if (value >>> 24 != 0) colors.add(value);
-                            }
-                        } catch (ReflectiveOperationException e) {
-                            throw new AssertionError(e);
-                        }
+                        // Vertex colors; the outline's smoothed fringe fades to transparent and is left out.
+                        var shapes = (GeometryScreenRenderer.GeometryState) element;
+                        for (int i = 0; i < shapes.count(); i++)
+                            if (shapes.colors()[i] >>> 24 != 0) colors.add(shapes.colors()[i]);
                     },
                     GuiRenderState.TraverseRange.ALL);
             int alpha = store.state().areas().get(0).color();

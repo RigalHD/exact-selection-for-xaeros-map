@@ -176,7 +176,6 @@
   "exactselection.group_renamed": "Имя группы сохранено.",
   "exactselection.group_assigned": "Выбрано областей: %s · группа: %s",
   "exactselection.group_member_count": "областей: %s",
-  "exactselection.toggle_icon": "□",
   "exactselection.area_export": "Экспорт карты…",
   "exactselection.area_export_tooltip": "Сохранить PNG карты в границах выбранной области и наложить видимые сохранённые области.",
   "exactselection.area_exported": "PNG сохранён · %s×%s",

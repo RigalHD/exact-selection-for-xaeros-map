@@ -132,7 +132,7 @@ Invalid intersecting or duplicate-vertex edits are rejected. Polygon geometry an
 - A file names its world in its `context` field.
 - Writes use a temporary file and atomic replacement where supported, and keep the previous version beside the file as `.bak`.
 - An unreadable existing file is kept and is not overwritten with empty data; **Restore the previous version** in the Areas window puts the `.bak` back and keeps the damaged file as `.broken`.
-- One dimension holds at most 1000 areas and 200 groups.
+- One dimension holds at most 5000 areas and 1000 groups.
 
 ## Xaero waypoints
 

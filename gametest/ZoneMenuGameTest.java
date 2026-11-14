@@ -41,6 +41,8 @@ public class ZoneMenuGameTest extends MapUiGameTest {
 
     private void zoneMenu() throws Exception {
         ExactSelectionController ui = ui();
+        // Copy rounding is remembered between sessions; the checks below expect the default.
+        c.runOnClient(mc -> ui.autosave.setRounding(ModSettings.Rounding.DOWN));
         press("toggle");
         c.runOnClient(mc -> {
             MapBridge.Frame f = ui.bridge.exactselection$frame();

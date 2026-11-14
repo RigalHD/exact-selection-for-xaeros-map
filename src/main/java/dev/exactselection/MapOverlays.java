@@ -28,6 +28,9 @@ final class MapOverlays extends UiPart {
         Map<String, Group> groups = new HashMap<>();
         for (Group group : ui.groups()) groups.put(group.id(), group);
         boolean names = ui.areaStore.state().showNames();
+        // One draw for all of them, in layer order.
+        GeometryScreenRenderer.Batch shapes =
+                new GeometryScreenRenderer.Batch(g.pose(), ui.screen.width, ui.screen.height);
         for (Area area : ui.areas()) {
             if (!area.visible()) continue;
             Group group = groups.get(area.groupId());
@@ -46,8 +49,7 @@ final class MapOverlays extends UiPart {
             int fill = (fillAlpha << 24) | rgb, outline = (superseded ? 0x60000000 : 0xFF000000) | rgb;
             int labelColor = (superseded ? 0x99000000 : 0xFF000000) | rgb;
             if (!area.vertices().isEmpty()) {
-                GeometryScreenRenderer.draw(
-                        g, frame, geometry, ui.screen.width, ui.screen.height, fill, outline, superseded ? 1.0 : 1.5);
+                shapes.add(frame, geometry, fill, outline, superseded ? 1.0 : 1.5);
                 ScreenPoint anchor = geometry.closed()
                         ? polygonLabelAnchor(frame, geometry, geometryBounds)
                         : routeLabelAnchor(frame, geometry);
@@ -64,10 +66,11 @@ final class MapOverlays extends UiPart {
             double right = frame.screenX((long) b.maxX() + 1), bottom = frame.screenY((long) b.maxZ() + 1);
             int x1 = clamp(left, 0, ui.screen.width), y1 = clamp(top, 0, ui.screen.height);
             int x2 = clamp(right, 0, ui.screen.width), y2 = clamp(bottom, 0, ui.screen.height);
-            GeometryScreenRenderer.draw(g, frame, geometry, ui.screen.width, ui.screen.height, fill, outline, 1.0);
+            shapes.add(frame, geometry, fill, outline, 1.0);
             if (names && (x2 - x1) > 50 && (y2 - y1) > 14)
                 mapLabels.add(new MapLabel(Component.literal(area.name()), (x1 + x2) / 2, y1 + 3, labelColor));
         }
+        shapes.submit(g);
     }
 
     boolean onScreen(MapBridge.Frame frame, GeometryBounds bounds) {
@@ -260,7 +263,7 @@ final class MapOverlays extends UiPart {
 
     /** A vertex, handle or ruler point: a dark square in a colored frame. */
     static void marker(GuiGraphics g, int x, int y, int radius, int color) {
-        g.fill(x - radius, y - radius, x + radius + 1, y + radius + 1, 0xFF101922);
+        g.fill(x - radius, y - radius, x + radius + 1, y + radius + 1, Theme.MARKER);
         g.renderOutline(x - radius, y - radius, 2 * radius + 1, 2 * radius + 1, color);
     }
 }

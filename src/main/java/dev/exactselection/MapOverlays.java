@@ -260,7 +260,7 @@ final class MapOverlays extends UiPart {
 
     /** A vertex, handle or ruler point: a dark square in a colored frame. */
     static void marker(GuiGraphics g, int x, int y, int radius, int color) {
-        g.fill(x - radius, y - radius, x + radius + 1, y + radius + 1, 0xFF101922);
+        g.fill(x - radius, y - radius, x + radius + 1, y + radius + 1, Theme.MARKER);
         g.renderOutline(x - radius, y - radius, 2 * radius + 1, 2 * radius + 1, color);
     }
 }

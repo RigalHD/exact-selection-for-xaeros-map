@@ -515,7 +515,6 @@ final class SelectionPanel extends UiPart {
         toggle.visible = ui.dialog == Dialog.NONE;
         // Off and without a map frame, there is nothing to turn the tool on for.
         toggle.active = ui.enabled() || ui.bridge.exactselection$frame() != null;
-        toggle.setMessage(Component.literal(ui.enabled() ? "■" : "□"));
         polygonModeButton.setMessage(ui.tr(ui.polygonTool.mode ? "polygon_mode_on" : "polygon_mode"));
         polygonModeButton.active = ui.enabled() && !ui.dirty && !ui.holding() && ui.dialog == Dialog.NONE;
         ui.tip(polygonModeButton, ui.tr(ui.polygonTool.mode ? "polygon_controls" : "polygon_mode_tooltip"));
@@ -566,8 +565,10 @@ final class SelectionPanel extends UiPart {
     }
 
     void createPanelWidgets() {
-        toggle = ui.button("toggle_icon", "title", ui::toggle);
-        place(toggle, 6, 28, 24, 18);
+        toggle = new ToolToggle(ui);
+        ui.widgets.add(toggle);
+        // Centred under Xaero's gear, which is drawn over columns 7 to 21, and level with the panel's title.
+        place(toggle, 4, 30, 21, 16);
         coordinateLabelWidth = Math.max(ui.mc.font.width("A: X"), ui.mc.font.width("B: X"));
         zLabelWidth = ui.mc.font.width("Z");
         fieldGap = 6;

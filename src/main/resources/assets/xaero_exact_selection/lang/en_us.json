@@ -176,7 +176,6 @@
   "exactselection.group_renamed": "Group name saved.",
   "exactselection.group_assigned": "Areas selected: %s · group: %s",
   "exactselection.group_member_count": "areas: %s",
-  "exactselection.toggle_icon": "□",
   "exactselection.area_export": "Export map…",
   "exactselection.area_export_tooltip": "Save a PNG of the selected area and overlay visible saved areas.",
   "exactselection.area_exported": "PNG saved · %s×%s",

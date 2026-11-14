@@ -22,6 +22,8 @@ final class Theme {
     static final int INACTIVE = 0xFF64717A;
     /** Pixel icons on buttons, and on buttons that cannot be pressed. */
     static final int ICON = 0xFFE0E0E0, ICON_DISABLED = 0xFF8A8A8A;
+    /** The dark square inside a handle, vertex or ruler point, on the map and on the tool's toggle. */
+    static final int MARKER = 0xFF101922;
 
     private Theme() {}
 }

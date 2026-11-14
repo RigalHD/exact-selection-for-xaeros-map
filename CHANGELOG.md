@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.4.0+1.21.11
 
 ### Added
 
@@ -40,6 +40,7 @@
 
 ### Fixed
 
+- An area file edited outside the game in the same millisecond as the last write, without changing its size, was not read again.
 - Areas and center coordinates from 10 million with a half showed as `1.00045005E7`. The units key no longer reports the units when its button is unavailable, and a failed undo or redo is written to the game log.
 - Shift did nothing while dragging an existing vertex; it now lines the vertex up with a neighbouring one, both in a contour and on a finished polygon.
 - A first area saved in a new world vanished from the map while the Map switch was off. Saved areas are now always drawn with the tool on, and the first area switches the map overlay on.

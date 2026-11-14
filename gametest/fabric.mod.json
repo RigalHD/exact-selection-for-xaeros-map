@@ -4,5 +4,10 @@
   "version": "1.0.0",
   "name": "Exact Selection e2e",
   "environment": "client",
-  "entrypoints": { "fabric-client-gametest": ["dev.exactselection.MapUiGameTest", "dev.exactselection.BugHuntGameTest"] }
+  "entrypoints": { "fabric-client-gametest": [
+    "dev.exactselection.MapUiGameTest",
+    "dev.exactselection.BugHuntGameTest",
+    "dev.exactselection.LayersGameTest",
+    "dev.exactselection.ZoneMenuGameTest"
+  ] }
 }

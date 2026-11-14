@@ -94,9 +94,8 @@ final class Windows extends UiPart {
     void layoutDialog() {
         if (ui.dialog == Dialog.NONE) return;
         Rect r = dialogRect();
-        int y = r.y(), h = r.height();
-        int buttonY = y + h - 28;
-        window().layout(r, buttonY);
+        // The bottom row of buttons, shared by every window.
+        window().layout(r, r.y() + r.height() - 28);
     }
 
     /** The fields and buttons every window shares. */

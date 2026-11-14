@@ -3,6 +3,7 @@ package dev.exactselection;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.FileTime;
 import java.util.Comparator;
 import java.util.List;
 
@@ -28,6 +29,9 @@ public final class SavedAreaStoreCheck {
         Path backup = file.resolveSibling(file.getFileName() + ".bak");
         String newest = Files.readString(file).replace("\"schema\":3", "\"schema\":4");
         Files.writeString(file, newest);
+        // The edit keeps the size; on a file system with coarse times it could also keep the time of the write above.
+        Files.setLastModifiedTime(
+                file, FileTime.from(Files.getLastModifiedTime(file).toInstant().plusSeconds(2)));
         Files.writeString(backup, Files.readString(backup).replace("\"schema\":3", "\"schema\":4"));
         SavedAreaStore newer = new SavedAreaStore(directory);
         try {

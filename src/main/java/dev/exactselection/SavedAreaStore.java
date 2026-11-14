@@ -254,7 +254,8 @@ public final class SavedAreaStore {
 
     private String stamp() {
         try {
-            return Files.exists(file) ? Files.getLastModifiedTime(file).toMillis() + ":" + Files.size(file) : "absent";
+            // The time at the file system's full precision: two writes of one size can share a millisecond.
+            return Files.exists(file) ? Files.getLastModifiedTime(file).toInstant() + ":" + Files.size(file) : "absent";
         } catch (IOException e) {
             return "unreadable:" + System.nanoTime();
         }

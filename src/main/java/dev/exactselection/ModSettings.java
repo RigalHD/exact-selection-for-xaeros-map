@@ -14,8 +14,8 @@ import java.util.EnumSet;
 import java.util.Locale;
 
 /**
- * The mod's settings, shared by all worlds and also shown in Mod Menu: which saved-area changes are written immediately instead of
- * waiting for Save, and how copied area and perimeter are rounded.
+ * The mod's settings, shared by all worlds and also shown in Mod Menu: which saved-area changes are written immediately
+ * instead of waiting for Save, and how copied area and perimeter are rounded.
  */
 public final class ModSettings {
     public enum Field {

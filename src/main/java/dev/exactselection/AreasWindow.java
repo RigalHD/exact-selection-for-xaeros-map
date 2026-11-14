@@ -116,6 +116,8 @@ final class AreasWindow extends UiPart {
     private Button groupAssign, areaVisibility, areaColor, areaOpacity, areaExportButton, areaMapVisibility;
     private Button areaMinimapVisibility, areaNames;
     boolean areaDeleteConfirmation;
+    /** The confirmation was opened from the right-click menu, so it returns to the map. */
+    private boolean areaDeleteFromMenu;
 
     final Window window = new Window() {
         @Override
@@ -167,8 +169,6 @@ final class AreasWindow extends UiPart {
             areaScroll = InputRouter.scrolled(areaScroll, step, displayedAreas().size(), visibleAreaDialogRows(height));
         }
     };
-    /** The confirmation was opened from the right-click menu, so it returns to the map. */
-    private boolean areaDeleteFromMenu;
 
     String areaId;
     final Set<String> selectedAreaIds = new LinkedHashSet<>();

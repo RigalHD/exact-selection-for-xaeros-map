@@ -232,8 +232,8 @@ public class BugHuntGameTest extends MapUiGameTest {
         check(ui.dialog == Dialog.EXPORT, "Export opens for a place nobody explored");
         press("run");
         c.waitTicks(3);
+        // The scenario before this one leaves the game in Russian.
         check(
-                // The scenario before this one leaves the game in Russian.
                 !ui.mapExport.exportRunning && (ui.message.contains("explored") || ui.message.contains("исследована")),
                 "an unexplored place gets a clear message: " + ui.message);
         shot("b13_unexplored");

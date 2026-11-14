@@ -13,6 +13,7 @@ import net.minecraft.client.gui.components.Button;
 final class SelectionDialogs extends UiPart {
     Button anchorButton, moveUnitsButton, centerCopy, centerCreate;
     boolean sizeFromCenter;
+    boolean moveInChunks;
 
     final Window sizeWindow = new Window() {
         @Override
@@ -70,7 +71,6 @@ final class SelectionDialogs extends UiPart {
             g.drawString(ui.mc.font, ui.tr("lower_left_axes"), x + 18, y + 124, Theme.TEXT_MUTED);
         }
     };
-    boolean moveInChunks;
 
     final Window moveWindow = new Window() {
         @Override

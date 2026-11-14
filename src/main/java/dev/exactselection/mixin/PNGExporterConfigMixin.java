@@ -10,7 +10,10 @@ import xaero.lib.common.config.option.ConfigOption;
 import xaero.lib.common.config.single.SingleConfigManager;
 import xaero.map.file.export.PNGExporter;
 
-/** Lets one export of ours use its own settings: every setting the exporter reads goes through {@link AreaExportConfigOverride}. */
+/**
+ * Lets one export of ours use its own settings: every setting the exporter reads goes through {@link
+ * AreaExportConfigOverride}.
+ */
 @Pseudo
 @Mixin(value = PNGExporter.class, remap = false)
 public abstract class PNGExporterConfigMixin {

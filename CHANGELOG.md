@@ -65,6 +65,7 @@
 
 ### Internal
 
+- The in-game scenarios in `gametest/` run with `./gradlew -PgameTest runClientGameTest`.
 - Dependency versions live in `gradle.properties`, and the localization check also verifies the JAR name in both READMEs.
 - The code is formatted with Spotless and compiles without warnings, and the build checks both. Repeated colors, the world limit and the config folder have names; enums and records replace number codes and small arrays. The checks run under JUnit, one test per scenario.
 - A saved area is a record over one geometry; the in-game test scenarios are kept in `gametest/`.

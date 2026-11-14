@@ -44,7 +44,7 @@ final class Windows extends UiPart {
         ui.focus(null);
     }
 
-    /** The open window when it has been moved to {@link Window}; null while the switches below still describe it. */
+    /** The open window, or null when none is open. */
     Window window() {
         return switch (ui.dialog) {
             case SIZE -> ui.selectionDialogs.sizeWindow;
@@ -117,7 +117,7 @@ final class Windows extends UiPart {
         ui.managementRedo = ui.arrowButton("↷", ui::redo);
     }
 
-    /** Which widgets the open window shows; the Areas and Groups windows decide for themselves. */
+    /** Makes the open window's widgets visible. */
     void showWindowWidgets() {
         Window open = window();
         if (open != null) open.show();

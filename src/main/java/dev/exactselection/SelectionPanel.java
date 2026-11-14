@@ -27,6 +27,7 @@ final class SelectionPanel extends UiPart {
     private static final int COPY_SIZE = 10;
     private static final int COMPACT_HEIGHT = 111;
     private static final int EXPANDED_HEIGHT = 238;
+    private static final int FILE_ROW = 18;
     final EditBox[] fields = new EditBox[4];
     Button toggle, apply, clear, pointsButton, copyCoordinates, copyCornerB, copyArea, copyPerimeter, copyLength;
     Button copyWidth, undo, redo, chunkMode, sizeButton, moveButton, centerButton, areasButton, polygonModeButton;
@@ -36,15 +37,13 @@ final class SelectionPanel extends UiPart {
     /** The Show file button has its own row under the status line while there is a file to show. */
     boolean fileRow;
 
-    private static final int FILE_ROW = 18;
-
     boolean compact = true;
     private int panelHeight;
     int panelScroll;
-    /** The message shown at the bottom of the screen and when it appeared; it fades out after TOAST_MILLIS. */
     private static final long TOAST_MILLIS = 6000;
-
+    /** The message shown at the bottom of the screen and when it appeared; it fades out after TOAST_MILLIS. */
     private String toastText = "";
+
     private long toastShownAt;
     private int panelWidth;
     int coordinateLabelWidth;

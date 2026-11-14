@@ -5,7 +5,10 @@ import java.awt.geom.Path2D;
 import java.awt.geom.PathIterator;
 import java.util.List;
 
-/** The shape of a selection or a saved area: a rectangle, a polygon or a route. Vertices are block corners, in drawing order. */
+/**
+ * The shape of a selection or a saved area: a rectangle, a polygon or a route. Vertices are block corners, in drawing
+ * order.
+ */
 public sealed interface AreaGeometry permits RectangleGeometry, PolygonGeometry, PolylineGeometry {
     GeometryBounds bounds();
 

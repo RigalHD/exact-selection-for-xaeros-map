@@ -40,7 +40,10 @@ import xaero.map.file.export.PNGExportResult;
 import xaero.map.gui.MapTileSelection;
 import xaero.map.world.MapWorld;
 
-/** Exports a part of the map to PNG: Xaero renders whole chunks on the client thread, then the image is cropped to the shape, enlarged and overlaid with saved areas in the background. */
+/**
+ * Exports a part of the map to PNG: Xaero renders whole chunks on the client thread, then the image is cropped to the
+ * shape, enlarged and overlaid with saved areas in the background.
+ */
 public final class AreaExportService {
     public record Result(Path file, int width, int height) {}
     /** The area exceeds {@link #MAX_PIXELS}; the user can act on this, unlike other export failures. */

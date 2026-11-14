@@ -187,6 +187,8 @@ python3 tools/check_localization.py
 
 The checks run under JUnit as part of `./gradlew build`; the report is in `build/reports/tests/test/index.html`.
 
+In-game scenarios in `gametest/` drive the tool in a real client; they are not part of the build and run with `./gradlew -PgameTest runClientGameTest`.
+
 Tests cover geometry, saved-area persistence, waypoint write rollback, editing/undo, localization, and UI widget layouts at 320×240, 480×270 and 960×540. They do not establish visual correctness in a running Minecraft client.
 
 ## License

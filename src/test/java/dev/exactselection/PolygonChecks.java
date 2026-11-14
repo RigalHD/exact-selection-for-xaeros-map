@@ -5,6 +5,7 @@ import static dev.exactselection.UiHarness.*;
 import java.lang.reflect.Method;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import net.minecraft.client.gui.components.Button;
@@ -492,9 +493,16 @@ final class PolygonChecks {
                 controller.renderMapOverlays(graphics, 600, 330);
                 List<GuiElementRenderState> geometryDraws = new ArrayList<>();
                 graphics.state.forEachElement(geometryDraws::add, GuiRenderState.TraverseRange.ALL);
+                // One draw for the saved areas, one for the selection.
                 require(
-                        geometryDraws.size() == (active ? 6 : 4),
+                        geometryDraws.size() == (active ? 2 : 1),
                         "Saved or selected area bypasses the renderer preserving fractional coordinates");
+                Set<Integer> drawn = new HashSet<>();
+                for (GuiElementRenderState draw : geometryDraws) {
+                    var shapes = (GeometryScreenRenderer.GeometryState) draw;
+                    for (int i = 0; i < shapes.count(); i++) drawn.add(shapes.colors()[i] & 0xFFFFFF);
+                }
+                require(drawn.contains(0x59E3CE) && drawn.contains(0xFF5573), "A saved area is missing from the map");
                 int lastGeometry = graphics.events.stream()
                         .filter(event -> event.text() == null)
                         .mapToInt(DrawEvent::stratum)
@@ -521,7 +529,7 @@ final class PolygonChecks {
             List<GuiElementRenderState> draws = new ArrayList<>();
             graphics.state.forEachElement(draws::add, GuiRenderState.TraverseRange.ALL);
             require(
-                    draws.size() == 4 && graphics.events.stream().noneMatch(event -> event.text() != null),
+                    draws.size() == 1 && graphics.events.stream().noneMatch(event -> event.text() != null),
                     "Hidden area names were still drawn, or the areas vanished with them");
         }
         selection.disable();

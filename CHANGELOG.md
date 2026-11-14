@@ -35,6 +35,7 @@
 - Leaving a world releases the map world the tool was holding.
 - The Show file button stays until the next export instead of disappearing with the next message, and has its own row in the panel under the status line.
 - One dimension holds up to 5000 areas and 1000 groups instead of 1000 and 200, and import takes files up to 64 MB instead of 16 MB.
+- The world map draws all saved areas as one batch and clips only the ones crossing the screen's edge: 5000 areas on screen take about 2 ms a frame instead of 50.
 - The switch that turns the tool on is a flat icon under Xaero's gear, like Xaero's own map buttons, instead of a square sign on a button: a selection with corner handles, white while the tool is off, teal and filled while it is on.
 
 ### Fixed

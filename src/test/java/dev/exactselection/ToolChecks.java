@@ -342,18 +342,11 @@ final class ToolChecks {
                     state, new Matrix3x2fStack(16), frame, road.geometry(), 640, 360, 0x40FF0000, 0xFFFF0000, 1.5);
             int[] count = {0};
             state.forEachElement(
-                    element -> {
-                        try {
-                            Method vertices = element.getClass().getDeclaredMethod("vertices");
-                            vertices.setAccessible(true);
-                            count[0] += ((List<?>) vertices.invoke(element)).size();
-                        } catch (ReflectiveOperationException e) {
-                            throw new AssertionError(e);
-                        }
-                    },
+                    element -> count[0] += ((GeometryScreenRenderer.GeometryState) element).count(),
                     GuiRenderState.TraverseRange.ALL);
+            // Each segment is three quads: the solid core and a fading fringe on either side.
             require(
-                    count[0] == 2 * 24,
+                    count[0] == 2 * 12,
                     "A route of two segments was drawn with " + count[0] + " vertices, closed or filled");
             mapClick(routes, 130, 300, GLFW.GLFW_MOUSE_BUTTON_RIGHT);
             require(

@@ -152,12 +152,12 @@ public final class PolygonRenderingCheck {
         GuiRenderState state = new GuiRenderState();
         GeometryScreenRenderer.draw(
                 state, new Matrix3x2f(), frame, new PolygonGeometry(points), 400, 300, 0x4059E3CE, 0xFF59E3CE, 2);
-        require(elements(state).size() == 2, "Fill or outline is missing from the native GUI queue");
+        require(elements(state).size() == 1, "Fill and outline are not one draw in the native GUI queue");
         BufferedImage preview = raster(state);
         require(preview.getRGB(195, 140) >>> 24 == 64, "Polygon interior is invisible or has incorrect opacity");
         require(preview.getRGB(380, 280) == 0, "Polygon paints outside its boundary");
         require(preview.getRGB(150, 40) >>> 24 > 200, "Polygon edge is invisible");
-        List<Vertex> edge = capture(elements(state).get(1)).vertices;
+        List<Vertex> edge = capture(elements(state).get(0)).vertices;
         require(
                 edge.stream().anyMatch(v -> v.color() == 0xFF59E3CE)
                         && edge.stream().anyMatch(v -> v.color() == 0x0059E3CE),
@@ -244,15 +244,16 @@ public final class PolygonRenderingCheck {
                     GuiRenderState fractionalState = new GuiRenderState();
                     GeometryScreenRenderer.draw(
                             fractionalState, new Matrix3x2f(), fractional, rectangle, 1602, 1202, 0x4059E3CE, -1, 1);
-                    var draws = elements(fractionalState);
-                    var fillVertices = capture(draws.get(0)).vertices;
+                    // One draw: the fill's quad, then the outline.
+                    var drawn = capture(elements(fractionalState).get(0)).vertices;
+                    var fillVertices = drawn.subList(0, 4);
                     double expectedX = fractional.screenX(origin), expectedY = fractional.screenY(origin);
                     require(
                             fillVertices.stream()
                                     .anyMatch(v -> Math.abs(v.x() - expectedX) < 0.0001
                                             && Math.abs(v.y() - expectedY) < 0.0001),
                             "Rectangle corner rounded at fractional zoom or large world coordinates");
-                    var edgeVertices = capture(draws.get(1)).vertices;
+                    var edgeVertices = drawn.subList(4, drawn.size());
                     require(
                             Math.abs((edgeVertices.get(0).y()
                                                             + edgeVertices

@@ -66,7 +66,8 @@ public final class XaeroApiCheck {
             if (!a.desc.equals("Lorg/spongepowered/asm/mixin/Mixin;")) continue;
             Object value = get(a, "value"), targets = get(a, "targets");
             if (value instanceof List<?> types && !types.isEmpty()) target = ((Type) types.get(0)).getInternalName();
-            if (targets instanceof List<?> names && !names.isEmpty()) target = ((String) names.get(0)).replace('.', '/');
+            if (targets instanceof List<?> names && !names.isEmpty())
+                target = ((String) names.get(0)).replace('.', '/');
         }
         if (isXaero(target)) {
             if (!requireClass(target, node.name)) return;
@@ -83,8 +84,7 @@ public final class XaeroApiCheck {
                     requireMethod(call.owner, call.name, call.desc, where);
                 else if (insn instanceof FieldInsnNode field && isXaero(field.owner))
                     requireField(field.owner, field.name, field.desc, where);
-                else if (insn instanceof TypeInsnNode type && isXaero(type.desc))
-                    requireClass(type.desc, where);
+                else if (insn instanceof TypeInsnNode type && isXaero(type.desc)) requireClass(type.desc, where);
             }
         }
     }
@@ -97,16 +97,18 @@ public final class XaeroApiCheck {
                     String name = (String) get(a, "value");
                     Type type = Type.getMethodType(method.desc);
                     String desc = type.getArgumentTypes().length == 1
-                            ? type.getArgumentTypes()[0].getDescriptor() : type.getReturnType().getDescriptor();
+                            ? type.getArgumentTypes()[0].getDescriptor()
+                            : type.getReturnType().getDescriptor();
                     requireField(target, name, desc, where + " @Accessor");
                 }
                 case "Inject", "WrapOperation", "Redirect", "ModifyArg", "ModifyVariable" -> {
-                    @SuppressWarnings("unchecked") List<String> names = (List<String>) get(a, "method");
+                    @SuppressWarnings("unchecked")
+                    List<String> names = (List<String>) get(a, "method");
                     if (names != null && names.stream().noneMatch(name -> methodNamed(target, name)))
                         missing.add(target + "." + names + " (" + where + " @" + kind + ")");
                     for (AnnotationNode at : ats(a)) atTarget(at, where);
                 }
-                default -> { }
+                default -> {}
             }
         }
     }
@@ -120,9 +122,10 @@ public final class XaeroApiCheck {
         if ("INVOKE".equals(value)) {
             String name = rest.substring(0, rest.indexOf('(')), desc = rest.substring(rest.indexOf('('));
             if (!desc.contains("Lnet/minecraft/client/") && !desc.contains("Lcom/mojang/")) // named-only alternative
-                requireMethod(owner, name, desc, where + " @At");
+            requireMethod(owner, name, desc, where + " @At");
         } else if ("FIELD".equals(value)) {
-            requireField(owner, rest.substring(0, rest.indexOf(':')), rest.substring(rest.indexOf(':') + 1), where + " @At");
+            requireField(
+                    owner, rest.substring(0, rest.indexOf(':')), rest.substring(rest.indexOf(':') + 1), where + " @At");
         }
     }
 
@@ -167,8 +170,9 @@ public final class XaeroApiCheck {
             if (current == null || !seen.add(current)) continue;
             ClassNode c = xaero.get(current);
             if (c == null) return !current.equals("java/lang/Object");
-            if (method) { for (MethodNode m : c.methods) if (m.name.equals(name) && m.desc.equals(desc)) return true; }
-            else for (FieldNode f : c.fields) if (f.name.equals(name) && f.desc.equals(desc)) return true;
+            if (method) {
+                for (MethodNode m : c.methods) if (m.name.equals(name) && m.desc.equals(desc)) return true;
+            } else for (FieldNode f : c.fields) if (f.name.equals(name) && f.desc.equals(desc)) return true;
             queue.add(c.superName);
             queue.addAll(c.interfaces);
         }

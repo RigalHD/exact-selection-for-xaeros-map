@@ -3,8 +3,10 @@ package dev.exactselection;
 import xaero.lib.common.config.option.ConfigOption;
 import xaero.map.config.primary.option.WorldMapPrimaryClientConfigOptions;
 
+/** Xaero's export settings for the duration of one export of ours, without changing what the user has set. */
 public final class AreaExportConfigOverride {
     public record Values(boolean multipleImages, int scaleDownSquare, boolean highlights, boolean night) {}
+
     private static final ThreadLocal<Values> ACTIVE = new ThreadLocal<>();
 
     private AreaExportConfigOverride() {}
@@ -29,7 +31,9 @@ public final class AreaExportConfigOverride {
         return original;
     }
 
-    @FunctionalInterface public interface Scope extends AutoCloseable {
-        @Override void close();
+    @FunctionalInterface
+    public interface Scope extends AutoCloseable {
+        @Override
+        void close();
     }
 }

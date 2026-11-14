@@ -3,10 +3,13 @@ package dev.exactselection;
 import java.util.ArrayDeque;
 import java.util.Deque;
 
+/** Undo and redo of everything the tool changes: the selection, saved areas and waypoints. At most 100 steps. */
 public final class SelectionHistory {
     public interface Action {
         void undo() throws Exception;
+
         void redo() throws Exception;
+
         String label();
     }
 
@@ -14,10 +17,21 @@ public final class SelectionHistory {
     private final Deque<Action> undo = new ArrayDeque<>();
     private final Deque<Action> redo = new ArrayDeque<>();
 
-    public boolean canUndo() { return !undo.isEmpty(); }
-    public boolean canRedo() { return !redo.isEmpty(); }
-    public String undoLabel() { return canUndo() ? undo.peek().label() : ""; }
-    public String redoLabel() { return canRedo() ? redo.peek().label() : ""; }
+    public boolean canUndo() {
+        return !undo.isEmpty();
+    }
+
+    public boolean canRedo() {
+        return !redo.isEmpty();
+    }
+
+    public String undoLabel() {
+        return canUndo() ? undo.peek().label() : "";
+    }
+
+    public String redoLabel() {
+        return canRedo() ? redo.peek().label() : "";
+    }
 
     public void recordApplied(Action action) {
         undo.push(action);
@@ -40,5 +54,8 @@ public final class SelectionHistory {
         undo.push(action);
     }
 
-    public void clear() { undo.clear(); redo.clear(); }
+    public void clear() {
+        undo.clear();
+        redo.clear();
+    }
 }

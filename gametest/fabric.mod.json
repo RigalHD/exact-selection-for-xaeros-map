@@ -1,0 +1,8 @@
+{
+  "schemaVersion": 1,
+  "id": "exactselection_e2e",
+  "version": "1.0.0",
+  "name": "Exact Selection e2e",
+  "environment": "client",
+  "entrypoints": { "fabric-client-gametest": ["dev.exactselection.MapUiGameTest", "dev.exactselection.BugHuntGameTest"] }
+}

@@ -6,59 +6,107 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-public record PolygonGeometry(List<GridPoint> vertices) implements AreaGeometry {
+/**
+ * A simple polygon through block corners: 3 to 256 vertices, no side crossing or touching another. Immutable; its
+ * bounds and its triangles are worked out once, since both are asked for every frame the polygon is on screen.
+ */
+public final class PolygonGeometry implements AreaGeometry {
     public static final int MAX_VERTICES = 256;
+    private final List<GridPoint> vertices;
+    private final GeometryBounds bounds;
+    /** Filled on the first {@link #triangulate}; a race only computes the same value twice. */
+    private List<List<GridPoint>> triangles;
+
     private static final Map<List<GridPoint>, List<List<GridPoint>>> TRIANGULATIONS =
             Collections.synchronizedMap(new LinkedHashMap<>(128, 0.75f, true) {
-                @Override protected boolean removeEldestEntry(Map.Entry<List<GridPoint>, List<List<GridPoint>>> eldest) {
+                @Override
+                protected boolean removeEldestEntry(Map.Entry<List<GridPoint>, List<List<GridPoint>>> eldest) {
                     return size() > 1024;
                 }
             });
 
-    public PolygonGeometry {
-        vertices = List.copyOf(vertices);
-        validate(vertices);
-    }
-
-    @Override public GeometryBounds bounds() {
+    public PolygonGeometry(List<GridPoint> vertices) {
+        this.vertices = List.copyOf(vertices);
+        validate(this.vertices);
         long minX = Long.MAX_VALUE, minZ = Long.MAX_VALUE, maxX = Long.MIN_VALUE, maxZ = Long.MIN_VALUE;
-        for (GridPoint p : vertices) {
-            minX = Math.min(minX, p.x()); minZ = Math.min(minZ, p.z());
-            maxX = Math.max(maxX, p.x()); maxZ = Math.max(maxZ, p.z());
+        for (GridPoint p : this.vertices) {
+            minX = Math.min(minX, p.x());
+            minZ = Math.min(minZ, p.z());
+            maxX = Math.max(maxX, p.x());
+            maxZ = Math.max(maxZ, p.z());
         }
-        return new GeometryBounds(minX, minZ, maxX, maxZ);
+        bounds = new GeometryBounds(minX, minZ, maxX, maxZ);
     }
 
-    @Override public long areaTwice() { return Math.abs(signedAreaTwice(vertices)); }
+    @Override
+    public List<GridPoint> vertices() {
+        return vertices;
+    }
 
-    @Override public boolean containsPoint(double x, double z) {
+    @Override
+    public GeometryBounds bounds() {
+        return bounds;
+    }
+
+    @Override
+    public boolean equals(Object other) {
+        return other instanceof PolygonGeometry polygon && vertices.equals(polygon.vertices);
+    }
+
+    @Override
+    public int hashCode() {
+        return vertices.hashCode();
+    }
+
+    @Override
+    public String toString() {
+        return "PolygonGeometry[vertices=" + vertices + "]";
+    }
+
+    @Override
+    public long areaTwice() {
+        return Math.abs(signedAreaTwice(vertices));
+    }
+
+    @Override
+    public boolean containsPoint(double x, double z) {
         if (!Double.isFinite(x) || !Double.isFinite(z)) return false;
         boolean inside = false;
         for (int i = 0, j = vertices.size() - 1; i < vertices.size(); j = i++) {
             GridPoint a = vertices.get(j), b = vertices.get(i);
             double cross = (b.x() - a.x()) * (z - a.z()) - (b.z() - a.z()) * (x - a.x());
-            if (Math.abs(cross) < 1.0E-9 && x >= Math.min(a.x(), b.x()) && x <= Math.max(a.x(), b.x())
-                    && z >= Math.min(a.z(), b.z()) && z <= Math.max(a.z(), b.z())) return true;
+            if (Math.abs(cross) < 1.0E-9
+                    && x >= Math.min(a.x(), b.x())
+                    && x <= Math.max(a.x(), b.x())
+                    && z >= Math.min(a.z(), b.z())
+                    && z <= Math.max(a.z(), b.z())) return true;
             if ((a.z() > z) != (b.z() > z) && x < (double) (b.x() - a.x()) * (z - a.z()) / (b.z() - a.z()) + a.x())
                 inside = !inside;
         }
         return inside;
     }
 
-    @Override public AreaGeometry translated(long dx, long dz) {
+    @Override
+    public AreaGeometry translated(long dx, long dz) {
         List<GridPoint> moved = new ArrayList<>(vertices.size());
         for (GridPoint p : vertices) moved.add(new GridPoint(Math.addExact(p.x(), dx), Math.addExact(p.z(), dz)));
         return new PolygonGeometry(moved);
     }
 
-    @Override public List<List<GridPoint>> triangulate() {
+    @Override
+    public List<List<GridPoint>> triangulate() {
+        List<List<GridPoint>> result = triangles;
+        if (result != null) return result;
+        // The shared cache spares an equal polygon read again from the file the work of clipping its ears.
         synchronized (TRIANGULATIONS) {
-            List<List<GridPoint>> cached = TRIANGULATIONS.get(vertices);
-            if (cached != null) return cached;
-            List<List<GridPoint>> result = triangulateUncached();
-            TRIANGULATIONS.put(vertices, result);
-            return result;
+            result = TRIANGULATIONS.get(vertices);
+            if (result == null) {
+                result = triangulateUncached();
+                TRIANGULATIONS.put(vertices, result);
+            }
         }
+        triangles = result;
+        return result;
     }
 
     private List<List<GridPoint>> triangulateUncached() {
@@ -80,7 +128,10 @@ public record PolygonGeometry(List<GridPoint> vertices) implements AreaGeometry 
                 boolean contains = false;
                 for (int index : remaining) {
                     if (index == prev || index == cur || index == next) continue;
-                    if (insideTriangle(points.get(index), a, b, c, ccw)) { contains = true; break; }
+                    if (insideTriangle(points.get(index), a, b, c, ccw)) {
+                        contains = true;
+                        break;
+                    }
                 }
                 if (contains) continue;
                 triangles.add(List.of(a, b, c));
@@ -91,7 +142,8 @@ public record PolygonGeometry(List<GridPoint> vertices) implements AreaGeometry 
             if (!clipped) throw new IllegalStateException("Polygon could not be triangulated");
         }
         if (remaining.size() != 3) throw new IllegalStateException("Polygon triangulation did not finish");
-        triangles.add(List.of(points.get(remaining.get(0)), points.get(remaining.get(1)), points.get(remaining.get(2))));
+        triangles.add(
+                List.of(points.get(remaining.get(0)), points.get(remaining.get(1)), points.get(remaining.get(2))));
         return List.copyOf(triangles);
     }
 
@@ -115,7 +167,8 @@ public record PolygonGeometry(List<GridPoint> vertices) implements AreaGeometry 
     }
 
     private static void validate(List<GridPoint> points) {
-        if (points.size() < 3 || points.size() > MAX_VERTICES) throw new IllegalArgumentException("Polygon needs 3 to 256 vertices");
+        if (points.size() < 3 || points.size() > MAX_VERTICES)
+            throw new IllegalArgumentException("Polygon needs 3 to 256 vertices");
         for (int i = 0; i < points.size(); i++) {
             GridPoint a = points.get(i), b = points.get((i + 1) % points.size());
             if (a.equals(b)) throw new IllegalArgumentException("Polygon has a zero-length edge");
@@ -133,23 +186,29 @@ public record PolygonGeometry(List<GridPoint> vertices) implements AreaGeometry 
         for (int i = 0; i < n; i++) {
             GridPoint a = points.get(i), b = points.get((i + 1) % n);
             for (int j = i + 1; j < n; j++) {
-                if (j == i || j == (i + 1) % n || i == (j + 1) % n) continue;
+                if (j == (i + 1) % n || i == (j + 1) % n) continue;
                 GridPoint c = points.get(j), d = points.get((j + 1) % n);
-                if (segmentsIntersect(a, b, c, d)) throw new IllegalArgumentException("Polygon edges intersect or touch");
+                if (segmentsIntersect(a, b, c, d))
+                    throw new IllegalArgumentException("Polygon edges intersect or touch");
             }
         }
     }
 
     private static boolean segmentsIntersect(GridPoint a, GridPoint b, GridPoint c, GridPoint d) {
         long abC = cross(a, b, c), abD = cross(a, b, d), cdA = cross(c, d, a), cdB = cross(c, d, b);
-        if (((abC > 0 && abD < 0) || (abC < 0 && abD > 0)) && ((cdA > 0 && cdB < 0) || (cdA < 0 && cdB > 0))) return true;
-        return abC == 0 && onSegment(a, c, b) || abD == 0 && onSegment(a, d, b)
-                || cdA == 0 && onSegment(c, a, d) || cdB == 0 && onSegment(c, b, d);
+        if (((abC > 0 && abD < 0) || (abC < 0 && abD > 0)) && ((cdA > 0 && cdB < 0) || (cdA < 0 && cdB > 0)))
+            return true;
+        return abC == 0 && onSegment(a, c, b)
+                || abD == 0 && onSegment(a, d, b)
+                || cdA == 0 && onSegment(c, a, d)
+                || cdB == 0 && onSegment(c, b, d);
     }
 
     private static boolean onSegment(GridPoint a, GridPoint p, GridPoint b) {
-        return p.x() >= Math.min(a.x(), b.x()) && p.x() <= Math.max(a.x(), b.x())
-                && p.z() >= Math.min(a.z(), b.z()) && p.z() <= Math.max(a.z(), b.z());
+        return p.x() >= Math.min(a.x(), b.x())
+                && p.x() <= Math.max(a.x(), b.x())
+                && p.z() >= Math.min(a.z(), b.z())
+                && p.z() <= Math.max(a.z(), b.z());
     }
 
     private static boolean insideTriangle(GridPoint p, GridPoint a, GridPoint b, GridPoint c, boolean ccw) {
@@ -161,15 +220,18 @@ public record PolygonGeometry(List<GridPoint> vertices) implements AreaGeometry 
         long area = 0;
         for (int i = 0; i < points.size(); i++) {
             GridPoint a = points.get(i), b = points.get((i + 1) % points.size());
-            area = Math.addExact(area, Math.subtractExact(Math.multiplyExact(a.x(), b.z()), Math.multiplyExact(b.x(), a.z())));
+            area = Math.addExact(
+                    area, Math.subtractExact(Math.multiplyExact(a.x(), b.z()), Math.multiplyExact(b.x(), a.z())));
         }
         return area;
     }
 
     private static long cross(GridPoint a, GridPoint b, GridPoint c) {
-        return Math.subtractExact(Math.multiplyExact(b.x() - a.x(), c.z() - a.z()),
-                Math.multiplyExact(b.z() - a.z(), c.x() - a.x()));
+        return Math.subtractExact(
+                Math.multiplyExact(b.x() - a.x(), c.z() - a.z()), Math.multiplyExact(b.z() - a.z(), c.x() - a.x()));
     }
 
-    private static boolean between(long a, long b, long c) { return b >= Math.min(a, c) && b <= Math.max(a, c); }
+    private static boolean between(long a, long b, long c) {
+        return b >= Math.min(a, c) && b <= Math.max(a, c);
+    }
 }

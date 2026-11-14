@@ -5,6 +5,8 @@ import java.util.List;
 import xaero.common.minimap.waypoints.Waypoint;
 import xaero.hud.minimap.waypoint.set.WaypointSet;
 
+// Xaero's older waypoint accessors, as the bridge under test uses them.
+@SuppressWarnings("deprecation")
 public final class WaypointDeletionCheck {
     public static void main(String[] args) throws Exception {
         // Identical names must not cause deletion of unselected objects.
@@ -22,31 +24,42 @@ public final class WaypointDeletionCheck {
         });
         assert writes[0] == 1 && set.size() == 1 && set.get(0) == c;
 
-        set.clear(); set.addAll(List.of(a, b, c)); writes[0] = 0;
+        set.clear();
+        set.addAll(List.of(a, b, c));
+        writes[0] = 0;
         try {
             XaeroWaypointBridge.deleteAndSave(snapshot, () -> {
                 if (++writes[0] == 1) throw new IOException("simulated full disk");
                 assert set.get(0) == a && set.get(1) == b && set.get(2) == c;
             });
             throw new AssertionError("Save failure was swallowed");
-        } catch (IOException expected) { }
+        } catch (IOException expected) {
+        }
         assert writes[0] == 2 && set.size() == 3;
         assert set.get(0) == a && set.get(1) == b && set.get(2) == c;
 
         // Do not accept a stale confirmation when the point was edited.
         a.setX(999);
         try {
-            XaeroWaypointBridge.deleteAndSave(snapshot, () -> { throw new AssertionError("Must not write stale selection"); });
+            XaeroWaypointBridge.deleteAndSave(snapshot, () -> {
+                throw new AssertionError("Must not write stale selection");
+            });
             throw new AssertionError("Changed waypoint was accepted");
-        } catch (IllegalStateException expected) { }
+        } catch (IllegalStateException expected) {
+        }
         assert set.size() == 3;
         a.setX(0);
         try {
-            XaeroWaypointBridge.deleteAndSave(snapshot, () -> { throw new IOException("disk unavailable"); });
+            XaeroWaypointBridge.deleteAndSave(snapshot, () -> {
+                throw new IOException("disk unavailable");
+            });
             throw new AssertionError("Persistent save failure was swallowed");
-        } catch (IOException expected) { assert expected.getSuppressed().length == 1; }
+        } catch (IOException expected) {
+            assert expected.getSuppressed().length == 1;
+        }
         assert set.size() == 3 && set.get(0) == a && set.get(1) == b && set.get(2) == c;
-        System.out.println("PASS: identity deletion, hidden points, failed-save restoration, stale-confirmation rejection");
+        System.out.println(
+                "PASS: identity deletion, hidden points, failed-save restoration, stale-confirmation rejection");
     }
 
     private static WaypointAccess.Point point(Waypoint w) {

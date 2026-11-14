@@ -8,6 +8,9 @@
   "license": "MIT",
   "icon": "assets/xaero_exact_selection/icon.png",
   "entrypoints": {
+    "client": [
+      "dev.exactselection.ToolKeys"
+    ],
     "modmenu": [
       "dev.exactselection.ModMenuIntegration"
     ]
@@ -24,7 +27,8 @@
     "xaeroworldmap": ">=1.40.4 <1.48.0"
   },
   "suggests": {
-    "xaerominimap": ">=25.3.5"
+    "xaerominimap": ">=25.3.5",
+    "modmenu": "*"
   },
   "authors": [
     "rigalshd"
@@ -33,5 +37,12 @@
     "homepage": "https://github.com/RigalHD/xaero-exact-selection",
     "sources": "https://github.com/RigalHD/xaero-exact-selection",
     "issues": "https://github.com/RigalHD/xaero-exact-selection/issues"
+  },
+  "custom": {
+    "modmenu": {
+      "links": {
+        "modmenu.github_releases": "https://github.com/RigalHD/xaero-exact-selection/releases"
+      }
+    }
   }
 }

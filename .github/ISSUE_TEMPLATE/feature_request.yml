@@ -1,0 +1,24 @@
+name: Idea / Идея
+description: Suggest a feature or an improvement / Предложить возможность или улучшение
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        You can write in English or in Russian. Planned work is listed in docs/ROADMAP.md.
+        Можно писать по-английски или по-русски. Что уже запланировано, описано в docs/ROADMAP.md.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What do you want to do? / Что вы хотите сделать?
+      description: The task in the game, not the button you imagine. / Задача в игре, а не кнопка, которую вы себе представляете.
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: How could the mod help? / Как мод мог бы помочь?
+  - type: textarea
+    id: now
+    attributes:
+      label: How do you do it now? / Как вы делаете это сейчас?

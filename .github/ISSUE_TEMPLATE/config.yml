@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Download the latest release / Скачать последнюю версию
+    url: https://github.com/RigalHD/xaero-exact-selection/releases/latest
+    about: The mod's JAR and what changed in it. / JAR мода и список изменений.

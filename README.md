@@ -2,6 +2,12 @@
 
 # Exact Selection for Xaero's map
 
+[![Build](https://github.com/RigalHD/xaero-exact-selection/actions/workflows/build.yml/badge.svg)](https://github.com/RigalHD/xaero-exact-selection/actions/workflows/build.yml)
+[![Release](https://img.shields.io/github/v/release/RigalHD/xaero-exact-selection)](https://github.com/RigalHD/xaero-exact-selection/releases/latest)
+![Minecraft 1.21.11](https://img.shields.io/badge/Minecraft-1.21.11-62b47a)
+![Fabric](https://img.shields.io/badge/loader-Fabric-dbd0b4)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+
 **English** | [Русский](README.ru.md)
 
 A client-side Fabric addon for Minecraft **1.21.11** that adds precise area selection, saved zones, groups, and PNG map exports to Xaero’s World Map.
@@ -9,6 +15,10 @@ A client-side Fabric addon for Minecraft **1.21.11** that adds precise area sele
 Create rectangles or custom polygons, edit their boundaries, and display your saved areas on both the world map and minimap.
 
 **This is an unofficial addon, not affiliated with or endorsed by Xaero.**
+
+**[Download the latest release](https://github.com/RigalHD/xaero-exact-selection/releases/latest)**
+
+<p align="center"><img src="docs/images/en/overview.png" alt="The expanded selection panel over Xaero's World Map, with saved areas, a polygon and a route" width="800"></p>
 
 ## Features
 
@@ -22,8 +32,22 @@ Create rectangles or custom polygons, edit their boundaries, and display your sa
 - **Waypoint tools:** manage Xaero waypoints inside the selection or across the whole set.
 - **Settings in Mod Menu:** autosave and copy rounding, also available from the Areas window.
 
+## Screenshots
+
+<table>
+<tr>
+<td width="50%"><img src="docs/images/en/area-menu.png" alt="Right-click menu of a saved area"><br><sub>Right-click menu of a saved area</sub></td>
+<td width="50%"><img src="docs/images/en/areas.png" alt="The Areas window"><br><sub>The Areas window</sub></td>
+</tr>
+<tr>
+<td width="50%"><img src="docs/images/en/ruler.png" alt="The ruler, with the distance in the Nether"><br><sub>The ruler, with the distance in the Nether</sub></td>
+<td width="50%"><img src="docs/images/en/polygon.png" alt="Drawing a polygon"><br><sub>Drawing a polygon</sub></td>
+</tr>
+</table>
+
 ## Installation and compatibility
 
+- Download the JAR from [Releases](https://github.com/RigalHD/xaero-exact-selection/releases/latest).
 - Minecraft **1.21.11**, Java **21**, Fabric Loader **0.17.3+**, and Fabric API **0.139.4+** for this Minecraft version.
 - Xaero’s World Map **1.40.4 – 1.47.x** is required, together with the XaeroLib version that World Map asks for.
 - Xaero’s Minimap **25.3.5 or newer** is optional. It enables minimap overlays and waypoint creation/editing/deletion. Every Minimap release for 1.21.11 up to 26.6.2 has been checked. If a future Minimap changes the parts the addon uses, only the minimap overlay and waypoint features turn off; the game still starts.
@@ -189,7 +213,11 @@ The checks run under JUnit as part of `./gradlew build`; the report is in `build
 
 In-game scenarios in `gametest/` drive the tool in a real client; they are not part of the build and run with `./gradlew -PgameTest runClientGameTest`.
 
-Tests cover geometry, saved-area persistence, waypoint write rollback, editing/undo, localization, and UI widget layouts at 320×240, 480×270 and 960×540. They do not establish visual correctness in a running Minecraft client.
+Tests cover geometry, saved-area persistence, waypoint write rollback, editing/undo, localization, and UI widget layouts at 320×240, 480×270 and 960×540. They run without a game; the in-game scenarios above check drawing and input in a real client.
+
+## Contributing
+
+Bug reports and ideas go to [issues](https://github.com/RigalHD/xaero-exact-selection/issues/new/choose); English and Russian are both fine. How to build, check and send a change is described in [CONTRIBUTING.md](CONTRIBUTING.md). Planned work is in [docs/ROADMAP.md](docs/ROADMAP.md) (in Russian).
 
 ## License
 
